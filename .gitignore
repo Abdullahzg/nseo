@@ -43,3 +43,6 @@ next-env.d.ts
 
 # original source archive (baseline provenance; kept out of git)
 /seo_email-main.zip
+
+# python venv
+/.venv/

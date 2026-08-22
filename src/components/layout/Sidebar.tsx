@@ -57,6 +57,7 @@ const NAV_GROUPS: Array<{
   {
     label: "Outreach",
     items: [
+      { name: "Autonomous Campaigns", href: "/campaigns/autonomous", icon: Bot },
       { name: "Backlink Outreach", href: "/backlinks", icon: Link2, exact: true },
       { name: "Status", href: "/sending", icon: Activity },
       { name: "Inbox", href: "/inbox", icon: Inbox },
