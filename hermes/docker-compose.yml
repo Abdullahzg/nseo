@@ -1,0 +1,20 @@
+# Summit Hermes via Docker, matching forge's security posture.
+#
+# The published port is bound to 127.0.0.1 ON THE HOST, not to every interface. That is the whole point:
+# inside the container uvicorn must listen on 0.0.0.0 (a container-local 127.0.0.1 would be unreachable
+# even from the host), so the isolation has to happen at the publish step instead.
+#
+#   "127.0.0.1:8103:8103"   Caddy on the host can reach it. The internet cannot.
+#   "8103:8103"             would publish it to every interface and silently bypass the password gate.
+#
+# Run:  docker compose up -d --build
+services:
+  hermes:
+    build: .
+    image: summit-hermes
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:8103:8103"
+    restart: unless-stopped

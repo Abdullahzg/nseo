@@ -1,0 +1,34 @@
+# Summit Hermes — Caddy site block.
+#
+# Mirrors forge's production shape (infra/deploy/Caddyfile.chatly.snippet): uvicorn binds 127.0.0.1 and
+# is NOT reachable from the internet; Caddy is the only public door, and it carries a basic_auth password
+# gate in front of the app's own bearer-token check.
+#
+# Why two layers rather than one. The bearer token is the app's authentication and it is genuinely
+# checked. But this agent can spend enrichment credits, generate paid images and read the outreach
+# database, and it sits on a public hostname. A single long-lived secret in a header is one leaked
+# curl command, one screenshot, or one log file away from being someone else's. forge made the same
+# call for an agent that spends ad budget, and there is no reason ours deserves less.
+#
+# Install:
+#   1. Append this block to the Caddyfile on the host, next to the existing site blocks.
+#   2. Generate the password hash:  caddy hash-password
+#   3. Paste it below, uncomment the basic_auth block, then:  caddy reload
+#
+# The /health exemption is deliberate: a load balancer and Summit's own /api/hermes/status both need to
+# read it unauthenticated, and it reports only whether each credential is PRESENT, never its value.
+summit-api.imagine.art {
+	# Public, unauthenticated liveness. Reports presence of credentials, never values.
+	handle /health {
+		reverse_proxy 127.0.0.1:8103
+	}
+
+	# Everything else sits behind the password gate.
+	handle {
+		# --- password gate: generate with `caddy hash-password`, then uncomment ---
+		# basic_auth {
+		# 	summit <bcrypt-hash>
+		# }
+		reverse_proxy 127.0.0.1:8103
+	}
+}

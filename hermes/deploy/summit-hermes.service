@@ -1,0 +1,28 @@
+# Summit Hermes (agent) — systemd unit.
+#
+# Mirrors forge-chatly-hermes.service. The two things that matter:
+#
+#   --host 127.0.0.1   The service is NOT reachable from the internet. Caddy is the only public door
+#                      (see Caddyfile.summit-hermes.snippet). Changing this to 0.0.0.0 silently removes
+#                      the password gate, because the internet can then bypass Caddy entirely.
+#
+#   Port 8103          Not forge's 8003/8013. If both ever land on one host, muscle memory is how a
+#                      Summit deploy ends up pointed at the ads agent.
+#
+# Secrets live in an EnvironmentFile on the box, never in this unit and never committed — a unit file is
+# world-readable, an env file can be chmod 600.
+[Unit]
+Description=Summit Hermes (agent)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+WorkingDirectory=/root/summit/hermes
+EnvironmentFile=/root/summit/hermes/.env
+ExecStart=/usr/local/bin/uvicorn server:app --host 127.0.0.1 --port 8103
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

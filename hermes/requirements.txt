@@ -1,0 +1,9 @@
+anthropic>=0.40.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+httpx>=0.27.0
+
+# Optional but strongly recommended: reading bot-protected pages is Hermes's whole edge over Summit's
+# own fetch. Without it /v1/scrape degrades to plain HTTP and reports neededBrowser=false.
+# Install with:  pip install playwright && playwright install chromium
+playwright>=1.48.0

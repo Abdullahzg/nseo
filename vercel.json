@@ -1,0 +1,11 @@
+{
+  "git": {
+    "deploymentEnabled": false
+  },
+  "crons": [
+    {
+      "path": "/api/emails/process",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}
