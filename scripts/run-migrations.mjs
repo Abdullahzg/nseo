@@ -2,8 +2,9 @@
 // Executes every scripts/NNN_*.mjs in numeric order against DATABASE_URL.
 // All migrations are idempotent, so this is safe to re-run after partial failures.
 import { execFileSync } from "child_process";
-import { readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { join, basename } from "path";
+import pg from "pg";
 import * as dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
@@ -16,6 +17,27 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// 1) Plain-SQL migrations (e.g. migrations/001_initial.sql) run FIRST — the numbered
+//    scripts ALTER tables those files create.
+const sqlDir = resolve(__dirname, "../migrations");
+const sqlFiles = readdirSync(sqlDir).filter((f) => f.endsWith(".sql")).sort();
+{
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  for (const f of sqlFiles) {
+    console.log(`▶ ${basename(f)} (sql)`);
+    try {
+      await client.query(readFileSync(join(sqlDir, f), "utf8"));
+    } catch (e) {
+      // Idempotent DDL should not fail; anything that does aborts loudly.
+      console.error(`✗ ${f} failed: ${e.message}`);
+      process.exit(1);
+    }
+  }
+  await client.end();
+}
+
+// 2) Numbered .mjs migration scripts in numeric order (each idempotent).
 const SKIP = new Set(["run-migrations.mjs", "setup-qstash.mjs"]);
 const files = readdirSync(__dirname)
   .filter((f) => /^\d{3}_.*\.mjs$/.test(f) && !SKIP.has(f))

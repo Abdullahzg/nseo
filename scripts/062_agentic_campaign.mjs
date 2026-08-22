@@ -1,7 +1,7 @@
 // Run: node scripts/062_agentic_campaign.mjs
 //
 // Agentic campaign layer for the hackathon build (NEW work — see docs/PREEXISTING_WORK.md).
-// Extends the existing `campaigns` table into an autonomous-workflow objective, and adds:
+// Extends the existing campaigns table into an autonomous-workflow objective, and adds:
 //   campaign_prospects   per-prospect funnel state + opportunity score + discovery provenance
 //   deals                structured deal terms (never "CLOSED because sounds good")
 //   interventions        durable human-in-the-loop requests/resumptions
@@ -39,7 +39,7 @@ await client.query(`
     ADD COLUMN IF NOT EXISTS constraints_text text,
     ADD COLUMN IF NOT EXISTS autonomy_mode text NOT NULL DEFAULT 'autonomous', -- autonomous|assisted|manual
     ADD COLUMN IF NOT EXISTS policy jsonb NOT NULL DEFAULT '{}',
-    -- execution: phase is the agentic lifecycle; legacy `status` stays untouched
+    -- execution: phase is the agentic lifecycle; legacy status column stays untouched
     ADD COLUMN IF NOT EXISTS phase text NOT NULL DEFAULT 'draft',
       -- draft|planning|discovering|qualifying|resolving_contacts|outreaching|monitoring|completing|completed|stopped|failed
     ADD COLUMN IF NOT EXISTS completion_reason text,
