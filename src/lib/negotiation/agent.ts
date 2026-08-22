@@ -21,7 +21,7 @@ async function llm(prompt: string, maxTokens = 400, temperature = 0.4): Promise<
 
 // Enforce "no em/en dashes" (and tidy spacing) on every generated email, regardless of what
 // the model returns. em dash and en dash become commas; stray doubles get cleaned up.
-function sanitizeBody(s: string): string {
+export function sanitizeBody(s: string): string {
   return s
     .replace(/\s*[—–]\s*/g, ", ")
     .replace(/[—–]/g, ", ")

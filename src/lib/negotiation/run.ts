@@ -40,7 +40,9 @@ export interface NegotiationResult {
 // Generate (and, when autonomy is ON, immediately SEND) the AI's next negotiation reply for a
 // thread. Used by the Negotiation page button AND the send-processor's auto-negotiation loop.
 // forceDraft = never auto-send even if autonomy is on (the "just draft it" path).
-export async function negotiateThread(emailId: string, opts?: { forceDraft?: boolean; assistInput?: string | null }): Promise<NegotiationResult> {
+// autonomyOverride = campaign-scoped autonomy (agentic campaigns drive their own threads
+// without flipping the global singleton, so legacy cron loops can't double-answer).
+export async function negotiateThread(emailId: string, opts?: { forceDraft?: boolean; assistInput?: string | null; autonomyOverride?: boolean }): Promise<NegotiationResult> {
   const base: NegotiationResult = { ok: false, ceiling: null, suggestedOffer: null, statusHint: null, intent: null, autonomy: false, persistedAs: "draft", sent: false };
   const assisting = !!(opts?.assistInput && opts.assistInput.trim());
 
@@ -132,7 +134,7 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
   }
 
   const subject = /^re:/i.test(initial.subject ?? "") ? initial.subject : `Re: ${initial.subject ?? "(no subject)"}`;
-  const autonomy = settings.ai_autonomy && !opts?.forceDraft && cls.intent !== "hard_no" && cls.intent !== "unsubscribe" && cls.intent !== "needs_human";
+  const autonomy = (opts?.autonomyOverride ?? settings.ai_autonomy) && !opts?.forceDraft && cls.intent !== "hard_no" && cls.intent !== "unsubscribe" && cls.intent !== "needs_human";
 
   const { data: mc } = await supabaseAdmin.from("contacts").select("value").eq("author_id", initial.author_id).eq("type", "mailto").limit(1).maybeSingle();
   // Test-send override on the initial keeps the whole AI thread on the test address.
