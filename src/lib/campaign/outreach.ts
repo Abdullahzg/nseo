@@ -145,6 +145,10 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   }
 
   const demo = !!camp.demo_mode;
+  if (demo) {
+    // Pre-assign the simulated publisher persona for this thread's scenario.
+    try { const { assignDemoPersona } = await import("./demo"); await assignDemoPersona(prospectId); } catch {}
+  }
   const row: Record<string, unknown> = {
     workflow_id: workflowId,
     author_id: authorId,
@@ -390,15 +394,30 @@ export async function processRepliesTick(
   if (camp.emergency_stopped) { out.errors.push("emergency stop"); return out; }
 
   if (opts.detectReplies !== false) {
-    try {
-      const { runReplyDetection } = await import("@/lib/email/imap");
-      const r = await runReplyDetection();
-      out.detected = r.repliesFound ?? 0;
-      await emitEvent(campaignId, "inbox_triage", "reply_sweep", {
-        tool: "imap.runReplyDetection", detail: { accounts: r.accountsChecked, found: r.repliesFound },
-      });
-    } catch (e: any) {
-      out.errors.push(`reply detection: ${e?.message}`);
+    if (camp.demo_mode) {
+      // Demo mode: simulated publisher personas inject through the REAL reply-recording
+      // path; no IMAP is touched and nothing external ever sees these threads.
+      try {
+        const { injectDemoReplies } = await import("./demo");
+        const n = await injectDemoReplies(campaignId);
+        out.detected = n;
+        if (n > 0) {
+          await emitEvent(campaignId, "inbox_triage", "demo_replies_injected", { detail: { count: n, simulated: true } });
+        }
+      } catch (e: any) {
+        out.errors.push(`demo injection: ${e?.message}`);
+      }
+    } else {
+      try {
+        const { runReplyDetection } = await import("@/lib/email/imap");
+        const r = await runReplyDetection();
+        out.detected = r.repliesFound ?? 0;
+        await emitEvent(campaignId, "inbox_triage", "reply_sweep", {
+          tool: "imap.runReplyDetection", detail: { accounts: r.accountsChecked, found: r.repliesFound },
+        });
+      } catch (e: any) {
+        out.errors.push(`reply detection: ${e?.message}`);
+      }
     }
   }
 
