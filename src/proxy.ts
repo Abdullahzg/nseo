@@ -8,6 +8,11 @@ export async function proxy(req: NextRequest) {
   const isHealth = nextUrl.pathname === "/api/health";
   const isLoginPage = nextUrl.pathname === "/login";
 
+  // When GOOGLE_CLIENT_ID is not configured, auth is fully bypassed (demo mode).
+  // This lets the system run without any OAuth setup — no login screen, no session needed.
+  const authConfigured = !!process.env.GOOGLE_CLIENT_ID?.trim();
+  if (!authConfigured) return NextResponse.next();
+
   // Automated callers (Vercel cron + Upstash QStash) hit the send-processor with a
   // CRON_SECRET Bearer / ?key= instead of a session cookie. Let them past the login
   // redirect — the route still validates the secret itself.

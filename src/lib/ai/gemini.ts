@@ -36,8 +36,25 @@ export function llmProvider(): LLMProvider {
   return "none";
 }
 
+/** Check provider with runtime settings (cached). */
+export async function llmProviderAsync(): Promise<LLMProvider> {
+  const runtime = await getRuntimeAIConfig().catch(() => null);
+  const gk = runtime?.gemini_api_key || process.env.GEMINI_API_KEY;
+  if (gk && gk.length > 10) return "gemini";
+  const ok = process.env.OPENROUTER_API_KEY;
+  if (ok && ok.length > 20) return "openrouter";
+  const grk = runtime?.groq_api_key || process.env.GROQ_API_KEY;
+  if (grk && grk.length > 20) return "groq";
+  return "none";
+}
+
 // ── Runtime AI settings (Settings UI writes; read-through with a short cache) ──
-export interface RuntimeAIConfig { gemini_api_key?: string | null; gemini_model?: string | null }
+export interface RuntimeAIConfig {
+  gemini_api_key?: string | null;
+  gemini_model?: string | null;
+  groq_api_key?: string | null;
+  groq_model?: string | null;
+}
 
 let _runtimeCache: { at: number; value: RuntimeAIConfig | null } | null = null;
 
@@ -51,7 +68,7 @@ async function getRuntimeAIConfig(): Promise<RuntimeAIConfig | null> {
     const { supabaseAdmin } = await import("@/lib/db/supabase");
     const { data } = await supabaseAdmin
       .from("app_settings")
-      .select("gemini_api_key, gemini_model")
+      .select("gemini_api_key, gemini_model, groq_api_key, groq_model")
       .eq("id", true)
       .maybeSingle();
     _runtimeCache = { at: Date.now(), value: (data as RuntimeAIConfig) ?? null };
@@ -137,17 +154,19 @@ async function openRouterCall(
 
 async function groqCall(
   prompt: string,
-  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number }
+  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number },
+  runtimeKey?: string | null,
+  runtimeModel?: string | null,
 ): Promise<string | null> {
-  const key = process.env.GROQ_API_KEY;
+  const key = runtimeKey || process.env.GROQ_API_KEY;
   if (!key || key.length < 20) return null;
+  const model = (runtimeModel || DEFAULT_GROQ_MODEL).trim();
   try {
-    // Groq exposes an OpenAI-compatible endpoint.
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: DEFAULT_GROQ_MODEL,
+        model,
         messages: [{ role: "user", content: prompt }],
         max_tokens: opts.maxTokens ?? 512,
         temperature: opts.temperature ?? 0.4,
@@ -183,8 +202,8 @@ export async function llmText(
     const text = await openRouterCall(prompt, opts);
     if (text != null) return { text, provider: "openrouter", model: DEFAULT_OPENROUTER_MODEL };
   }
-  const groqText = await groqCall(prompt, opts);
-  if (groqText != null) return { text: groqText, provider: "groq", model: DEFAULT_GROQ_MODEL };
+  const groqText = await groqCall(prompt, opts, runtime?.groq_api_key, runtime?.groq_model);
+  if (groqText != null) return { text: groqText, provider: "groq", model: runtime?.groq_model || DEFAULT_GROQ_MODEL };
   return null;
 }
 

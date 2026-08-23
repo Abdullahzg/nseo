@@ -37,23 +37,23 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+  const session = await auth().catch(() => null);
+  const authConfigured = !!process.env.GOOGLE_CLIENT_ID?.trim();
+  const user = session?.user ?? (authConfigured ? null : { name: "Demo User", email: "demo@local" });
 
   return (
     <html lang="en" className={sans.variable} suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <SessionProvider session={session}>
-            {session?.user && <RouteProgress />}
-            {session?.user && <UsageTracker />}
+            {user && <RouteProgress />}
+            {user && <UsageTracker />}
             <div className="flex h-svh overflow-hidden text-foreground">
-              {session?.user && <Sidebar />}
+              {user && <Sidebar />}
               <div className="flex min-h-0 flex-1 flex-col min-w-0 py-4 pr-4 pl-4 lg:pl-0">
-                {session?.user && <TopNav />}
-                {session?.user && <KeyHealthBanner />}
+                {user && <TopNav />}
+                {user && <KeyHealthBanner />}
                 <main className="min-h-0 flex-1 overflow-y-auto">
-                  {/* Width is per-route: see PageContainer. The blog composer needs the whole
-                      viewport for its two-pane editor; everything else keeps a reading measure. */}
                   <PageContainer>{children}</PageContainer>
                 </main>
               </div>

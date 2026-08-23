@@ -40,10 +40,16 @@ export type Caller =
 /**
  * Identify the caller, or null if unauthenticated.
  *
+ * When GOOGLE_CLIENT_ID is not set (demo mode), returns a synthetic demo user —
+ * no OAuth needed, no login screen, full access.
+ *
  * Prefers the machine credentials because they are a cheap string compare, where `auth()` is a
  * round trip — an agent making forty tool calls should not pay for forty session lookups.
  */
 export async function identifyCaller(req: NextRequest): Promise<Caller> {
+  // Demo mode: no OAuth configured → everyone is a demo user
+  if (!process.env.GOOGLE_CLIENT_ID?.trim()) return { kind: "user", email: "demo@local" };
+
   const header = req.headers.get("authorization") ?? "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
 
@@ -52,8 +58,6 @@ export async function identifyCaller(req: NextRequest): Promise<Caller> {
 
   const cron = process.env.CRON_SECRET?.trim();
   if (cron) {
-    // `?key=` is supported because external schedulers often cannot set headers. Query strings land in
-    // access logs, so it is accepted for cron only — never for the agent token.
     const viaQuery = req.nextUrl.searchParams.get("key") ?? "";
     if ((bearer && safeEqual(bearer, cron)) || (viaQuery && safeEqual(viaQuery, cron))) {
       return { kind: "cron" };

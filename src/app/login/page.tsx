@@ -2,7 +2,8 @@
 
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SummitMark } from "@/components/brand/SummitMark";
@@ -11,25 +12,29 @@ function LoginContent() {
   const params = useSearchParams();
   const error = params.get("error");
   const email = params.get("email");
+  const router = useRouter();
+
+  // In demo mode (no GOOGLE_CLIENT_ID), skip login entirely
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+      router.replace("/");
+    }
+  }, [router]);
 
   return (
-    // `h-full`, not `min-h-screen`: the root layout already sizes `main` to `h-svh` and this page
-    // sits inside it. `min-h-screen` on top of that fixed-height ancestor is exactly the phantom-scroll
-    // bug that was fixed everywhere else in the app — a few extra pixels of intrinsic height would make
-    // an unauthenticated visitor's very first screen scroll for no reason.
     <div className="flex h-full items-center justify-center">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center text-center gap-2">
           <SummitMark className="h-10 w-10 mb-1" />
           <h1 className="text-2xl font-light tracking-tight">Summit</h1>
-          <p className="text-sm text-muted-foreground">SEO, content and outreach engine for imagine.art</p>
+          <p className="text-sm text-muted-foreground">SEO, content and outreach engine</p>
         </div>
 
         <Card className="glass-panel">
           <CardHeader className="text-center pb-4">
             <CardTitle>Sign in</CardTitle>
             <CardDescription>
-              Use your <strong className="text-foreground">@imagine.art</strong> Google account
+              Use your Google account to continue
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -37,7 +42,7 @@ function LoginContent() {
               <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {error === "domain" ? (
                   <>
-                    Access restricted to <strong>@imagine.art</strong> accounts.
+                    Access restricted to allowed accounts.
                     {email && <span className="block mt-1 text-xs opacity-75">{email} is not allowed.</span>}
                   </>
                 ) : (
@@ -61,7 +66,7 @@ function LoginContent() {
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
-              Internal tool — imagine.art accounts only
+              Demo mode: login is bypassed when no OAuth is configured
             </p>
           </CardContent>
         </Card>

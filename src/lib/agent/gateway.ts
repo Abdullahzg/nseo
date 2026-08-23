@@ -8,10 +8,12 @@ import { auth } from "@auth";
  *  - cron/ops triggers via CRON_SECRET (header or ?key=) — parity with legacy job endpoints
  *  - a signed-in app session (UI-driven tool invocations)
  *
- * This is the server-side policy boundary: agents can only act through these
- * endpoints, and every mutating endpoint re-checks campaign state itself.
+ * When GOOGLE_CLIENT_ID is not set, all requests are allowed (demo mode).
  */
 export async function authorizeAgent(req: NextRequest): Promise<{ ok: boolean; via: string }> {
+  // Demo mode: no OAuth configured → everything allowed
+  if (!process.env.GOOGLE_CLIENT_ID?.trim()) return { ok: true, via: "demo" };
+
   const header = req.headers.get("authorization") ?? "";
   const agentToken = process.env.AGENT_SERVICE_TOKEN;
   if (agentToken && header === `Bearer ${agentToken}`) return { ok: true, via: "agent-service" };
