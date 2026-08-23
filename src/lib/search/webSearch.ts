@@ -13,6 +13,7 @@ export function searchProvider(): string | null {
   if (process.env.GOOGLE_CSE_KEY && process.env.GOOGLE_CSE_CX) return "google";
   if (process.env.BRAVE_SEARCH_API_KEY) return "brave";
   if (process.env.SERPER_API_KEY) return "serper";
+  if (process.env.GEMINI_API_KEY) return "gemini"; // google_search grounding — real results, no extra key
   return null;
 }
 
@@ -89,6 +90,43 @@ export async function webSearch(query: string, count = 8, signal?: AbortSignal, 
       if (!res.ok) { fail(res); return []; }
       const d = await res.json();
       return (d.organic ?? []).map((r: any) => ({ url: r.link, title: r.title ?? "", snippet: (r.snippet ?? "").slice(0, 300) })).filter((h: SearchHit) => h.url?.startsWith("http"));
+    }
+
+    if (provider === "gemini") {
+      // Gemini google_search grounding: real Google-backed results using only GEMINI_API_KEY.
+      // Citations come back in groundingMetadata.groundingChunks[].web.
+      const key = process.env.GEMINI_API_KEY!;
+      const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `List web pages: ${query}` }] }],
+              tools: [{ google_search: {} }],
+            }),
+            signal: AbortSignal.timeout(25_000),
+          }
+        );
+        if (!res.ok) { fail(res); return []; }
+        const d = await res.json();
+        const chunks = d?.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+        const seen = new Set<string>();
+        const hits: SearchHit[] = [];
+        for (const c of chunks) {
+          const w = c?.web;
+          if (!w?.uri?.startsWith("http") || seen.has(w.uri)) continue;
+          seen.add(w.uri);
+          hits.push({ url: w.uri, title: w.title ?? "", snippet: "" });
+          if (hits.length >= count) break;
+        }
+        return hits;
+      } catch (e: any) {
+        onError?.(e?.name === "TimeoutError" ? "gemini search timed out" : (e?.message ?? "gemini search error"));
+        return [];
+      }
     }
 
     return [];

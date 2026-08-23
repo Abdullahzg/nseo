@@ -95,6 +95,17 @@ await client.query(`
   CREATE INDEX IF NOT EXISTS idx_outreach_author ON outreach_emails (author_id);
   CREATE INDEX IF NOT EXISTS idx_outreach_workflow ON outreach_emails (workflow_id);
 
+  -- Relationship needed by PostgREST embeds (negotiation + inbox select
+  -- author:authors(...domain:domains(...))). workflow_id intentionally has NO FK:
+  -- standalone threads (inbox compose) reference a shared workflow by convention.
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_outreach_author') THEN
+      ALTER TABLE outreach_emails
+        ADD CONSTRAINT fk_outreach_author FOREIGN KEY (author_id)
+        REFERENCES authors(id) ON DELETE SET NULL;
+    END IF;
+  END $$;
+
   -- ─── email_templates ────────────────────────────────────────────────────────
   CREATE TABLE IF NOT EXISTS email_templates (
     id         uuid PRIMARY KEY DEFAULT uuid_generate_v4(),

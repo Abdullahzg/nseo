@@ -16,6 +16,10 @@ export const RELEVANCE_MIN = 40; // 0-100 topical-relevance bar (proxy for ">=5 
 
 export interface QualifyInput {
   dr: number | null;            // real Ahrefs DR, or null if not checked yet
+  drUnavailable?: boolean;      // true = no Ahrefs provider configured at all; DR gate then
+                                // passes-as-unverified instead of failing (never block a whole
+                                // campaign on a missing paid/free key — measured data still
+                                // tightens tiers later once a source is connected)
   organicTraffic: number | null; // monthly organic visits, or null if unverified
   usTrafficShare: number | null; // 0-100, or null if unverified
   relevance: number;             // 0-100 (from the score model — blends LLM + keyword + mentions)
@@ -40,7 +44,7 @@ export interface Qualification {
 }
 
 export function qualifyProspect(i: QualifyInput): Qualification {
-  const drPass = i.dr != null && i.dr >= DR_MIN;
+  const drPass = i.dr != null ? i.dr >= DR_MIN : i.drUnavailable === true;
   const trafficPass = i.organicTraffic == null ? null : i.organicTraffic >= TRAFFIC_MIN;
   const usPass = i.usTrafficShare == null ? null : i.usTrafficShare > US_MIN;
   // Relevancy: strong topical relevance OR clearly wrote about the space (>=5 mentions).
@@ -69,7 +73,7 @@ export function qualifyProspect(i: QualifyInput): Qualification {
   const fit = Math.round(parts.reduce((s, p) => s + p.w * p.v, 0) / wsum);
 
   const checks: Qualification["checks"] = [
-    { label: `DR ≥ ${DR_MIN}`, state: i.dr == null ? "unverified" : drPass ? "pass" : "fail" },
+    { label: `DR ≥ ${DR_MIN}`, state: i.dr == null ? (i.drUnavailable ? "unverified" : "fail") : drPass ? "pass" : "fail" },
     { label: `Traffic ≥ ${(TRAFFIC_MIN / 1000)}K`, state: trafficPass == null ? "unverified" : trafficPass ? "pass" : "fail" },
     { label: `US > ${US_MIN}%`, state: usPass == null ? "unverified" : usPass ? "pass" : "fail" },
     { label: "Relevant", state: relevancePass ? "pass" : "fail" },

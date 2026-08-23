@@ -26,8 +26,8 @@ function nextPersonaMessage(persona: DemoPersona, theirMsgCount: number): Person
     case "high_anchor":
       // Sequence of THEIR messages across the negotiation.
       if (theirMsgCount === 0)
-        return { body: "Hi, thanks for reaching out! We could include your tool in an upcoming roundup. Our rate for sponsored inclusion is $350." };
-      if (theirMsgCount === 1) return { body: "Appreciate the offer, but $275 is the best I can do for a permanent placement." };
+        return { body: "Hi, thanks for reaching out! We could include your tool in an upcoming roundup. Our rate for a feature is \$350." };
+      if (theirMsgCount === 1) return { body: "Appreciate the offer, but $275 is where we can land, and that is already below our usual rate." };
       if (theirMsgCount === 2) return { body: "Final offer: $230 and we can publish this week." };
       return null;
     case "quick_deal":
@@ -114,11 +114,21 @@ export async function injectDemoReplies(campaignId: string): Promise<number> {
     const msg = nextPersonaMessage(persona, theirs);
     if (!msg) continue;
 
-    // Pace the demo: wait for either the delay since their last inbound or our latest send,
-    // so the timeline reads naturally instead of dumping every stage in one tick.
-    const ourLast = rowsT.filter((r) => r.status === "sent").map((r) => r.sent_at).sort().pop() as string | undefined;
+    // Pace the demo: stage 0 fires after the initial send; every later stage fires only
+    // after WE have replied to their previous message (a real negotiation rhythm).
     const theirLast = rowsT.map((r) => r.replied_at).filter(Boolean).sort().pop() as string | undefined;
-    const reference = [ourLast, theirLast].filter(Boolean).sort().pop() as string | undefined;
+    let reference: string | undefined;
+    if (theirs > 0) {
+      const ourRepliesAfter = rowsT
+        .filter((r) => r.status === "sent" && r.sent_at && (!theirLast || r.sent_at > theirLast))
+        .map((r) => r.sent_at)
+        .sort()
+        .pop() as string | undefined;
+      if (!ourRepliesAfter) continue; // our negotiator hasn't answered yet — hold the next stage
+      reference = ourRepliesAfter;
+    } else {
+      reference = rowsT.filter((r) => r.status === "sent").map((r) => r.sent_at).sort().pop() as string | undefined;
+    }
     if (reference && Date.now() - new Date(reference).getTime() < REPLY_DELAY_MS) continue;
 
     // Autoresponder persona: mark as auto so the negotiator skips it (legacy rule).

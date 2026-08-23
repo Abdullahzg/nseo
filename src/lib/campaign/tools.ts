@@ -109,6 +109,8 @@ export async function discoverBatch(
 ): Promise<DiscoverBatchResult> {
   const maxPerQuery = opts.maxPerQuery ?? 8;
   const provider = searchProvider();
+  const camp = await getCampaignRow(campaignId);
+  if (!provider && camp?.demo_mode) return discoverDemoBatch(campaignId);
   const { excluded, knownHosts } = await campaignExclusions(campaignId);
   const res: DiscoverBatchResult = { found: 0, created: 0, duplicates: 0, suppressed: 0, per_query: [] };
 
@@ -249,8 +251,11 @@ Judge editorial quality (real content vs link farm), topical fit to the keywords
   const relevance = llmOut ? Math.max(0, Math.min(100, Math.round(llmOut.data.relevance_0_100))) : heuristicRelevance(text, title, keywords);
 
   // 4) Deterministic qualification gates (legacy rules; unverified ≠ fail).
+  // When no Ahrefs provider is configured at all, the DR gate passes-as-unverified
+  // instead of silently rejecting every prospect (capability detection, §75).
   const qual = qualifyProspect({
     dr: typeof dr === "number" ? dr : null,
+    drUnavailable: dr == null && !process.env.AHREFS_API_KEY,
     organicTraffic: (domRow as any)?.organic_traffic ?? null,
     usTrafficShare: (domRow as any)?.us_traffic_share ?? null,
     relevance,
@@ -403,6 +408,16 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
     result = await domainLevelContact(p.domain_host, steps);
   }
 
+  // Demo mode: guarantee a reachable (simulated) recipient so the downstream pipeline —
+  // drafting, sending gates, reply injection, negotiation, deals — runs end to end.
+  const campRow = await getCampaignRow(p.campaign_id);
+  if (!result.ok && campRow?.demo_mode) {
+    // Person-like local part: the role/placeholder gates must still treat it as a real person.
+    const email = `sarah.mitchell@${p.domain_host}`;
+    steps.push("demo: synthesized simulated recipient");
+    result = { ok: true, email, source: "demo-simulated", confidence: 70, steps };
+  }
+
   if (result.ok && result.email && !isRoleEmail(result.email) && !isPlaceholderEmail(result.email)) {
     // Persist via the guarded upsert (rejects role mailboxes/placeholder junk at the DB boundary).
     if (!authorId) return { ...result, ok: false, steps: [...steps, "no author row to attach the contact to"] };
@@ -472,3 +487,53 @@ async function domainLevelContact(host: string, steps: string[]): Promise<Contac
 }
 
 export { DR_MIN };
+
+// ─── demo fixtures (last-resort discovery for demo campaigns with zero search keys) ──
+// Labeled synthetic in provenance + events. Everything downstream is the real pipeline.
+
+const DEMO_FIXTURES: Array<{ host: string; url: string; title: string }> = [
+  { host: "creativetech.invalid", url: "https://creativetech.invalid/best-ai-photo-editors", title: "The Best AI Photo Editors We Tested This Year" },
+  { host: "photoworkflow.daily.invalid", url: "https://photoworkflow.daily.invalid/ai-image-restoration-guide", title: "AI Image Restoration: A Practical Guide for Photographers" },
+  { host: "restorereview.invalid", url: "https://restorereview.invalid/photo-restoration-tools-compared", title: "Photo Restoration Tools Compared: Old Photos, New Life" },
+  { host: "makersblog.tech.invalid", url: "https://makersblog.tech.invalid/ai-photo-editor-roundup", title: "7 AI Photo Editor Apps for Content Creators (Hands-on)" },
+  { host: "designdigest.creative.invalid", url: "https://designdigest.creative.invalid/restore-old-photos-ai", title: "How to Restore Old Photos with AI in 2026" },
+  { host: "pixelcraft.journal.invalid", url: "https://pixelcraft.journal.invalid/ai-image-tools-for-ecommerce", title: "AI Image Tools Every Ecommerce Team Should Know" },
+  { host: "lensandlight.blog.invalid", url: "https://lensandlight.blog.invalid/photo-restoration-software-review", title: "I Tested 5 Photo Restoration Services: Honest Review" },
+  { host: "futureframe.media.invalid", url: "https://futureframe.media.invalid/ai-photo-restoration-comparison", title: "Best AI Photo Restoration Software: Comparison Table" },
+  { host: "studiohandbook.pro.invalid", url: "https://studiohandbook.pro.invalid/ai-photo-editing-workflow", title: "Our Studio's AI Photo Editing Workflow, Explained" },
+  { host: "genstack.weekly.invalid", url: "https://genstack.weekly.invalid/ai-image-restoration-roundup", title: "Roundup: AI Image Restoration Tools Worth Your Time" },
+  { host: "editorschoice.review.invalid", url: "https://editorschoice.review.invalid/best-photo-restoration-services", title: "Editors' Choice: The Best Photo Restoration Services" },
+  { host: "visualverse.creative.invalid", url: "https://visualverse.creative.invalid/ai-photo-enhancement-guide", title: "From Blur to Sharp: An AI Photo Enhancement Field Guide" },
+];
+
+async function discoverDemoBatch(campaignId: string): Promise<DiscoverBatchResult> {
+  const { excluded, knownHosts } = await campaignExclusions(campaignId);
+  const res: DiscoverBatchResult = { found: DEMO_FIXTURES.length, created: 0, duplicates: 0, suppressed: 0, per_query: [] };
+  const t0 = Date.now();
+  for (let i = 0; i < DEMO_FIXTURES.length; i++) {
+    const f = DEMO_FIXTURES[i];
+    if (excluded.has(f.host)) continue;
+    if (knownHosts.has(f.host)) { res.duplicates++; continue; }
+    const prov: DiscoveryProvenance = {
+      source: "demo-fixture",
+      query: "demo scenario",
+      position: i + 1,
+      discovered_at: new Date().toISOString(),
+    };
+    const { id, created } = await upsertCampaignProspect({
+      campaign_id: campaignId, domain_host: f.host, prospect_url: f.url, title: f.title, provenance: prov,
+    });
+    if (created) {
+      knownHosts.add(f.host);
+      res.created++;
+      await emitEvent(campaignId, "discovery", "prospect_found", {
+        prospect_id: id, detail: { host: f.host, title: f.title, synthetic: true },
+      });
+    } else res.duplicates++;
+  }
+  await emitEvent(campaignId, "discovery", "search_batch", {
+    tool: "demo-fixture", duration_ms: Date.now() - t0,
+    detail: { synthetic: true, hits: res.found, created: res.created },
+  });
+  return res;
+}

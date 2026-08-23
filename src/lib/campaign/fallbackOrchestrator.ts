@@ -4,7 +4,7 @@
 // The primary brain is the Google ADK agent service; this keeps the product functional
 // and demo-safe without it, executing the same deterministic phase policy through the
 // same in-process tool functions. Every action still flows through the same guards.
-import { getCampaignRow, countProspectsByStatus, getDeals, setCampaignPhase, updateCampaignExt } from "./queries";
+import { getCampaignRow, countProspectsByStatus, getDeals, setCampaignPhase, updateCampaignExt, listProspects } from "./queries";
 import { planDiscoveryQueries, discoverBatch, evaluateProspect, resolveContactForProspect, emitEvent } from "./tools";
 import { sendOutreachToProspect, processRepliesTick } from "./outreach";
 import { runSendProcessorHint } from "./sendProcessor";
@@ -88,7 +88,9 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
         break;
       }
       case "monitoring": {
-        const r = await processRepliesTick(campaignId, { detectReplies: !camp.demo_mode });
+        // detectReplies stays true: in demo mode this triggers persona injection instead of IMAP
+        // (processRepliesTick picks the right source per campaign.demo_mode).
+        const r = await processRepliesTick(campaignId, { detectReplies: true });
         action = "monitor";
         details.replies = r;
         // Nudge real delivery of any scheduled mail (no-op in demo mode).
@@ -105,6 +107,16 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
   // Deterministic transition check.
   const fresh = await getCampaignRow(campaignId);
   const after = await transitionIfNeeded(campaignId, fresh);
+
+  // Discovery saturation: a full pass with nothing new means the pool is exhausted —
+  // move on regardless of the nominal target (demo fixtures / dry search providers).
+  if (!after && action === "discover" && (details.batch as any)?.created === 0) {
+    const c = await poolCounts(campaignId);
+    if ((c.discovered ?? 0) > 0) {
+      await setCampaignPhase(campaignId, "qualifying", "discovery_saturated");
+      return { ok: true, mode: "fallback-ts", phase_before: before, phase_after: "qualifying", action, details };
+    }
+  }
 
   await emitEvent(campaignId, "campaign_manager", "tick", {
     state_before: before, state_after: after ?? fresh.phase,
@@ -131,13 +143,17 @@ async function transitionIfNeeded(campaignId: string, camp: any): Promise<string
   } else if (phase === "qualifying") {
     if ((counts.discovered ?? 0) === 0 && totalPool > 0) { nxt = "resolving_contacts"; reason = "all prospects evaluated"; }
   } else if (phase === "resolving_contacts") {
-    if ((counts.qualified ?? 0) === 0 && (counts.resolving_contact ?? 0) === 0) {
+    const qualified = await listProspects(campaignId, "qualified", 200);
+    const actionable = qualified.filter((x) => !(x.notes?.contact_failed));
+    if ((counts.qualified ?? 0) === 0 || ((counts.resolving_contact ?? 0) === 0 && actionable.length === 0)) {
       if ((counts.ready ?? 0) > 0) { nxt = "outreaching"; reason = "contacts resolved"; }
       else if ((counts.outreached ?? 0) + (counts.replied ?? 0) + (counts.negotiating ?? 0) > 0) { nxt = "monitoring"; reason = "outreach in flight"; }
-      else { nxt = "completed"; reason = "no viable prospects"; }
+      else { nxt = "completed"; reason = "no contactable prospects"; }
     }
   } else if (phase === "outreaching") {
-    if ((counts.ready ?? 0) === 0) { nxt = "monitoring"; reason = "initial outreach queued"; }
+    const ready = await listProspects(campaignId, "ready", 200);
+    const sendable = ready.filter((x) => x.contact_email && !(x.notes?.contact_failed));
+    if (sendable.length === 0) { nxt = "monitoring"; reason = "initial outreach queued"; }
   } else if (phase === "monitoring") {
     if (desired != null && deals.filter((d) => d.status !== "cancelled").length >= desired) { nxt = "completed"; reason = "goal_reached"; }
     else if (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@auth";
+import { authorizeAgent, unauthorized } from "@/lib/agent/gateway";
 import { runFallbackTick } from "@/lib/campaign/fallbackOrchestrator";
 
 export const maxDuration = 300;
@@ -7,9 +7,9 @@ export const maxDuration = 300;
 // POST /api/campaigns/[id]/tick — one bounded work unit.
 // Primary: the ADK agent service (AGENT_SERVICE_URL). Fallback: in-process TS policy
 // with identical guardrails, so the product never hard-depends on a second process.
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth().catch(() => null);
-  if (!session?.user?.email) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const a = await authorizeAgent(req);
+  if (!a.ok) return unauthorized();
   const { id } = await params;
 
   const agentUrl = process.env.AGENT_SERVICE_URL;

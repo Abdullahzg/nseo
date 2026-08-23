@@ -1,22 +1,11 @@
 import type { NegotiationSettings } from "./settings";
+import { llmText } from "@/lib/ai/gemini";
 
-// ── Shared OpenRouter call (same pattern as followups / ai-search) ──────────────
+// Centralized LLM call (Gemini primary per GEMINI_MODEL; OpenRouter fallback).
+// Previously this module called OpenRouter directly — model choice now lives in one place.
 async function llm(prompt: string, maxTokens = 400, temperature = 0.4): Promise<string | null> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key || key.length < 20) return null;
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "anthropic/claude-haiku-4-5", messages: [{ role: "user", content: prompt }], max_tokens: maxTokens, temperature }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return (data.choices?.[0]?.message?.content ?? "").trim() || null;
-  } catch {
-    return null;
-  }
+  const out = await llmText(prompt, { maxTokens, temperature });
+  return out?.text ?? null;
 }
 
 // Enforce "no em/en dashes" (and tidy spacing) on every generated email, regardless of what

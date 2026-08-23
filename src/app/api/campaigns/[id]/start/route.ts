@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@auth";
+import { authorizeAgent, unauthorized } from "@/lib/agent/gateway";
 import { getCampaignRow, updateCampaignExt } from "@/lib/campaign/queries";
 
 // POST /api/campaigns/[id]/start — flip draft → planning and kick the agent service.
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth().catch(() => null);
-  if (!session?.user?.email) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const a = await authorizeAgent(req);
+  if (!a.ok) return unauthorized();
   const { id } = await params;
   const camp = await getCampaignRow(id);
   if (!camp) return NextResponse.json({ error: "not found" }, { status: 404 });

@@ -20,7 +20,9 @@ export interface LLMResult {
 }
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
-const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-haiku-4-5";
+// OpenRouter is the labeled fallback provider. Model overridable via OPENROUTER_MODEL
+// (e.g. a ":free" tier model for testing without billing).
+const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4-5";
 
 export function geminiModel(): string {
   return (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim();
@@ -90,7 +92,14 @@ async function openRouterCall(
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return ((data.choices?.[0]?.message?.content as string) ?? "").trim() || null;
+    const raw = ((data.choices?.[0]?.message?.content as string) ?? "").trim();
+    // Some free models emit reasoning blocks; strip <think>…</think> so downstream
+    // parsers (META tags, JSON extraction, email bodies) see only the answer.
+    const cleaned = raw
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/^[\s\S]*?<\/think>/i, (m) => (m.includes("<think") ? "" : m))
+      .trim();
+    return cleaned || null;
   } catch {
     return null;
   }
