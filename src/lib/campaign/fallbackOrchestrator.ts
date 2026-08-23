@@ -10,6 +10,9 @@ import { sendOutreachToProspect, processRepliesTick } from "./outreach";
 import { runSendProcessorHint } from "./sendProcessor";
 
 const POOL_TARGET_MIN = 30;
+// Consecutive zero-yield discovery passes per campaign before we force-advance.
+const EMPTY_DISCOVERY_LIMIT = 3;
+const _emptyDiscoverRuns = new Map<string, number>();
 
 export interface TickOutcome {
   ok: boolean;
@@ -110,9 +113,13 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
 
   // Discovery saturation: a full pass with nothing new means the pool is exhausted —
   // move on regardless of the nominal target (demo fixtures / dry search providers).
-  if (!after && action === "discover" && (details.batch as any)?.created === 0) {
+  if (!after && action === "discover") {
+    const created = (details.batch as any)?.created ?? 0;
     const c = await poolCounts(campaignId);
-    if ((c.discovered ?? 0) > 0) {
+    const have = (c.discovered ?? 0) + (c.qualified ?? 0) + (c.ready ?? 0) + (c.outreached ?? 0) + (c.replied ?? 0) + (c.negotiating ?? 0);
+    const empties = (_emptyDiscoverRuns.get(campaignId) ?? 0);
+    if (created === 0) _emptyDiscoverRuns.set(campaignId, empties + 1); else _emptyDiscoverRuns.set(campaignId, 0);
+    if ((have > 0 && created === 0) || (created === 0 && empties + 1 >= EMPTY_DISCOVERY_LIMIT)) {
       await setCampaignPhase(campaignId, "qualifying", "discovery_saturated");
       return { ok: true, mode: "fallback-ts", phase_before: before, phase_after: "qualifying", action, details };
     }

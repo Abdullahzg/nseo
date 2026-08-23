@@ -110,7 +110,9 @@ export async function discoverBatch(
   const maxPerQuery = opts.maxPerQuery ?? 8;
   const provider = searchProvider();
   const camp = await getCampaignRow(campaignId);
-  if (!provider && camp?.demo_mode) return discoverDemoBatch(campaignId);
+  // Demo campaigns ALWAYS use scripted fixtures — never live search — so the scenario
+  // cannot be derailed by provider quotas/outages (§49 demo reliability).
+  if (camp?.demo_mode) return discoverDemoBatch(campaignId);
   const { excluded, knownHosts } = await campaignExclusions(campaignId);
   const res: DiscoverBatchResult = { found: 0, created: 0, duplicates: 0, suppressed: 0, per_query: [] };
 

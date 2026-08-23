@@ -1,7 +1,7 @@
-import { supabaseAdmin } from "@/lib/db/supabase";
+﻿import { supabaseAdmin } from "@/lib/db/supabase";
 import { getNegotiationSettings } from "./settings";
 import { maxOfferFor } from "./pricing";
-import { classifyReplyIntent, draftNegotiationReply, type ThreadMessage } from "./agent";
+import { classifyReplyIntent, draftNegotiationReply, classifyReplyIntentHeuristicOnly, sanitizeBody, type ThreadMessage } from "./agent";
 import { updateOutreachEmail, getUserEmailConfig } from "@/lib/db/queries";
 import { deliverOutreach } from "@/lib/email/deliver";
 
@@ -42,7 +42,7 @@ export interface NegotiationResult {
 // forceDraft = never auto-send even if autonomy is on (the "just draft it" path).
 // autonomyOverride = campaign-scoped autonomy (agentic campaigns drive their own threads
 // without flipping the global singleton, so legacy cron loops can't double-answer).
-export async function negotiateThread(emailId: string, opts?: { forceDraft?: boolean; assistInput?: string | null; autonomyOverride?: boolean }): Promise<NegotiationResult> {
+export async function negotiateThread(emailId: string, opts?: { forceDraft?: boolean; assistInput?: string | null; autonomyOverride?: boolean; heuristicOnly?: boolean; demoScripted?: boolean }): Promise<NegotiationResult> {
   const base: NegotiationResult = { ok: false, ceiling: null, suggestedOffer: null, statusHint: null, intent: null, autonomy: false, persistedAs: "draft", sent: false };
   const assisting = !!(opts?.assistInput && opts.assistInput.trim());
 
@@ -72,13 +72,17 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
 
   const settings = await getNegotiationSettings();
   const dom: any = (email as any).author?.domain ?? null;
-  const cls = await classifyReplyIntent(latestReply?.reply_excerpt ?? "", latestReply?.reply_subject ?? "");
+  // Demo campaigns classify deterministically (pure heuristics) so the scripted arc can
+  // never be derailed by a flaky/limited model endpoint. Production keeps the LLM path.
+  const cls = opts?.heuristicOnly
+    ? classifyReplyIntentHeuristicOnly(latestReply?.reply_excerpt ?? "", latestReply?.reply_subject ?? "")
+    : await classifyReplyIntent(latestReply?.reply_excerpt ?? "", latestReply?.reply_subject ?? "");
   const tier = maxOfferFor(dom?.dr ?? null, dom?.organic_traffic ?? null, dom?.us_traffic_share ?? null, settings.pricing_rules);
   const ceiling = (email as any).max_offer != null ? Number((email as any).max_offer) : (tier?.offer ?? null);
 
   // HUMAN-INTERVENTION SHORT-CIRCUIT. If the writer asked for something the AI cannot do (a
   // document/call/redirect/etc.) and no human assist input was supplied, never draft or send a
-  // hollow reply — flag the thread for a person and stop. (When assisting, the human HAS provided
+  // hollow reply â€” flag the thread for a person and stop. (When assisting, the human HAS provided
   // what's needed, so we fall through and draft a truthful reply.)
   if (cls.intent === "needs_human" && !assisting) {
     await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", initialId).eq("kind", "negotiation").eq("status", "draft");
@@ -89,7 +93,7 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
       intervention_ask: cls.interventionAsk ?? "asked for something the AI cannot do",
       intervention_reason: INTERVENTION_REASON[itype] ?? INTERVENTION_REASON.other,
       intervention_at: new Date().toISOString(),
-      negotiation_notes: `needs human: ${itype} — ${cls.interventionAsk ?? ""}`,
+      negotiation_notes: `needs human: ${itype} â€” ${cls.interventionAsk ?? ""}`,
     } as any);
     return { ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human", persistedAs: "needs_human" };
   }
@@ -115,17 +119,40 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
     assistInput: assisting ? opts!.assistInput : null,
     assistHasAttachment: !!asset,
   });
-  if (!draft) return { ...base, ceiling, intent: cls.intent, error: "No OPENROUTER_API_KEY configured" };
+  // Demo-mode deterministic fallback: when no LLM is reachable, negotiate with a scripted
+  // policy so the demo arc ALWAYS completes (never blocks on a provider). Production
+  // campaigns simply surface the error instead â€” honesty preserved both ways.
+  let effectiveDraft = draft;
+  if (!draft && opts?.demoScripted && ceiling != null && !assisting) {
+    const tp = cls.priceMentioned ?? null;
+    const first = ((email as any).author?.full_name ?? "there").trim().split(/\s+/)[0] || "there";
+    if (tp != null && tp <= Math.round(ceiling * 0.95)) {
+      // Their number is inside policy: accept at THEIR price (same rule as the live agent).
+      effectiveDraft = {
+        body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${tp} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${senderName ?? "us"}`),
+        suggestedOffer: tp, shouldStop: true, statusHint: "agreed",
+      };
+    } else if (tp != null) {
+      // Above ceiling: counter at the opening position of [floor..ceiling] (opening_percent).
+      const openPct = Math.min(100, Math.max(0, settings.opening_percent ?? 40));
+      const offer = Math.max(settings.min_price ?? 0, Math.round((settings.min_price ?? 0) + (ceiling - (settings.min_price ?? 0)) * (openPct / 100)));
+      effectiveDraft = {
+        body: sanitizeBody(`Hi ${first},\n\nThanks for the quick reply. That is above what we have budgeted for this piece, but we think the fit is genuinely strong. Could you do ${settings.currency} ${offer}? Happy to send a short blurb and everything needed from our side.\n\nBest,\n${senderName ?? "us"}`),
+        suggestedOffer: offer, shouldStop: false, statusHint: "negotiating",
+      };
+    }
+  }
+  if (!effectiveDraft) return { ...base, ceiling, intent: cls.intent, error: "No LLM configured for drafting" };
 
   // Post-generation guard tripped inside the agent (model tried to promise a capability with no
   // backing input): route to a human instead of sending the fabricated reply.
-  if (draft.needsHuman) {
+  if (effectiveDraft.needsHuman) {
     await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", initialId).eq("kind", "negotiation").eq("status", "draft");
-    const itype = draft.interventionType ?? "other";
+    const itype = effectiveDraft.interventionType ?? "other";
     await updateOutreachEmail(initialId, {
       negotiation_status: "needs_human",
       intervention_type: itype,
-      intervention_ask: draft.interventionAsk ?? "reply would need something the AI cannot provide",
+      intervention_ask: effectiveDraft.interventionAsk ?? "reply would need something the AI cannot provide",
       intervention_reason: INTERVENTION_REASON[itype] ?? INTERVENTION_REASON.other,
       intervention_at: new Date().toISOString(),
       negotiation_notes: `needs human (guard): ${itype}`,
@@ -148,39 +175,40 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
   let status = "draft";
   let sent: any = null;
   if (autonomy && recipient) {
-    sent = await deliverOutreach({ to: recipient, subject, body: draft.body, sender: initial.sender_email, sentBy: initial.sent_by_email, inReplyTo: parentMsgId, references: parentMsgId }).catch((e: any) => ({ ok: false, error: e?.message }));
+    sent = await deliverOutreach({ to: recipient, subject, body: effectiveDraft.body, sender: initial.sender_email, sentBy: initial.sent_by_email, inReplyTo: parentMsgId, references: parentMsgId }).catch((e: any) => ({ ok: false, error: e?.message }));
     status = sent?.ok ? "sent" : "failed";
   }
 
   const { data: row } = await supabaseAdmin.from("outreach_emails").insert({
     workflow_id: initial.workflow_id, author_id: initial.author_id, parent_id: initialId,
-    kind: "negotiation", subject, body: draft.body, status,
+    kind: "negotiation", subject, body: effectiveDraft.body, status,
     sent_at: status === "sent" ? new Date().toISOString() : null,
     message_id: sent?.messageId ?? null,
     error: status === "failed" ? (sent?.error ?? "send failed") : null,
     sender_email: initial.sender_email, sent_by_email: initial.sent_by_email,
     recipient_override: (initial as any).recipient_override ?? null,
-    ai_managed: true, max_offer: ceiling, negotiation_status: draft.statusHint,
+    ai_managed: true, max_offer: ceiling, negotiation_status: effectiveDraft.statusHint,
   }).select("id").single();
 
   // If they explicitly WAIVED the fee / offered free editorial, an "agreed" is a placement at no
-  // cost — never record a payment owed (fixes threads marked agreed with a bogus amount owed).
+  // cost â€” never record a payment owed (fixes threads marked agreed with a bogus amount owed).
   const waived = /\b(waive[ds]?|free of charge|no cost|no charge|complimentary|on the house|gratis|won'?t charge)\b/i.test(latestReply?.reply_excerpt ?? "");
-  const agreedPrice = draft.statusHint === "agreed" ? (waived ? 0 : (draft.suggestedOffer ?? cls.priceMentioned ?? null)) : null;
+  const agreedPrice = effectiveDraft.statusHint === "agreed" ? (waived ? 0 : (effectiveDraft.suggestedOffer ?? cls.priceMentioned ?? null)) : null;
   await updateOutreachEmail(initialId, {
-    negotiation_status: draft.statusHint,
-    negotiation_notes: `their intent: ${cls.intent} (${cls.reason}); our offer: ${draft.suggestedOffer ?? "-"}; ceiling: ${ceiling ?? "placement-only"}`,
-    ...(draft.statusHint === "agreed" ? { agreed_price: agreedPrice, payment_status: agreedPrice ? "owed" : null } : {}),
+    negotiation_status: effectiveDraft.statusHint,
+    negotiation_notes: `their intent: ${cls.intent} (${cls.reason}); our offer: ${effectiveDraft.suggestedOffer ?? "-"}; ceiling: ${ceiling ?? "placement-only"}`,
+    ...(effectiveDraft.statusHint === "agreed" ? { agreed_price: agreedPrice, payment_status: agreedPrice ? "owed" : null } : {}),
     // Assisting resolves the intervention: clear the ask/reason so it leaves the Human-intervention
     // bucket. The uploaded asset (if any) is kept until the reply is actually sent, then cleared.
     ...(assisting ? { intervention_ask: null, intervention_reason: null, intervention_at: null, intervention_type: null } : {}),
   } as any);
 
   return {
-    ok: true, draftId: (row as any)?.id, body: draft.body, ceiling,
-    suggestedOffer: draft.suggestedOffer, statusHint: draft.statusHint, intent: cls.intent,
+    ok: true, draftId: (row as any)?.id, body: effectiveDraft.body, ceiling,
+    suggestedOffer: effectiveDraft.suggestedOffer, statusHint: effectiveDraft.statusHint, intent: cls.intent,
     autonomy, persistedAs: status, sent: status === "sent",
     sendError: status === "failed" ? (sent?.error ?? "send failed") : null,
     recipientMissing: autonomy && !recipient,
   };
 }
+

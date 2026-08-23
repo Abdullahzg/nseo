@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { UserEmailConfigCard } from "@/components/settings/UserEmailConfig";
 import { DailyDigestCard } from "@/components/settings/DailyDigestCard";
 import { TavilyKeyManager } from "@/components/settings/TavilyKeyManager";
+import { AIProviderCard } from "@/components/settings/AIProvider";
 
 interface ConfigItem {
   key: string;
@@ -45,6 +46,9 @@ export default function SettingsPage() {
 
       {/* Per-user sending identity (each user sends from their own Gmail) */}
       <UserEmailConfigCard />
+
+      {/* Runtime-editable Gemini key/model for the agent workforce */}
+      <AIProviderCard />
 
       <DailyDigestCard />
 

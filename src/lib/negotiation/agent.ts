@@ -82,9 +82,23 @@ Reply:
         const base: ReplyClassification = { intent, priceMentioned: price, reason: String(j.reason ?? "").slice(0, 80) };
         if (intent === "needs_human") {
           const IT: InterventionType[] = ["asset_request", "identity_verification", "sync_contact", "scheduling", "redirect", "process_portal", "legal_contract", "payment_details", "factual_question", "over_policy", "inbound_attachment", "other_channel", "other"];
-          base.interventionType = IT.includes(j.interventionType) ? j.interventionType : "other";
-          base.interventionAsk = String(j.interventionAsk ?? "").slice(0, 140) || "asked for something the AI cannot do";
-          base.assistable = j.assistable !== false; // default assistable unless the model says otherwise
+          const hh = classifyInterventionHeuristic(text.toLowerCase());
+          const STRONG = new Set<InterventionType>(["sync_contact", "other_channel", "legal_contract", "process_portal", "payment_details", "inbound_attachment"]);
+          if ((!hh || !STRONG.has(hh.type)) && price != null) {
+            // Free-model drift guard (mirror of the strong-cue override below): a reply that
+            // names a price and trips NO capability cue is a normal negotiation turn, never
+            // a human case — otherwise weak models park every counteroffer forever.
+            return { intent: "counter_offer", priceMentioned: price, reason: `demoted from needs_human/${j.interventionType ?? "other"} (no capability cue)` };
+          }
+          if (hh) {
+            base.interventionType = hh.type;
+            base.interventionAsk = hh.ask;
+            base.assistable = hh.assistable;
+          } else {
+            base.interventionType = IT.includes(j.interventionType) ? j.interventionType : "other";
+            base.interventionAsk = String(j.interventionAsk ?? "").slice(0, 140) || "asked for something the AI cannot do";
+            base.assistable = j.assistable !== false; // default assistable unless the model says otherwise
+          }
           return base;
         }
         // Deterministic override: the LLM sometimes labels a reply positively ("interested") even
@@ -99,8 +113,14 @@ Reply:
       } catch { /* fall through */ }
     }
   }
-  // Heuristic fallback (no LLM). Deterministic needs_human cues are checked BEFORE the generic
-  // price/question defaults so an asset/call/redirect request is never mislabeled "question".
+  // Heuristic fallback (no LLM key configured).
+  return classifyReplyIntentHeuristicOnly(replyText, subject);
+}
+
+// Heuristic-only classifier: pure deterministic rules, no LLM call. Used directly by
+// demo campaigns so scripted arcs can never be derailed by a flaky model endpoint.
+export function classifyReplyIntentHeuristicOnly(replyText: string, subject = ""): ReplyClassification {
+  const text = `${subject}\n${replyText}`.trim().slice(0, 4000);
   const t = text.toLowerCase();
   const price = (t.match(/\$\s?(\d[\d,]{1,6})/) || [])[1];
   const priceMentioned = price ? Number(price.replace(/,/g, "")) : null;

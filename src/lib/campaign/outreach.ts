@@ -221,6 +221,10 @@ export async function negotiateCampaignThread(
   const result = await negotiateThread(anchorEmailId, {
     assistInput: opts.assistInput ?? null,
     autonomyOverride,
+    // Demo campaigns run deterministic classification + scripted-counter fallback so the
+    // arc can never be derailed by provider limits. Production keeps the full LLM path.
+    heuristicOnly: !!camp?.demo_mode,
+    demoScripted: !!camp?.demo_mode,
   }).catch((e: any) => ({ ok: false, error: e?.message }) as any);
 
   const intent = result.intent ?? null;
@@ -445,7 +449,17 @@ export async function processRepliesTick(
       continue;
     }
     const latestReply = rowsT.map((r) => r.replied_at).filter(Boolean).sort().pop() as string | undefined;
-    void latestReply; // answered-check happens inside negotiateThread via classify+persist flow
+    // Legacy runaway guard: if our latest negotiation send is NEWER than their latest reply,
+    // this message is already answered — never answer twice (the auto-reply runaway bug).
+    if (latestReply) {
+      const lastAnswer = rowsT
+        .filter((r) => r.kind === "negotiation" && r.status === "sent")
+        .map((r) => r.sent_at)
+        .filter(Boolean)
+        .sort()
+        .pop() as string | undefined;
+      if (lastAnswer && lastAnswer >= latestReply) continue;
+    }
     const r = await negotiateCampaignThread(th.anchor_id, { runId: opts.runId }).catch((e) => ({ action: "error", error: e?.message, email_id: th.anchor_id, intent: null, offer: null, ceiling: null }) as NegotiateOutcome);
     if (r.action === "sent" || r.action === "drafted") out.negotiated++;
     if (r.action === "needs_human") out.needs_human++;

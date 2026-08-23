@@ -1,17 +1,16 @@
-// Centralized LLM configuration for the agentic system.
+﻿// Centralized LLM configuration for the agentic system.
 //
-// PRIMARY: Google Gemini via the Gemini API (GEMINI_API_KEY), model from
-// GEMINI_MODEL (default gemini-3.5-flash). This is the competition model and the
-// only provider used when its key is present.
+// PRIMARY: Google Gemini via the Gemini API. Key resolution order:
+//   1. app_settings.gemini_api_key  (Settings UI, runtime-editable)
+//   2. process.env.GEMINI_API_KEY
+// Model: GEMINI_MODEL env or app_settings.gemini_model override (default gemini-3.5-flash).
 //
-// FALLBACK: OpenRouter (OPENROUTER_API_KEY, claude-haiku) — preserved from the
-// legacy system so a missing Gemini key degrades instead of breaking. Every
-// response carries `provider` so logs/UI can label provenance honestly.
+// FALLBACKS (each labeled in results; used only when the previous step is unconfigured/fails):
+//   OpenRouter (OPENROUTER_API_KEY, OPENROUTER_MODEL) → Groq small model (GROQ_API_KEY, GROQ_MODEL).
 //
-// Never call other LLM endpoints directly; import from here so model choice
-// stays a one-line env change.
+// Never call other LLM endpoints directly; import from here so model choice stays centralized.
 
-export type LLMProvider = "gemini" | "openrouter" | "none";
+export type LLMProvider = "gemini" | "openrouter" | "groq" | "none";
 
 export interface LLMResult {
   text: string;
@@ -20,9 +19,8 @@ export interface LLMResult {
 }
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
-// OpenRouter is the labeled fallback provider. Model overridable via OPENROUTER_MODEL
-// (e.g. a ":free" tier model for testing without billing).
 const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4-5";
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 export function geminiModel(): string {
   return (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim();
@@ -33,16 +31,55 @@ export function llmProvider(): LLMProvider {
   if (gk && gk.length > 10) return "gemini";
   const ok = process.env.OPENROUTER_API_KEY;
   if (ok && ok.length > 20) return "openrouter";
+  const grk = process.env.GROQ_API_KEY;
+  if (grk && grk.length > 20) return "groq";
   return "none";
 }
 
+// ── Runtime AI settings (Settings UI writes; read-through with a short cache) ──
+export interface RuntimeAIConfig { gemini_api_key?: string | null; gemini_model?: string | null }
+
+let _runtimeCache: { at: number; value: RuntimeAIConfig | null } | null = null;
+
+export function invalidateRuntimeAIConfigCache(): void {
+  _runtimeCache = null;
+}
+
+async function getRuntimeAIConfig(): Promise<RuntimeAIConfig | null> {
+  if (_runtimeCache && Date.now() - _runtimeCache.at < 30_000) return _runtimeCache.value;
+  try {
+    const { supabaseAdmin } = await import("@/lib/db/supabase");
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("gemini_api_key, gemini_model")
+      .eq("id", true)
+      .maybeSingle();
+    _runtimeCache = { at: Date.now(), value: (data as RuntimeAIConfig) ?? null };
+    return _runtimeCache.value;
+  } catch {
+    _runtimeCache = { at: Date.now(), value: null };
+    return null;
+  }
+}
+
+// ── provider calls ────────────────────────────────────────────────────────────
+
+function stripReasoning(raw: string): string {
+  // Some models emit reasoning blocks; downstream parsers (META tags, JSON extraction,
+  // email bodies) must only ever see the answer.
+  return raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^[^]*?<\/think>/i, "")
+    .trim();
+}
+
 async function geminiCall(
+  key: string,
+  modelOverride: string | null | undefined,
   prompt: string,
-  opts: { system?: string; maxTokens?: number; temperature?: number; json?: boolean; timeoutMs?: number }
+  opts: { maxTokens?: number; temperature?: number; json?: boolean; timeoutMs?: number }
 ): Promise<string | null> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || key.length < 10) return null;
-  const model = geminiModel();
+  const model = (modelOverride || geminiModel()).trim();
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
@@ -51,7 +88,6 @@ async function geminiCall(
       ...(opts.json ? { responseMimeType: "application/json" } : {}),
     },
   };
-  if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -74,7 +110,7 @@ async function geminiCall(
 
 async function openRouterCall(
   prompt: string,
-  opts: { maxTokens?: number; temperature?: number; json?: boolean; timeoutMs?: number }
+  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number }
 ): Promise<string | null> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key || key.length < 20) return null;
@@ -93,34 +129,63 @@ async function openRouterCall(
     if (!res.ok) return null;
     const data = await res.json();
     const raw = ((data.choices?.[0]?.message?.content as string) ?? "").trim();
-    // Some free models emit reasoning blocks; strip <think>…</think> so downstream
-    // parsers (META tags, JSON extraction, email bodies) see only the answer.
-    const cleaned = raw
-      .replace(/<think>[\s\S]*?<\/think>/gi, "")
-      .replace(/^[\s\S]*?<\/think>/i, (m) => (m.includes("<think") ? "" : m))
-      .trim();
-    return cleaned || null;
+    return stripReasoning(raw) || null;
   } catch {
     return null;
   }
 }
 
-/** Single completion through the primary provider (fallback when unconfigured). */
+async function groqCall(
+  prompt: string,
+  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number }
+): Promise<string | null> {
+  const key = process.env.GROQ_API_KEY;
+  if (!key || key.length < 20) return null;
+  try {
+    // Groq exposes an OpenAI-compatible endpoint.
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: DEFAULT_GROQ_MODEL,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: opts.maxTokens ?? 512,
+        temperature: opts.temperature ?? 0.4,
+      }),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const raw = ((data.choices?.[0]?.message?.content as string) ?? "").trim();
+    return stripReasoning(raw) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Single completion through the chain: Gemini → OpenRouter → Groq.
+ * Returns the successful result with honest provenance labels, or null when every
+ * configured provider fails — callers must keep deterministic fallbacks (legacy rule).
+ */
 export async function llmText(
   prompt: string,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}
 ): Promise<LLMResult | null> {
-  const p = llmProvider();
-  if (p === "none") return null;
-  if (p === "gemini") {
-    const text = await geminiCall(prompt, opts);
-    if (text != null) return { text, provider: "gemini", model: geminiModel() };
-    // Primary failed mid-call — try the fallback rather than failing the step.
-    const fb = await openRouterCall(prompt, opts);
-    return fb != null ? { text: fb, provider: "openrouter", model: DEFAULT_OPENROUTER_MODEL } : null;
+  const runtime = await getRuntimeAIConfig().catch(() => null);
+  const geminiKey = runtime?.gemini_api_key || process.env.GEMINI_API_KEY;
+
+  if (geminiKey && geminiKey.length > 10) {
+    const text = await geminiCall(geminiKey, runtime?.gemini_model, prompt, opts);
+    if (text != null) return { text, provider: "gemini", model: runtime?.gemini_model || geminiModel() };
   }
-  const text = await openRouterCall(prompt, opts);
-  return text != null ? { text, provider: "openrouter", model: DEFAULT_OPENROUTER_MODEL } : null;
+  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.length > 20) {
+    const text = await openRouterCall(prompt, opts);
+    if (text != null) return { text, provider: "openrouter", model: DEFAULT_OPENROUTER_MODEL };
+  }
+  const groqText = await groqCall(prompt, opts);
+  if (groqText != null) return { text: groqText, provider: "groq", model: DEFAULT_GROQ_MODEL };
+  return null;
 }
 
 function extractJson(raw: string): unknown | null {
@@ -150,7 +215,7 @@ export async function llmJson<T>(
   validate: (v: unknown) => v is T,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}
 ): Promise<(LLMResult & { data: T }) | null> {
-  const out = await llmText(prompt, { ...opts });
+  const out = await llmText(prompt, opts);
   if (!out) return null;
   const parsed = extractJson(out.text);
   if (parsed == null || !validate(parsed)) return null;
