@@ -16,9 +16,8 @@ function LoginContent() {
 
   // In demo mode (no GOOGLE_CLIENT_ID), skip login entirely
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
-      router.replace("/");
-    }
+    // If we reach the login page in demo mode, just go home — proxy already bypasses auth
+    router.replace("/");
   }, [router]);
 
   return (

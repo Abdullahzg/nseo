@@ -1,13 +1,7 @@
 import { NextRequest } from "next/server";
-import { auth } from "@auth";
 
 /**
  * Authorization for the internal agent tool gateway (/api/agent/*).
- * Allowed callers:
- *  - the Python ADK agent service, via `Authorization: Bearer $AGENT_SERVICE_TOKEN`
- *  - cron/ops triggers via CRON_SECRET (header or ?key=) — parity with legacy job endpoints
- *  - a signed-in app session (UI-driven tool invocations)
- *
  * When GOOGLE_CLIENT_ID is not set, all requests are allowed (demo mode).
  */
 export async function authorizeAgent(req: NextRequest): Promise<{ ok: boolean; via: string }> {
@@ -24,8 +18,11 @@ export async function authorizeAgent(req: NextRequest): Promise<{ ok: boolean; v
     if (req.nextUrl.searchParams.get("key") === cron) return { ok: true, via: "cron" };
   }
 
-  const session = await auth().catch(() => null);
-  if (session?.user?.email) return { ok: true, via: "session" };
+  try {
+    const { auth } = await import("@auth");
+    const session = await auth().catch(() => null);
+    if (session?.user?.email) return { ok: true, via: "session" };
+  } catch { /* auth not configured */ }
   return { ok: false, via: "none" };
 }
 

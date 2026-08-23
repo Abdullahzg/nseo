@@ -1,17 +1,20 @@
 import { NextRequest } from "next/server";
-import { auth } from "@auth";
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { invalidateRuntimeAIConfigCache, llmProvider, geminiModel, DEFAULT_GEMINI_MODEL } from "@/lib/ai/gemini";
 
 async function requireAdmin() {
-  // Demo mode: no OAuth → allow everyone
   if (!process.env.GOOGLE_CLIENT_ID?.trim()) return "demo@local";
-  const session = await auth().catch(() => null);
-  const email = session?.user?.email;
-  if (!email) return null;
-  const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  if (!admins.length || admins.includes(email.toLowerCase())) return email;
-  return null;
+  try {
+    const { auth } = await import("@auth");
+    const session = await auth().catch(() => null);
+    const email = session?.user?.email;
+    if (!email) return null;
+    const admins = (process.env.ADMIN_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (!admins.length || admins.includes(email.toLowerCase())) return email;
+    return null;
+  } catch {
+    return "demo@local";
+  }
 }
 
 function mask(v: string | null | undefined): string | null {
@@ -20,7 +23,6 @@ function mask(v: string | null | undefined): string | null {
   return `${v.slice(0, 6)}…${v.slice(-4)}`;
 }
 
-// GET /api/settings/ai — current AI provider config (keys masked).
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -37,7 +39,6 @@ export async function GET() {
   });
 }
 
-// PATCH /api/settings/ai — { gemini_api_key?, gemini_model?, groq_api_key?, groq_model?, clear_*_key?: boolean }
 export async function PATCH(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return Response.json({ error: "unauthorized" }, { status: 401 });

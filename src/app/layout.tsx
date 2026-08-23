@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
-import { auth } from "@auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { TopNav } from "@/components/layout/TopNav";
@@ -37,8 +36,14 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth().catch(() => null);
   const authConfigured = !!process.env.GOOGLE_CLIENT_ID?.trim();
+  let session = null;
+  if (authConfigured) {
+    try {
+      const { auth } = await import("@auth");
+      session = await auth();
+    } catch { /* auth not configured */ }
+  }
   const user = session?.user ?? (authConfigured ? null : { name: "Demo User", email: "demo@local" });
 
   return (

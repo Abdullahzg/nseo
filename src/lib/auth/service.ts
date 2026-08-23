@@ -1,26 +1,10 @@
 import type { NextRequest } from "next/server";
-import { auth } from "@auth";
 
 /**
  * Who is allowed to call an API route: a signed-in person, or a trusted machine.
  *
- * Every route in this app authenticates a BROWSER SESSION via `auth()`. That is correct for a person
- * clicking a button and wrong for Hermes, the cron runner, or anything else calling server-to-server —
- * they have no session, so they get 401 with no indication why.
- *
- * Twenty-six routes already solved this by hand-rolling a local `authorized()` that also accepts
- * `Authorization: Bearer ${CRON_SECRET}`. Twenty-six copies of one security decision is how they drift:
- * one gets a fix, the others don't. This is that decision in one place.
- *
- * Two accepted machine credentials, deliberately distinct:
- *
- *   CRON_SECRET   — the scheduler. Already in use; kept so nothing that works today breaks.
- *   HERMES_TOKEN  — the agent. Separate so it can be rotated or revoked WITHOUT taking the nightly
- *                   crons down with it, and so an agent leak has a smaller blast radius than a leak
- *                   of the credential that drives every scheduled job.
- *
- * Both are compared in constant time. A plain `===` on a secret leaks its length and prefix through
- * timing, and these are long-lived credentials on a public endpoint.
+ * When GOOGLE_CLIENT_ID is not set (demo mode), returns a synthetic demo user —
+ * no OAuth needed, no login screen, full access.
  */
 
 /** Constant-time string compare. Returns false on any length mismatch without scanning further. */
@@ -64,9 +48,14 @@ export async function identifyCaller(req: NextRequest): Promise<Caller> {
     }
   }
 
-  const session = await auth().catch(() => null);
-  const email = session?.user?.email;
-  return email ? { kind: "user", email } : null;
+  try {
+    const { auth } = await import("@auth");
+    const session = await auth().catch(() => null);
+    const email = session?.user?.email;
+    return email ? { kind: "user", email } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** True when the caller is anyone we trust. The common case for a read or a routine action. */
