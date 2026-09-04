@@ -188,5 +188,176 @@ class TestOrchestrator:
         assert len(rec) > 0
 
 
+# ── Tool gateway tests (mocked, no live API needed) ──────────────────────────
+
+class MockContext:
+    """Simulates Strands InvocationContext with campaign_id."""
+    def __init__(self, campaign_id: str = "test-campaign-123"):
+        self.invocation_state = {"campaign_id": campaign_id}
+
+
+class TestToolGateway:
+    """Test all 9 tools by mocking the gateway HTTP calls."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_gateway(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        # Mock all gateway functions
+        self.mock_get_campaign = AsyncMock(return_value={
+            "campaign": {
+                "objective": "Test objective",
+                "website_url": "https://example.com",
+                "keywords": ["test"],
+                "desired_deals": 3,
+                "budget_total": 100,
+                "budget_used": 0,
+                "currency": "USD",
+                "phase": "planning",
+                "paused_discovery": False,
+                "paused_outreach": False,
+                "paused_negotiation": False,
+                "emergency_stopped": False,
+            },
+            "prospects_by_status": {"unqualified": 5},
+            "deals": [],
+            "open_interventions": [],
+            "is_active": True,
+        })
+
+        self.mock_discover = AsyncMock(return_value={
+            "found": 10, "created": 8, "duplicates": 2, "suppressed": 0,
+            "queries_run": ["test query"], "planner": "llm", "per_query": [{"query": "test", "found": 5}],
+        })
+        self.mock_qualify = AsyncMock(return_value={
+            "results": [
+                {"prospect_id": "p1", "qualified": True, "opportunity_score": 85},
+                {"prospect_id": "p2", "qualified": False, "opportunity_score": 30},
+            ],
+        })
+        self.mock_resolve_contacts = AsyncMock(return_value={
+            "results": [{"ok": True, "source": "hunter", "confidence": 90}],
+        })
+        self.mock_send_outreach = AsyncMock(return_value={
+            "results": [{"ok": True, "simulated": True}],
+        })
+        self.mock_negotiate_tick = AsyncMock(return_value={
+            "detected": 2, "negotiated": 1, "needs_human": 0,
+        })
+        self.mock_list_interventions = AsyncMock(return_value=[])
+        self.mock_update_campaign = AsyncMock(return_value={})
+
+        with patch("seo_workforce.tools.gateway.get_campaign", self.mock_get_campaign), \
+             patch("seo_workforce.tools.gateway.discover", self.mock_discover), \
+             patch("seo_workforce.tools.gateway.qualify", self.mock_qualify), \
+             patch("seo_workforce.tools.gateway.resolve_contacts", self.mock_resolve_contacts), \
+             patch("seo_workforce.tools.gateway.send_outreach", self.mock_send_outreach), \
+             patch("seo_workforce.tools.gateway.negotiate_tick", self.mock_negotiate_tick), \
+             patch("seo_workforce.tools.gateway.list_interventions", self.mock_list_interventions), \
+             patch("seo_workforce.tools.gateway.update_campaign", self.mock_update_campaign):
+            yield
+
+    def _run(self, coro):
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+
+    def test_tool_01_get_campaign_state(self):
+        from seo_workforce.tools import get_campaign_state
+        ctx = MockContext()
+        result = self._run(get_campaign_state(ctx))
+        data = __import__("json").loads(result)
+        assert data["objective"] == "Test objective"
+        assert data["phase"] == "planning"
+        assert data["budget_total"] == 100
+        self.mock_get_campaign.assert_called_once_with("test-campaign-123")
+
+    def test_tool_02_plan_discovery(self):
+        from seo_workforce.tools import plan_discovery
+        ctx = MockContext()
+        result = self._run(plan_discovery(ctx))
+        data = __import__("json").loads(result)
+        assert data["queries_planned"] == 1
+        assert data["provider"] == "llm"
+        self.mock_discover.assert_called_once()
+
+    def test_tool_03_run_discovery_batch(self):
+        from seo_workforce.tools import run_discovery_batch
+        ctx = MockContext()
+        result = self._run(run_discovery_batch(queries=["test"], max_per_query=5, tool_context=ctx))
+        data = __import__("json").loads(result)
+        assert data["found"] == 10
+        assert data["created"] == 8
+        self.mock_discover.assert_called_once()
+
+    def test_tool_04_run_qualification_batch(self):
+        from seo_workforce.tools import run_qualification_batch
+        ctx = MockContext()
+        result = self._run(run_qualification_batch(limit=10, tool_context=ctx))
+        data = __import__("json").loads(result)
+        assert data["evaluated"] == 2
+        assert data["qualified"] == 1
+        assert data["rejected"] == 1
+        self.mock_qualify.assert_called_once_with("test-campaign-123", limit=10)
+
+    def test_tool_05_run_contact_resolution(self):
+        from seo_workforce.tools import run_contact_resolution
+        ctx = MockContext()
+        result = self._run(run_contact_resolution(limit=3, tool_context=ctx))
+        data = __import__("json").loads(result)
+        assert data["attempted"] == 1
+        assert data["found"] == 1
+        self.mock_resolve_contacts.assert_called_once()
+
+    def test_tool_06_queue_outreach_batch(self):
+        from seo_workforce.tools import queue_outreach_batch
+        ctx = MockContext()
+        result = self._run(queue_outreach_batch(limit=5, tool_context=ctx))
+        data = __import__("json").loads(result)
+        assert data["queued"] == 1
+        assert data["simulated_mode"] is True
+
+    def test_tool_07_run_negotiation_tick(self):
+        from seo_workforce.tools import run_negotiation_tick
+        ctx = MockContext()
+        result = self._run(run_negotiation_tick(ctx))
+        data = __import__("json").loads(result)
+        assert data["replies_detected"] == 2
+        assert data["negotiation_replies_sent_or_drafted"] == 1
+
+    def test_tool_08_list_open_interventions(self):
+        from seo_workforce.tools import list_open_interventions
+        ctx = MockContext()
+        result = self._run(list_open_interventions(ctx))
+        data = __import__("json").loads(result)
+        assert data["count"] == 0
+
+    def test_tool_09_complete_campaign(self):
+        from seo_workforce.tools import complete_campaign
+        ctx = MockContext()
+        result = self._run(complete_campaign(reason="goal_reached", tool_context=ctx))
+        data = __import__("json").loads(result)
+        assert data["completed"] is True
+        assert data["reason"] == "goal_reached"
+        self.mock_update_campaign.assert_called_once()
+
+    def test_tool_error_handling(self):
+        """Each tool should return JSON with 'error' key on exception."""
+        import json
+        from unittest.mock import AsyncMock, patch
+        from seo_workforce.tools import get_campaign_state
+
+        with patch("seo_workforce.tools.gateway.get_campaign", AsyncMock(side_effect=RuntimeError("gateway down"))):
+            ctx = MockContext()
+            result = self._run(get_campaign_state(ctx))
+            data = json.loads(result)
+            assert "error" in data
+            assert "gateway down" in data["error"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

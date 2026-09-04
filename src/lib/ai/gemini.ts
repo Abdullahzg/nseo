@@ -152,6 +152,8 @@ async function openRouterCall(
   }
 }
 
+const GROQ_MAX_RETRIES = 2;
+
 async function groqCall(
   prompt: string,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number },
@@ -161,25 +163,48 @@ async function groqCall(
   const key = runtimeKey || process.env.GROQ_API_KEY;
   if (!key || key.length < 20) return null;
   const model = (runtimeModel || DEFAULT_GROQ_MODEL).trim();
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: opts.maxTokens ?? 512,
-        temperature: opts.temperature ?? 0.4,
-      }),
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const raw = ((data.choices?.[0]?.message?.content as string) ?? "").trim();
-    return stripReasoning(raw) || null;
-  } catch {
-    return null;
+
+  for (let attempt = 0; attempt <= GROQ_MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Respect Retry-After header or exponential backoff
+        const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
+        await new Promise((r) => setTimeout(r, backoffMs));
+      }
+
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: opts.maxTokens ?? 512,
+          temperature: opts.temperature ?? 0.4,
+        }),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
+      });
+
+      if (res.status === 429) {
+        const retryAfter = res.headers.get("Retry-After");
+        const waitMs = retryAfter
+          ? Math.min(parseInt(retryAfter, 10) * 1000, 10_000)
+          : Math.min(2000 * Math.pow(2, attempt), 8_000);
+        if (attempt < GROQ_MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, waitMs));
+          continue;
+        }
+        return null;
+      }
+
+      if (!res.ok) return null;
+      const data = await res.json();
+      const raw = ((data.choices?.[0]?.message?.content as string) ?? "").trim();
+      return stripReasoning(raw) || null;
+    } catch {
+      if (attempt >= GROQ_MAX_RETRIES) return null;
+    }
   }
+  return null;
 }
 
 /**
