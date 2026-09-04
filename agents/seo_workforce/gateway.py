@@ -17,7 +17,10 @@ class GatewayError(RuntimeError):
 
 
 def _headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {config.AGENT_SERVICE_TOKEN}", "Content-Type": "application/json"}
+    h: dict[str, str] = {"Content-Type": "application/json"}
+    if config.AGENT_SERVICE_TOKEN:
+        h["Authorization"] = f"Bearer {config.AGENT_SERVICE_TOKEN}"
+    return h
 
 
 async def _request(method: str, path: str, json_body: dict | None = None, timeout: float = 120.0) -> dict:
