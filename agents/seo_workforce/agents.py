@@ -1,25 +1,28 @@
-"""ADK agent definitions for the SEO Deal Acquisition Workforce.
+"""Strands Agent definitions for the SEO Deal Acquisition Workforce.
 
 Architecture (docs/AGENT_DESIGN.md):
-  campaign_manager (root, Gemini) ─ coordinates the whole objective per tick
+  campaign_manager (root) ─ coordinates the whole objective per tick
     ├─ strategy_agent      ─ turns objective+state into a plan / next-phase advice
     ├─ discovery_agent     ─ runs bounded search batches via tools
     ├─ qualification_agent ─ evaluates prospects (deterministic scoring server-side)
-    ├─ contact_intel_agent ─ resolves author/editor contacts
+    ├─ contact_agent       ─ resolves author/editor contacts
     ├─ outreach_agent      ─ queues personalized sends (gated by the burst processor)
     ├─ negotiation_agent   ─ triages replies + negotiates under a hard price ceiling
-    └─ deal_agent          ─ records structured deals + completion checks
+    └─ intervention_agent  ─ lists human-in-the-loop requests
 
 Design rules:
   - Money math, ceilings, budget and send safety are ENFORCED IN CODE on the
     gateway side. The LLM chooses actions; it can never override policy.
-  - Deterministic work stays deterministic. Gemini is invoked once per tick with
-    compact state; every tool result is summarized back into its context.
+  - Deterministic work stays deterministic. The model is invoked once per tick
+    with compact state; every tool result is summarized back into its context.
+  - Agents-as-tools pattern: campaign_manager delegates to specialist agents
+    which are genuine Strands Agent objects exposed as tools.
 """
 from __future__ import annotations
 
-from google.adk.agents import LlmAgent
-from google.adk.tools import FunctionTool
+import logging
+
+from strands import Agent
 
 from . import config
 from .tools import (
@@ -34,83 +37,107 @@ from .tools import (
     complete_campaign,
 )
 
-MODEL = config.GEMINI_MODEL
+log = logging.getLogger("seo_workforce.agents")
 
-# ── specialized sub-agents ────────────────────────────────────────────────────
+# ── model provider selection ───────────────────────────────────────────────────
 
-strategy_agent = LlmAgent(
+
+def _build_model():
+    """Build the Strands model provider based on MODEL_PROVIDER env var."""
+    if config.MODEL_PROVIDER == "bedrock":
+        from strands.models import BedrockModel
+
+        log.info("Using Bedrock model provider: %s in %s", config.STRANDS_MODEL_ID, config.AWS_REGION)
+        return BedrockModel(
+            model_id=config.STRANDS_MODEL_ID,
+            region_name=config.AWS_REGION,
+        )
+    elif config.MODEL_PROVIDER == "gemini":
+        from strands.models import GeminiModel
+
+        log.info("Using Gemini model provider: %s", config.GEMINI_MODEL)
+        return GeminiModel(model=config.GEMINI_MODEL)
+    else:
+        raise ValueError(f"Unknown MODEL_PROVIDER: {config.MODEL_PROVIDER}")
+
+
+MODEL = _build_model()
+
+# ── specialist agents ──────────────────────────────────────────────────────────
+
+strategy_agent = Agent(
     name="strategy_agent",
     model=MODEL,
     description="Turns the campaign objective and current funnel state into an execution plan.",
-    instruction=(
+    system_prompt=(
         "You are the Campaign Strategy Agent for an autonomous SEO outreach workforce.\n"
-        "Given the campaign state JSON, produce a SHORT plan:\n"
+        "Given the campaign state, produce a SHORT plan:\n"
         "1) which phase deserves effort next (discover|qualify|contact|outreach|negotiate|complete),\n"
         "2) any adjustment to search focus (new keyword angles),\n"
         "3) risks worth watching.\n"
         "Be decisive and terse. Use the get_campaign_state tool to inspect state when needed.\n"
         "Never invent numbers that are not in the state."
     ),
-    tools=[FunctionTool(get_campaign_state)],
+    tools=[get_campaign_state],
 )
 
-discovery_agent = LlmAgent(
+discovery_agent = Agent(
     name="discovery_agent",
     model=MODEL,
     description="Finds new editorial placement prospects via bounded web-search batches.",
-    instruction=(
+    system_prompt=(
         "You are the Prospect Discovery Agent.\n"
         "Call run_discovery_batch to execute a bounded search round for this campaign.\n"
         "If the strategy notes suggest new keyword angles, pass them as `queries`.\n"
         "Report created/duplicate/suppressed counts honestly. Never fabricate prospects."
     ),
-    tools=[FunctionTool(run_discovery_batch)],
+    tools=[run_discovery_batch],
 )
 
-qualification_agent = LlmAgent(
+qualification_agent = Agent(
     name="qualification_agent",
     model=MODEL,
     description="Evaluates discovered prospects: relevance, authority gates, fair-value ceiling.",
-    instruction=(
+    system_prompt=(
         "You are the Prospect Qualification Agent.\n"
         "Call run_qualification_batch to score unqualified prospects.\n"
         "Scoring is deterministic server-side (DR gates, pricing tiers); your job is to run it "
         "in the right order and summarize which prospects passed and why in one line each."
     ),
-    tools=[FunctionTool(run_qualification_batch)],
+    tools=[run_qualification_batch],
 )
 
-contact_intel_agent = LlmAgent(
-    name="contact_intel_agent",
+contact_agent = Agent(
+    name="contact_agent",
     model=MODEL,
     description="Resolves verified author/editor email contacts through the enrichment cascade.",
-    instruction=(
+    system_prompt=(
         "You are the Contact Intelligence Agent.\n"
         "Call run_contact_resolution to run the enrichment cascade for qualified prospects.\n"
         "Report found addresses with their SOURCE and CONFIDENCE. Low-confidence pattern guesses "
         "are tagged as such; never present them as verified."
     ),
-    tools=[FunctionTool(run_contact_resolution)],
+    tools=[run_contact_resolution],
 )
 
-outreach_agent = LlmAgent(
+outreach_agent = Agent(
     name="outreach_agent",
     model=MODEL,
     description="Queues personalized outreach emails through the guarded send pipeline.",
-    instruction=(
+    system_prompt=(
         "You are the Outreach Agent.\n"
         "Call queue_outreach_batch for ready prospects with resolved contacts.\n"
         "Emails are drafted from stored article analysis and sent only through the guarded "
         "processor. Report queued vs refused (with reasons like role-mailbox or duplicate inbox)."
     ),
-    tools=[FunctionTool(queue_outreach_batch)],
+    tools=[queue_outreach_batch],
 )
 
-negotiation_agent = LlmAgent(
+negotiation_agent = Agent(
     name="negotiation_agent",
     model=MODEL,
     description="Triages replies and negotiates within deterministic price ceilings.",
-    instruction=(
+    system_prompt=(
         "You are the Negotiation Agent.\n"
         "Call run_negotiation_tick to sweep inbound replies and answer AI-managed threads.\n"
         "Policy you MUST respect (enforced server-side too):\n"
@@ -119,36 +146,36 @@ negotiation_agent = LlmAgent(
         "- when a publisher asks for something an email-only agent cannot do, the thread is\n"
         "  parked for a human — list_open_interventions shows those. Never try to satisfy them yourself."
     ),
-    tools=[FunctionTool(run_negotiation_tick), FunctionTool(list_open_interventions)],
+    tools=[run_negotiation_tick, list_open_interventions],
 )
 
-deal_agent = LlmAgent(
-    name="deal_agent",
+intervention_agent = Agent(
+    name="intervention_agent",
     model=MODEL,
-    description="Records agreed terms as structured deals and checks campaign completion.",
-    instruction=(
-        "You are the Deal Agent.\n"
-        "When negotiations agree terms, deals are recorded automatically with budget commits.\n"
-        "Use get_campaign_state to check progress toward desired_deals; call complete_campaign "
-        "ONLY when the goal is met or no viable path remains, stating the reason."
+    description="Lists human-in-the-loop requests that need human input.",
+    system_prompt=(
+        "You are the Intervention Agent.\n"
+        "Call list_open_interventions to check what human decisions are pending.\n"
+        "Report the count and types of open interventions. Do NOT attempt to resolve them.\n"
+        "A human must supply the missing input."
     ),
-    tools=[FunctionTool(get_campaign_state), FunctionTool(complete_campaign)],
+    tools=[list_open_interventions],
 )
 
-# ── root ──────────────────────────────────────────────────────────────────────
+# ── campaign manager (root agent) ──────────────────────────────────────────────
 
-campaign_manager = LlmAgent(
+campaign_manager = Agent(
     name="campaign_manager",
     model=MODEL,
     description="Autonomous SEO deal-acquisition manager: drives the full campaign lifecycle.",
-    instruction=(
+    system_prompt=(
         "You are the Campaign Manager of an autonomous SEO outreach workforce.\n"
         "MISSION: reach the campaign's desired number of quality placements within budget, "
         "with minimal human intervention — escalating ONLY when policy or capability demands it.\n"
         "\n"
         "LIFECYCLE: planning → discovering → qualifying → resolving_contacts → outreaching →\n"
         "monitoring → completed. You usually do ONE bounded unit of work per invocation,\n"
-        "delegating to the right specialist tool:\n"
+        "delegating to the right specialist:\n"
         "- planning: reason about the objective, note strategy (no tool needed).\n"
         "- discovering: run_discovery_batch (skip if paused_discovery).\n"
         "- qualifying: run_qualification_batch.\n"
@@ -165,25 +192,37 @@ campaign_manager = LlmAgent(
         "- Be honest about failures; report provider errors verbatim in your summary."
     ),
     tools=[
-        FunctionTool(get_campaign_state),
-        FunctionTool(plan_discovery),
-        FunctionTool(run_discovery_batch),
-        FunctionTool(run_qualification_batch),
-        FunctionTool(run_contact_resolution),
-        FunctionTool(queue_outreach_batch),
-        FunctionTool(run_negotiation_tick),
-        FunctionTool(list_open_interventions),
-        FunctionTool(complete_campaign),
-    ],
-    sub_agents=[
-        strategy_agent,
-        discovery_agent,
-        qualification_agent,
-        contact_intel_agent,
-        outreach_agent,
-        negotiation_agent,
-        deal_agent,
+        get_campaign_state,
+        plan_discovery,
+        run_discovery_batch,
+        run_qualification_batch,
+        run_contact_resolution,
+        queue_outreach_batch,
+        run_negotiation_tick,
+        list_open_interventions,
+        complete_campaign,
+        strategy_agent.as_tool(),
+        discovery_agent.as_tool(),
+        qualification_agent.as_tool(),
+        contact_agent.as_tool(),
+        outreach_agent.as_tool(),
+        negotiation_agent.as_tool(),
+        intervention_agent.as_tool(),
     ],
 )
 
 root_agent = campaign_manager
+
+# ── exported tools list (used by orchestrator to build per-tick agents) ────────
+
+ALL_TOOLS = [
+    get_campaign_state,
+    plan_discovery,
+    run_discovery_batch,
+    run_qualification_batch,
+    run_contact_resolution,
+    queue_outreach_batch,
+    run_negotiation_tick,
+    list_open_interventions,
+    complete_campaign,
+]

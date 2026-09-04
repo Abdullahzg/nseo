@@ -222,8 +222,12 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
   }
 
   // 2) Domain metrics — measured Ahrefs DR when available; traffic stays unverified on free tier.
-  const drRes = await fetchDomainRating(p.domain_host).catch(() => null);
-  if (drRes) {
+  //    Demo fixtures carry deterministic DR values to prove the qualification gate works.
+  const fixtureDr = DEMO_FIXTURES.find(f => f.host === p.domain_host)?.dr ?? null;
+  const drRes = fixtureDr != null
+    ? { dr: fixtureDr, source: "demo-fixture" }
+    : await fetchDomainRating(p.domain_host).catch(() => null);
+  if (drRes && drRes.source !== "demo-fixture") {
     await upsertDomain(p.domain_host, {
       dr: drRes.dr,
       dr_checked_at: new Date().toISOString(),
@@ -492,20 +496,22 @@ export { DR_MIN };
 
 // ─── demo fixtures (last-resort discovery for demo campaigns with zero search keys) ──
 // Labeled synthetic in provenance + events. Everything downstream is the real pipeline.
+// DR values are deterministic and realistic — some below DR_MIN (50) to prove the
+// qualification gate actually rejects weak prospects.
 
-const DEMO_FIXTURES: Array<{ host: string; url: string; title: string }> = [
-  { host: "creativetech.invalid", url: "https://creativetech.invalid/best-ai-photo-editors", title: "The Best AI Photo Editors We Tested This Year" },
-  { host: "photoworkflow.daily.invalid", url: "https://photoworkflow.daily.invalid/ai-image-restoration-guide", title: "AI Image Restoration: A Practical Guide for Photographers" },
-  { host: "restorereview.invalid", url: "https://restorereview.invalid/photo-restoration-tools-compared", title: "Photo Restoration Tools Compared: Old Photos, New Life" },
-  { host: "makersblog.tech.invalid", url: "https://makersblog.tech.invalid/ai-photo-editor-roundup", title: "7 AI Photo Editor Apps for Content Creators (Hands-on)" },
-  { host: "designdigest.creative.invalid", url: "https://designdigest.creative.invalid/restore-old-photos-ai", title: "How to Restore Old Photos with AI in 2026" },
-  { host: "pixelcraft.journal.invalid", url: "https://pixelcraft.journal.invalid/ai-image-tools-for-ecommerce", title: "AI Image Tools Every Ecommerce Team Should Know" },
-  { host: "lensandlight.blog.invalid", url: "https://lensandlight.blog.invalid/photo-restoration-software-review", title: "I Tested 5 Photo Restoration Services: Honest Review" },
-  { host: "futureframe.media.invalid", url: "https://futureframe.media.invalid/ai-photo-restoration-comparison", title: "Best AI Photo Restoration Software: Comparison Table" },
-  { host: "studiohandbook.pro.invalid", url: "https://studiohandbook.pro.invalid/ai-photo-editing-workflow", title: "Our Studio's AI Photo Editing Workflow, Explained" },
-  { host: "genstack.weekly.invalid", url: "https://genstack.weekly.invalid/ai-image-restoration-roundup", title: "Roundup: AI Image Restoration Tools Worth Your Time" },
-  { host: "editorschoice.review.invalid", url: "https://editorschoice.review.invalid/best-photo-restoration-services", title: "Editors' Choice: The Best Photo Restoration Services" },
-  { host: "visualverse.creative.invalid", url: "https://visualverse.creative.invalid/ai-photo-enhancement-guide", title: "From Blur to Sharp: An AI Photo Enhancement Field Guide" },
+const DEMO_FIXTURES: Array<{ host: string; url: string; title: string; dr: number }> = [
+  { host: "creativetech.invalid", url: "https://creativetech.invalid/best-ai-photo-editors", title: "The Best AI Photo Editors We Tested This Year", dr: 22 },
+  { host: "photoworkflow.daily.invalid", url: "https://photoworkflow.daily.invalid/ai-image-restoration-guide", title: "AI Image Restoration: A Practical Guide for Photographers", dr: 47 },
+  { host: "restorereview.invalid", url: "https://restorereview.invalid/photo-restoration-tools-compared", title: "Photo Restoration Tools Compared: Old Photos, New Life", dr: 55 },
+  { host: "makersblog.tech.invalid", url: "https://makersblog.tech.invalid/ai-photo-editor-roundup", title: "7 AI Photo Editor Apps for Content Creators (Hands-on)", dr: 34 },
+  { host: "designdigest.creative.invalid", url: "https://designdigest.creative.invalid/restore-old-photos-ai", title: "How to Restore Old Photos with AI in 2026", dr: 68 },
+  { host: "pixelcraft.journal.invalid", url: "https://pixelcraft.journal.invalid/ai-image-tools-for-ecommerce", title: "AI Image Tools Every Ecommerce Team Should Know", dr: 72 },
+  { host: "lensandlight.blog.invalid", url: "https://lensandlight.blog.invalid/photo-restoration-software-review", title: "I Tested 5 Photo Restoration Services: Honest Review", dr: 29 },
+  { host: "futureframe.media.invalid", url: "https://futureframe.media.invalid/ai-photo-restoration-comparison", title: "Best AI Photo Restoration Software: Comparison Table", dr: 61 },
+  { host: "studiohandbook.pro.invalid", url: "https://studiohandbook.pro.invalid/ai-photo-editing-workflow", title: "Our Studio's AI Photo Editing Workflow, Explained", dr: 44 },
+  { host: "genstack.weekly.invalid", url: "https://genstack.weekly.invalid/ai-image-restoration-roundup", title: "Roundup: AI Image Restoration Tools Worth Your Time", dr: 76 },
+  { host: "editorschoice.review.invalid", url: "https://editorschoice.review.invalid/best-photo-restoration-services", title: "Editors' Choice: The Best Photo Restoration Services", dr: 38 },
+  { host: "visualverse.creative.invalid", url: "https://visualverse.creative.invalid/ai-photo-enhancement-guide", title: "From Blur to Sharp: An AI Photo Enhancement Field Guide", dr: 31 },
 ];
 
 async function discoverDemoBatch(campaignId: string): Promise<DiscoverBatchResult> {

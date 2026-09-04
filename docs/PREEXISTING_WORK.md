@@ -1,6 +1,6 @@
 # Pre-existing Work Disclosure
 
-This project entered the **Google All Things Agentic Hackathon 2026** as an existing,
+This project entered the **AWS Agents for Humans Hackathon 2026** (Devpost) as an existing,
 production-used internal tool. This document declares exactly what existed before the
 competition period, what was reused, and what was newly built — so the competition
 contribution is defensible and honestly labeled.
@@ -59,11 +59,11 @@ Everything in that baseline is pre-existing work, including but not limited to:
 - **Tool gateway API** (`/api/agent/*`): token-authenticated, policy-enforcing
   wrappers around the legacy capabilities, with centralized Gemini-based LLM
   configuration (`GEMINI_MODEL`, default `gemini-3.5-flash`).
-- **Google ADK agent service** (`agents/`, Python): Campaign Manager root agent +
-  specialized sub-agents orchestrating plan → discover → qualify → contacts →
-  outreach → replies → negotiation → deals, with persistent ADK sessions
-  (Postgres-backed), bounded resumable work units, and durable human-in-the-loop
-  intervention requests/resolutions.
+- **Strands Agents SDK agent service** (`agents/`, Python): Campaign Manager root agent +
+  7 specialized sub-agents (agents-as-tools pattern) orchestrating plan → discover →
+  qualify → contacts → outreach → replies → negotiation → deals, with Strands session
+  management (FileSessionManager), bounded resumable work units, and durable human-in-the-loop
+  intervention requests/resolutions. Model provider: Amazon Bedrock (primary), Gemini (dev fallback).
 - **Observability UI**: live campaign execution view (per-agent status board,
   event timeline, budget/goal progress, completion summary, pause/resume/stop/
   emergency controls, per-campaign prospect explorer).
@@ -77,7 +77,7 @@ Everything in that baseline is pre-existing work, including but not limited to:
 
 ## 4. Provenance conventions
 
-- New files live under clearly named locations: `agents/` (ADK service),
+- New files live under clearly named locations: `agents/` (Strands service),
   `src/app/campaigns/[id]/**` (observability UI), `src/lib/campaign/**`,
   `src/lib/ai/gemini.ts`, `src/app/api/agent/**`, `deploy/`, `tests/`.
 - Where a pre-existing file was materially modified (e.g. lazy Supabase client

@@ -1,5 +1,8 @@
 """SEO Workforce agent service — FastAPI entrypoint (Cloud Run compatible).
 
+Uses Strands Agents SDK as the core agent framework.
+Model provider: Amazon Bedrock (primary) or Gemini (dev fallback).
+
 Endpoints:
   GET  /health                          liveness + config summary
   POST /tick        {campaign_id}       one bounded autonomous work unit
@@ -18,8 +21,9 @@ from . import config, gateway
 from .orchestrator import orchestrator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+log = logging.getLogger("seo_workforce.main")
 
-app = FastAPI(title="SEO Workforce Agent Service", version="1.0.0")
+app = FastAPI(title="SEO Workforce Agent Service", version="2.0.0-strands")
 
 
 class TickBody(BaseModel):
@@ -32,11 +36,22 @@ class ResolveBody(BaseModel):
 
 @app.get("/health")
 async def health() -> dict:
+    meta = config.model_description()
+    agents_list = [
+        "campaign_manager",
+        "strategy_agent",
+        "discovery_agent",
+        "qualification_agent",
+        "contact_agent",
+        "outreach_agent",
+        "negotiation_agent",
+        "intervention_agent",
+    ]
     return {
         "ok": True,
-        "model": config.GEMINI_MODEL,
+        **meta,
+        "agents": agents_list,
         "gateway_configured": bool(config.AGENT_SERVICE_TOKEN),
-        "durable_sessions": bool(config.sqlalchemy_url()),
     }
 
 
@@ -51,11 +66,16 @@ async def tick(body: TickBody) -> dict:
             "phase_after": result.phase_after,
             "action": result.action_taken,
             "agent_mode": result.agent_mode,
+            "framework": "strands-agents",
+            "model_provider": config.MODEL_PROVIDER,
             "details": result.details,
         }
     except gateway.GatewayError as e:
         raise HTTPException(status_code=e.status, detail=str(e))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        if config.HACKATHON_MODE:
+            log.error("HACKATHON_MODE: tick failed — %s", e)
+            raise HTTPException(status_code=500, detail=f"HACKATHON_MODE: Strands service error — {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

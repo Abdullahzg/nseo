@@ -4,9 +4,11 @@ import { runFallbackTick } from "@/lib/campaign/fallbackOrchestrator";
 
 export const maxDuration = 300;
 
+const HACKATHON_MODE = process.env.HACKATHON_MODE === "true" || process.env.HACKATHON_MODE === "1";
+
 // POST /api/campaigns/[id]/tick — one bounded work unit.
-// Primary: the ADK agent service (AGENT_SERVICE_URL). Fallback: in-process TS policy
-// with identical guardrails, so the product never hard-depends on a second process.
+// Primary: Strands agent service (AGENT_SERVICE_URL). Fallback: in-process TS policy
+// with identical guardrails. In HACKATHON_MODE, fails visibly if Strands is unavailable.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await authorizeAgent(req);
   if (!a.ok) return unauthorized();
@@ -25,13 +27,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         signal: AbortSignal.timeout(280_000),
       });
       const data = await res.json().catch(() => ({})) as Record<string, unknown>;
-      const payload: Record<string, unknown> = { ...data, mode: "adk-agent-service" };
+      const payload: Record<string, unknown> = { ...data, mode: "strands-agent-service" };
       return NextResponse.json(payload, { status: res.status });
     } catch (e: any) {
-      // Agent service unreachable — degrade to the TS fallback rather than stalling.
+      if (HACKATHON_MODE) {
+        return NextResponse.json(
+          { ok: false, mode: "hackathon-fail", error: `Strands service unavailable: ${e?.message}` },
+          { status: 503 },
+        );
+      }
+      // Non-hackathon: degrade to TS fallback rather than stalling.
       const r = await runFallbackTick(id);
       return NextResponse.json({ ...r, agent_service_error: e?.message });
     }
+  }
+  if (HACKATHON_MODE) {
+    return NextResponse.json(
+      { ok: false, mode: "hackathon-fail", error: "AGENT_SERVICE_URL not configured; Strands service required" },
+      { status: 503 },
+    );
   }
   const r = await runFallbackTick(id);
   return NextResponse.json(r);

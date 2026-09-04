@@ -1,7 +1,7 @@
 // Fallback tick orchestrator (TypeScript mirror of agents/seo_workforce/orchestrator.py).
 //
-// Used ONLY when AGENT_SERVICE_URL is not configured (e.g. minimal local setups).
-// The primary brain is the Google ADK agent service; this keeps the product functional
+// Used ONLY when AGENT_SERVICE_URL is not configured AND HACKATHON_MODE is false.
+// The primary brain is the Strands Agents SDK service; this keeps the product functional
 // and demo-safe without it, executing the same deterministic phase policy through the
 // same in-process tool functions. Every action still flows through the same guards.
 import { getCampaignRow, countProspectsByStatus, getDeals, setCampaignPhase, updateCampaignExt, listProspects } from "./queries";

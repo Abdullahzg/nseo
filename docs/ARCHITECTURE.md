@@ -22,15 +22,15 @@ deals — escalating to a human only when policy or capability genuinely require
 │  Campaign control ──► /api/campaigns/[id]/{start,tick}                        │
 │                          │                         │                         │
 │  Tool gateway /api/agent/*│                         ▼                         │
-│   (AGENT_SERVICE_TOKEN)   │            ADK Agent Service on Cloud Run          │
-│   discover qualify        ├──────────►  campaign_manager (root, Gemini)      │
+│   (AGENT_SERVICE_TOKEN)   │            Strands Agent Service on Cloud Run      │
+│   discover qualify        ├──────────►  campaign_manager (root, Bedrock)      │
 │   contact outreach        │              ├ strategy_agent                    │
 │   negotiate interventions │              ├ discovery_agent                   │
 │   events state budget     │              ├ qualification_agent                │
-│                           │              ├ contact_intel_agent                │
+│                           │              ├ contact_agent                      │
 │                           │              ├ outreach_agent                     │
 │                           │              ├ negotiation_agent                  │
-│                           │              └ deal_agent                         │
+│                           │              └ intervention_agent                 │
 │  Proven business engine ◄─┘              (tools call back over HTTP)         │
 │   pipeline/* discovery · enrich/cascade contacts · email/* send+IMAP          │
 │   negotiation/* classify→draft→clamp→send · score/* qualification            │

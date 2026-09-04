@@ -3,20 +3,20 @@
 ## Workforce topology
 
 ```
-campaign_manager (root LlmAgent — Gemini 3.5 Flash)
+campaign_manager (root Strands Agent — Amazon Bedrock)
 │  role: drive ONE bounded work unit per tick; honest summaries; no policy authority
 ├── strategy_agent        plan review, keyword angles, risk notes
 ├── discovery_agent       bounded web-search batches → deduped prospects w/ provenance
-├── qualification_agent   runs deterministic scoring + Gemini semantic relevance
-├── contact_intel_agent   enrichment cascade → verified contacts with confidence
+├── qualification_agent   runs deterministic scoring + semantic relevance
+├── contact_agent         enrichment cascade → verified contacts with confidence
 ├── outreach_agent        queues personalized sends through guarded processor
 ├── negotiation_agent     reply triage + negotiation inside hard ceilings
-└── deal_agent            structured deals + completion checks
+└── intervention_agent    lists human-in-the-loop requests
 ```
 
-Sub-agents are registered as ADK sub_agents of the root; each is also independently
-invokable. The root's tools are the same gateway tools the sub-agents bind, so a tick
-is a single agent deciding + acting, not a chat between agents.
+Sub-agents are registered as Strands agents-as-tools on the root; each is also independently
+invokable. The root's tools include both gateway tools AND specialist agent tools, so a tick
+is a single agent deciding + acting, optionally delegating to a specialist.
 
 ## The tick contract
 

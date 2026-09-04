@@ -1,35 +1,37 @@
 """Environment configuration for the SEO Workforce agent service."""
+from __future__ import annotations
+
 import os
 
+# ── model provider ─────────────────────────────────────────────────────────────
+# Primary: Amazon Bedrock. Optional dev: Gemini (via Strands provider).
+MODEL_PROVIDER = os.environ.get("MODEL_PROVIDER", "bedrock")
+STRANDS_MODEL_ID = os.environ.get("STRANDS_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-def _setup_gemini_env() -> None:
-    """ADK/google-genai reads GOOGLE_API_KEY; our canonical name is GEMINI_API_KEY."""
-    if not os.environ.get("GOOGLE_API_KEY") and os.environ.get("GEMINI_API_KEY"):
-        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+# Gemini fallback for local dev (when MODEL_PROVIDER=gemini)
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
-
-_setup_gemini_env()
-
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
-
-# Next.js tool-gateway base URL, e.g. http://localhost:3000 or the Cloud Run URL.
+# ── gateway ────────────────────────────────────────────────────────────────────
 AGENT_BASE_URL = os.environ.get("AGENT_BASE_URL", os.environ.get("APP_URL", "http://localhost:3000")).rstrip("/")
-# Shared secret presented to the gateway (must match AGENT_SERVICE_TOKEN on the app).
 AGENT_SERVICE_TOKEN=REDACTED "")
 
-# Postgres URL for durable ADK sessions/state. Falls back to in-memory when unset.
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
+# ── session storage ────────────────────────────────────────────────────────────
+SESSION_STORAGE_DIR = os.environ.get("SESSION_STORAGE_DIR", ".strands_sessions")
+
+# ── hackathon mode ─────────────────────────────────────────────────────────────
+# When true, /tick FAILS VISIBLY if Strands service is unavailable.
+# No silent TypeScript fallback.
+HACKATHON_MODE = os.environ.get("HACKATHON_MODE", "true").lower() in ("true", "1", "yes")
 
 SERVICE_PORT = int(os.environ.get("PORT", os.environ.get("AGENT_SERVICE_PORT", "8104")))
 
 
-def sqlalchemy_url() -> str | None:
-    """Convert a Postgres URL to SQLAlchemy async format for ADK session storage."""
-    if not DATABASE_URL:
-        return None
-    url = DATABASE_URL
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    if url.startswith("postgresql://") and "+asyncpg" not in url:
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return url
+def model_description() -> dict:
+    """Non-sensitive model/provider metadata for health endpoint."""
+    return {
+        "framework": "strands-agents",
+        "model_provider": MODEL_PROVIDER,
+        "model_id": STRANDS_MODEL_ID if MODEL_PROVIDER == "bedrock" else GEMINI_MODEL,
+        "hackathon_mode": HACKATHON_MODE,
+    }

@@ -5,25 +5,22 @@ Safety rails enforced HERE (in addition to gateway-side enforcement):
   - exactly one batch action per tick;
   - phase transitions are computed deterministically from funnel counts;
   - hard wall-clock timeout on agent reasoning;
-  - if Gemini is unavailable or misbehaves, the deterministic policy still advances
-    the campaign (degraded but honest — every event records which path ran).
+  - if Strands is unavailable, FAILS VISIBLY in hackathon mode (no silent fallback).
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
 
-from google.genai import types
-
-from google.adk.runners import Runner
-from google.adk.sessions import BaseSessionService, InMemorySessionService
+from strands import Agent
+from strands.session.file_session_manager import FileSessionManager
 
 from . import config, gateway
-from .agents import root_agent
-from .tools import set_active_campaign
+from .agents import root_agent, ALL_TOOLS
 
 log = logging.getLogger("seo_workforce.orchestrator")
 
@@ -37,38 +34,35 @@ class TickResult:
     phase_before: str | None
     phase_after: str | None
     action_taken: str
-    agent_mode: str            # adk-gemini | fallback-policy
+    agent_mode: str  # strands-gemini | strands-bedrock | fallback-policy
     summary: str = ""
     details: dict = field(default_factory=dict)
 
 
-def _session_service() -> BaseSessionService:
-    url = config.sqlalchemy_url()
-    if url:
-        try:
-            from google.adk.sessions import DatabaseSessionService
-
-            return DatabaseSessionService(db_url=url)
-        except Exception as e:  # noqa: BLE001
-            log.warning("DatabaseSessionService unavailable (%s); using in-memory sessions", e)
-    return InMemorySessionService()
-
-
 class CampaignOrchestrator:
     def __init__(self) -> None:
-        self._runner: Runner | None = None
-        self._session_service = _session_service()
+        self._agent: Agent | None = None
 
     @property
-    def runner(self) -> Runner:
-        if self._runner is None:
-            self._runner = Runner(app_name="seo_workforce", agent=root_agent, session_service=self._session_service)
-        return self._runner
+    def agent(self) -> Agent:
+        if self._agent is None:
+            session_id = f"campaign-{getattr(self, '_active_campaign', 'default')}"
+            session_manager = FileSessionManager(
+                session_id=session_id,
+                storage_dir=config.SESSION_STORAGE_DIR,
+            )
+            self._agent = Agent(
+                name="campaign_manager",
+                model=root_agent.model,
+                system_prompt=root_agent.system_prompt,
+                tools=root_agent.tools,
+                session_manager=session_manager,
+            )
+        return self._agent
 
     # ── public ────────────────────────────────────────────────────────────────
 
     async def tick(self, campaign_id: str) -> TickResult:
-        set_active_campaign(campaign_id)
         t0 = time.monotonic()
         run_id = str(uuid.uuid4())
 
@@ -81,8 +75,8 @@ class CampaignOrchestrator:
         if not state.get("is_active"):
             return TickResult(campaign_id, before, before, "noop", "fallback-policy", f"phase={before} is terminal/inactive")
 
-        # The agent reasons first; it may execute one bounded action via tools.
-        agent_ran = await self._run_agent_tick(campaign_id, state)
+        # The agent reasons and may execute one bounded action via tools.
+        agent_ran, agent_summary = await self._run_agent_tick(campaign_id, state)
 
         # Deterministic transition check regardless of what the agent did.
         transitioned = await self._maybe_transition(campaign_id, state)
@@ -95,11 +89,15 @@ class CampaignOrchestrator:
             "prospects_by_status": fresh.get("prospects_by_status"),
             "budget_used": fresh["campaign"].get("budget_used"),
             "duration_ms": int((time.monotonic() - t0) * 1000),
+            "framework": "strands-agents",
+            "model_provider": config.MODEL_PROVIDER,
         }
         await gateway.emit_events(campaign_id, [{
             "run_id": run_id,
             "agent": "campaign_manager",
             "action": "tick",
+            "framework": "strands-agents",
+            "model_provider": config.MODEL_PROVIDER,
             "state_before": before,
             "state_after": fresh["campaign"].get("phase"),
             "duration_ms": details["duration_ms"],
@@ -111,50 +109,51 @@ class CampaignOrchestrator:
             phase_before=before,
             phase_after=fresh["campaign"].get("phase"),
             action_taken="agent" if agent_ran else "policy",
-            agent_mode="adk-gemini" if agent_ran else "fallback-policy",
+            agent_mode=f"strands-{config.MODEL_PROVIDER}" if agent_ran else "fallback-policy",
+            summary=agent_summary,
             details=details,
         )
 
     # ── agent reasoning ───────────────────────────────────────────────────────
 
-    async def _run_agent_tick(self, campaign_id: str, state: dict) -> bool:
+    async def _run_agent_tick(self, campaign_id: str, state: dict) -> tuple[bool, str]:
         prompt = self._tick_prompt(state)
+
+        # Create a fresh agent per tick with campaign-scoped session
+        session_manager = FileSessionManager(
+            session_id=f"campaign-{campaign_id}",
+            storage_dir=config.SESSION_STORAGE_DIR,
+        )
+        agent = Agent(
+            name="campaign_manager",
+            model=root_agent.model,
+            system_prompt=root_agent.system_prompt,
+            tools=ALL_TOOLS,
+            session_manager=session_manager,
+        )
+
         try:
-            session_id = f"campaign-{campaign_id}"
-            user_id = "system"
-
-            existing = await self._session_service.get_session(app_name="seo_workforce", user_id=user_id, session_id=session_id)
-            if existing is None:
-                await self._session_service.create_session(app_name="seo_workforce", user_id=user_id, session_id=session_id)
-
-            content = types.Content(role="user", parts=[types.Part(text=prompt)])
-            saw_function_call = False
-            final_text = ""
-
-            async def _consume() -> None:
-                nonlocal saw_function_call, final_text
-                async for event in self.runner.run_async(
-                    user_id=user_id, session_id=session_id, new_message=content,
-                ):
-                    if event.content and event.content.parts:
-                        for part in event.content.parts:
-                            if part.function_call is not None:
-                                saw_function_call = True
-                            elif part.text:
-                                final_text += part.text
-
-            await asyncio.wait_for(_consume(), timeout=TICK_TIMEOUT_S)
-            return saw_function_call or bool(final_text.strip())
+            result = await asyncio.wait_for(
+                agent.invoke_async(prompt),
+                timeout=TICK_TIMEOUT_S,
+            )
+            summary = str(result) if result else ""
+            # Check if any tool was called by examining agent state
+            tool_called = bool(agent.messages) and any(
+                m.get("role") == "assistant" and m.get("content")
+                for m in agent.messages[-3:]
+            )
+            return tool_called or bool(summary.strip()), summary
         except asyncio.TimeoutError:
             log.warning("agent tick timed out for %s", campaign_id)
-            return False
-        except Exception as e:  # noqa: BLE001
+            return False, "timeout"
+        except Exception as e:
             log.warning("agent tick failed for %s: %s", campaign_id, e)
-            return False
+            if config.HACKATHON_MODE:
+                raise RuntimeError(f"HACKATHON_MODE: Strands agent failed — {e}") from e
+            return False, f"error: {e}"
 
     def _tick_prompt(self, state: dict) -> str:
-        import json
-
         camp = state["campaign"]
         counts = state.get("prospects_by_status", {})
         desired = camp.get("desired_deals")
@@ -257,6 +256,7 @@ class CampaignOrchestrator:
             await gateway.emit_events(campaign_id, [{
                 "agent": "campaign_manager",
                 "action": "phase_transition",
+                "framework": "strands-agents",
                 "state_before": phase,
                 "state_after": nxt,
                 "detail": {"reason": reason},
