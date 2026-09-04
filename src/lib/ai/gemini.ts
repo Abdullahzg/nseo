@@ -184,6 +184,7 @@ async function groqCall(
 
 /**
  * Single completion through the chain: Gemini → OpenRouter → Groq.
+ * When AI_PROVIDER=groq, Groq is tried FIRST (skipping Gemini/OpenRouter).
  * Returns the successful result with honest provenance labels, or null when every
  * configured provider fails — callers must keep deterministic fallbacks (legacy rule).
  */
@@ -192,6 +193,16 @@ export async function llmText(
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}
 ): Promise<LLMResult | null> {
   const runtime = await getRuntimeAIConfig().catch(() => null);
+  const aiProvider = process.env.AI_PROVIDER || "cascade";
+
+  // When AI_PROVIDER=groq, use Groq as primary (skip Gemini/OpenRouter)
+  if (aiProvider === "groq") {
+    const groqText = await groqCall(prompt, opts, runtime?.groq_api_key, runtime?.groq_model);
+    if (groqText != null) return { text: groqText, provider: "groq", model: runtime?.groq_model || DEFAULT_GROQ_MODEL };
+    return null;
+  }
+
+  // Default cascade: Gemini → OpenRouter → Groq
   const geminiKey = runtime?.gemini_api_key || process.env.GEMINI_API_KEY;
 
   if (geminiKey && geminiKey.length > 10) {

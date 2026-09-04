@@ -44,7 +44,24 @@ log = logging.getLogger("seo_workforce.agents")
 
 def _build_model():
     """Build the Strands model provider based on MODEL_PROVIDER env var."""
-    if config.MODEL_PROVIDER == "bedrock":
+    provider = config.MODEL_PROVIDER
+
+    if provider == "groq":
+        from strands.models.openai import OpenAIModel
+
+        log.info("Using Groq model provider: %s at %s", config.GROQ_MODEL, config.GROQ_BASE_URL)
+        return OpenAIModel(
+            client_args={
+                "api_key": os.environ["GROQ_API_KEY"],
+                "base_url": config.GROQ_BASE_URL,
+            },
+            model_id=config.GROQ_MODEL,
+            params={
+                "temperature": 0.1,
+                "max_tokens": 2048,
+            },
+        )
+    elif provider == "bedrock":
         from strands.models import BedrockModel
 
         log.info("Using Bedrock model provider: %s in %s", config.STRANDS_MODEL_ID, config.AWS_REGION)
@@ -52,14 +69,16 @@ def _build_model():
             model_id=config.STRANDS_MODEL_ID,
             region_name=config.AWS_REGION,
         )
-    elif config.MODEL_PROVIDER == "gemini":
+    elif provider == "gemini":
         from strands.models import GeminiModel
 
         log.info("Using Gemini model provider: %s", config.GEMINI_MODEL)
         return GeminiModel(model=config.GEMINI_MODEL)
     else:
-        raise ValueError(f"Unknown MODEL_PROVIDER: {config.MODEL_PROVIDER}")
+        raise ValueError(f"Unknown MODEL_PROVIDER: {provider}")
 
+
+import os  # noqa: E402 (needed for _build_model env access)
 
 MODEL = _build_model()
 
