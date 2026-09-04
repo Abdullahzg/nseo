@@ -359,5 +359,202 @@ class TestToolGateway:
             assert "gateway down" in data["error"]
 
 
+# ── Delegation proof (Phase 13) ─────────────────────────────────────────────
+
+class TestDelegationChain:
+    """Prove the full delegation chain: campaign_manager → as_tool → specialist → tool → gateway."""
+
+    def test_campaign_manager_has_as_tool_wrappers(self):
+        """campaign_manager should include 7 specialist agent names (one per as_tool())."""
+        from seo_workforce.agents import campaign_manager
+        assert "strategy_agent" in campaign_manager.tool_names
+        assert "discovery_agent" in campaign_manager.tool_names
+        assert "qualification_agent" in campaign_manager.tool_names
+        assert "contact_agent" in campaign_manager.tool_names
+        assert "outreach_agent" in campaign_manager.tool_names
+        assert "negotiation_agent" in campaign_manager.tool_names
+        assert "intervention_agent" in campaign_manager.tool_names
+
+    def test_campaign_manager_has_16_total_tools(self):
+        """9 raw @tools + 7 as_tool() wrappers = 16 total tools on campaign_manager."""
+        from seo_workforce.agents import campaign_manager
+        assert len(campaign_manager.tool_names) == 16
+
+    def test_specialists_have_individual_tools(self):
+        """Each specialist has exactly 1-2 tools for its narrow responsibility."""
+        from seo_workforce.agents import (
+            strategy_agent, discovery_agent, qualification_agent,
+            contact_agent, outreach_agent, negotiation_agent,
+            intervention_agent,
+        )
+        assert len(strategy_agent.tool_names) == 1
+        assert len(discovery_agent.tool_names) == 1
+        assert len(qualification_agent.tool_names) == 1
+        assert len(contact_agent.tool_names) == 1
+        assert len(outreach_agent.tool_names) == 1
+        assert len(negotiation_agent.tool_names) == 2
+        assert len(intervention_agent.tool_names) == 1
+
+    def test_delegation_tool_names(self):
+        """Verify the delegation chain: campaign_manager has both raw tools and specialist names."""
+        from seo_workforce.agents import campaign_manager
+        raw_tools = ["get_campaign_state", "plan_discovery", "run_discovery_batch",
+                     "run_qualification_batch", "run_contact_resolution",
+                     "queue_outreach_batch", "run_negotiation_tick",
+                     "list_open_interventions", "complete_campaign"]
+        specialist_names = ["strategy_agent", "discovery_agent", "qualification_agent",
+                           "contact_agent", "outreach_agent", "negotiation_agent",
+                           "intervention_agent"]
+        for name in raw_tools:
+            assert name in campaign_manager.tool_names, f"Missing raw tool: {name}"
+        for name in specialist_names:
+            assert name in campaign_manager.tool_names, f"Missing specialist: {name}"
+
+    def test_as_tool_wraps_specialist(self):
+        """Each specialist agent appears as a named tool on the campaign_manager."""
+        from seo_workforce.agents import campaign_manager
+        # The specialist names appear in tool_names, proving delegation is wired
+        delegation_names = [n for n in campaign_manager.tool_names if "_agent" in n]
+        assert len(delegation_names) == 7
+        assert "strategy_agent" in delegation_names
+        assert "negotiation_agent" in delegation_names
+
+    def test_orchestrator_recommend(self):
+        """Orchestrator._recommend returns a policy string based on phase."""
+        from seo_workforce.orchestrator import CampaignOrchestrator
+        orch = CampaignOrchestrator()
+
+        # planning phase → "move to discovering"
+        rec = orch._recommend({"campaign": {"phase": "planning"}, "prospects_by_status": {}, "deals": [], "open_interventions": []})
+        assert "discovering" in rec
+
+        # discovering with empty pool → "run_discovery_batch"
+        rec = orch._recommend({"campaign": {"phase": "discovering", "desired_deals": 3, "paused_discovery": False}, "prospects_by_status": {}, "deals": [], "open_interventions": []})
+        assert "run_discovery_batch" in rec
+
+        # qualifying with prospects → "run_qualification_batch"
+        rec = orch._recommend({"campaign": {"phase": "qualifying"}, "prospects_by_status": {"discovered": 10}, "deals": [], "open_interventions": []})
+        assert "run_qualification_batch" in rec
+
+        # monitoring + goal reached → "complete_campaign"
+        rec = orch._recommend({"campaign": {"phase": "monitoring", "desired_deals": 3}, "prospects_by_status": {}, "deals": [{}, {}, {}], "open_interventions": []})
+        assert "complete_campaign" in rec
+
+        # open interventions → "monitoring" (escalate, don't resolve)
+        rec = orch._recommend({"campaign": {"phase": "discovering"}, "prospects_by_status": {}, "deals": [], "open_interventions": [{"type": "pricing"}]})
+        assert "monitoring" in rec
+        assert "intervention" in rec.lower()
+
+
+# ── Orchestrator tick test (Phase 16) ────────────────────────────────────────
+
+class TestOrchestratorTick:
+    """Test orchestrator tick with mocked gateway — proves the tick loop works end-to-end."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_gateway(self):
+        from unittest.mock import AsyncMock, patch
+        self.mock_get_campaign = AsyncMock(return_value={
+            "campaign": {
+                "phase": "planning",
+                "desired_deals": 3,
+                "budget_total": 100,
+                "budget_used": 0,
+                "currency": "USD",
+                "paused_discovery": False,
+                "paused_outreach": False,
+                "paused_negotiation": False,
+                "emergency_stopped": False,
+                "objective": "Get backlinks",
+                "website_url": "https://example.com",
+                "keywords": ["SEO"],
+            },
+            "prospects_by_status": {},
+            "deals": [],
+            "open_interventions": [],
+            "is_active": True,
+        })
+        self.mock_update_campaign = AsyncMock(return_value={})
+        self.mock_emit_events = AsyncMock(return_value={})
+
+        with patch("seo_workforce.orchestrator.gateway.get_campaign", self.mock_get_campaign), \
+             patch("seo_workforce.orchestrator.gateway.update_campaign", self.mock_update_campaign), \
+             patch("seo_workforce.orchestrator.gateway.emit_events", self.mock_emit_events), \
+             patch("seo_workforce.orchestrator.Agent") as MockAgent:
+            # Mock agent to return without actually calling Groq
+            mock_instance = MockAgent.return_value
+            mock_instance.invoke_async = AsyncMock(return_value="Phase planning complete, moving to discovering.")
+            mock_instance.messages = [{"role": "assistant", "content": "ok"}]
+            yield
+
+    def _run(self, coro):
+        import asyncio
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+
+    def test_tick_returns_tick_result(self):
+        from seo_workforce.orchestrator import CampaignOrchestrator, TickResult
+        orch = CampaignOrchestrator()
+        result = self._run(orch.tick("test-campaign-123"))
+        assert isinstance(result, TickResult)
+        assert result.campaign_id == "test-campaign-123"
+        assert result.phase_before == "planning"
+        assert result.agent_mode.startswith("strands-") or result.agent_mode == "fallback-policy"
+
+    def test_tick_emits_events(self):
+        from seo_workforce.orchestrator import CampaignOrchestrator
+        orch = CampaignOrchestrator()
+        self._run(orch.tick("test-campaign-123"))
+        assert self.mock_emit_events.called
+
+    def test_tick_transitions_planning_to_discovering(self):
+        from unittest.mock import AsyncMock, patch
+        from strands import Agent
+        from seo_workforce.orchestrator import CampaignOrchestrator
+
+        # get_campaign returns planning first, then discovering after transition
+        get_campaign_mock = AsyncMock(side_effect=[
+            {"campaign": {
+                "phase": "planning", "desired_deals": 3, "budget_total": 100,
+                "budget_used": 0, "currency": "USD", "paused_discovery": False,
+                "paused_outreach": False, "paused_negotiation": False,
+                "emergency_stopped": False, "objective": "Get backlinks",
+                "website_url": "https://example.com", "keywords": ["SEO"],
+            }, "prospects_by_status": {}, "deals": [], "open_interventions": [], "is_active": True},
+            {"campaign": {
+                "phase": "discovering", "desired_deals": 3, "budget_total": 100,
+                "budget_used": 0, "currency": "USD", "paused_discovery": False,
+                "paused_outreach": False, "paused_negotiation": False,
+                "emergency_stopped": False, "objective": "Get backlinks",
+                "website_url": "https://example.com", "keywords": ["SEO"],
+            }, "prospects_by_status": {}, "deals": [], "open_interventions": [], "is_active": True},
+        ])
+
+        with patch("seo_workforce.orchestrator.gateway.get_campaign", get_campaign_mock), \
+             patch("seo_workforce.orchestrator.gateway.update_campaign", AsyncMock()), \
+             patch("seo_workforce.orchestrator.gateway.emit_events", AsyncMock()):
+            orch = CampaignOrchestrator()
+            result = self._run(orch.tick("test-campaign-123"))
+            assert result.phase_after == "discovering"
+
+    def test_tick_noop_on_emergency_stop(self):
+        from unittest.mock import AsyncMock, patch
+        from seo_workforce.orchestrator import CampaignOrchestrator
+
+        with patch("seo_workforce.orchestrator.gateway.get_campaign", AsyncMock(return_value={
+            "campaign": {"phase": "planning", "emergency_stopped": True},
+            "prospects_by_status": {}, "deals": [], "open_interventions": [], "is_active": True,
+        })), patch("seo_workforce.orchestrator.gateway.update_campaign", AsyncMock()), \
+             patch("seo_workforce.orchestrator.gateway.emit_events", AsyncMock()), \
+             patch("seo_workforce.orchestrator.Agent"):
+            orch = CampaignOrchestrator()
+            result = self._run(orch.tick("test-campaign-456"))
+            assert result.action_taken == "noop"
+            assert result.agent_mode == "fallback-policy"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
