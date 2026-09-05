@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@auth";
+import { identifyCaller } from "@/lib/auth/service";
 import { getCampaignRow, getDeals, countProspectsByStatus, listInterventions, listAgentEvents, updateCampaignExt, setCampaignPhase } from "@/lib/campaign/queries";
 import { isActivePhase } from "@/lib/campaign/queries";
 
 export const maxDuration = 60;
 
 // GET /api/campaigns/[id] — full state for the campaign observability UI.
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth().catch(() => null);
-  if (!session?.user?.email) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const caller = await identifyCaller(req);
+  if (!caller) return NextResponse.json({ error: "not signed in" }, { status: 401 });
   const { id } = await params;
 
   const camp = await getCampaignRow(id);
@@ -39,8 +39,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH /api/campaigns/[id] — controls: pause/resume per capability + stop/emergency.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth().catch(() => null);
-  if (!session?.user?.email) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  const caller = await identifyCaller(req);
+  if (!caller) return NextResponse.json({ error: "not signed in" }, { status: 401 });
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 

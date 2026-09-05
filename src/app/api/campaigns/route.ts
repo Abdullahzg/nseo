@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@auth";
+import { identifyCaller } from "@/lib/auth/service";
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { getCampaigns, createCampaign } from "@/lib/db/queries";
 
@@ -18,8 +18,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const session = await auth().catch(() => null);
-    const ownerEmail = session?.user?.email ?? null;
+    const caller = await identifyCaller(req);
+    const ownerEmail = caller?.kind === "user" ? caller.email : null;
 
     const { name, keywords, region, target_hits, seed_writer_name, seed_article_url, seed_domains, seed_article_urls } = body;
     const hasSeed = seed_writer_name || seed_article_url || seed_domains?.length || seed_article_urls?.length;
