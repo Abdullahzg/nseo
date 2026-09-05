@@ -384,80 +384,86 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
   const steps: string[] = [];
   await updateProspect(prospectId, { status: "resolving_contact" });
 
-  const authorId = await ensureProspectAuthor(p).catch(() => null);
-  p = (await getProspect(prospectId)) ?? p;
+  try {
+    const authorId = await ensureProspectAuthor(p).catch(() => null);
+    p = (await getProspect(prospectId)) ?? p;
 
-  let result: ContactResolution | null = null;
+    let result: ContactResolution | null = null;
 
-  if (authorId) {
-    const { data: author } = await supabaseAdmin
-      .from("authors").select("id, full_name").eq("id", authorId).maybeSingle();
-    if (author) {
-      const { data: dom } = await supabaseAdmin
-        .from("domains").select("host, name").or(`host.eq.${p.domain_host},name.eq.${p.domain_host}`).limit(1).maybeSingle();
-      const cascade = await resolveEmailCascade(
-        { id: author.id, name: author.full_name, host: (dom as any)?.host ?? p.domain_host, publication: (dom as any)?.name ?? p.domain_host },
-        {
-          onStep: (s) => steps.push(s),
-          patternCache: new Map(),
-          hunterDomains: new Map(),
-          domainVerify: new Map(),
+    if (authorId) {
+      const { data: author } = await supabaseAdmin
+        .from("authors").select("id, full_name").eq("id", authorId).maybeSingle();
+      if (author) {
+        const { data: dom } = await supabaseAdmin
+          .from("domains").select("host, name").or(`host.eq.${p.domain_host},name.eq.${p.domain_host}`).limit(1).maybeSingle();
+        const cascade = await resolveEmailCascade(
+          { id: author.id, name: author.full_name, host: (dom as any)?.host ?? p.domain_host, publication: (dom as any)?.name ?? p.domain_host },
+          {
+            onStep: (s) => steps.push(s),
+            patternCache: new Map(),
+            hunterDomains: new Map(),
+            domainVerify: new Map(),
+          }
+        ).catch(() => null);
+        if (cascade) {
+          result = { ok: true, email: cascade.email, source: cascade.source, confidence: cascade.score, owner_name: cascade.ownerName ?? null, steps };
         }
-      ).catch(() => null);
-      if (cascade) {
-        result = { ok: true, email: cascade.email, source: cascade.source, confidence: cascade.score, owner_name: cascade.ownerName ?? null, steps };
       }
     }
-  }
 
-  if (!result) {
-    result = await domainLevelContact(p.domain_host, steps);
-  }
+    if (!result) {
+      result = await domainLevelContact(p.domain_host, steps);
+    }
 
-  // Demo mode: guarantee a reachable (simulated) recipient so the downstream pipeline —
-  // drafting, sending gates, reply injection, negotiation, deals — runs end to end.
-  const campRow = await getCampaignRow(p.campaign_id);
-  if (!result.ok && campRow?.demo_mode) {
-    // Person-like local part: the role/placeholder gates must still treat it as a real person.
-    const email = `sarah.mitchell@${p.domain_host}`;
-    steps.push("demo: synthesized simulated recipient");
-    result = { ok: true, email, source: "demo-simulated", confidence: 70, steps };
-  }
+    // Demo mode: guarantee a reachable (simulated) recipient so the downstream pipeline —
+    // drafting, sending gates, reply injection, negotiation, deals — runs end to end.
+    const campRow = await getCampaignRow(p.campaign_id);
+    if (!result.ok && campRow?.demo_mode) {
+      const email = `sarah.mitchell@${p.domain_host}`;
+      steps.push("demo: synthesized simulated recipient");
+      result = { ok: true, email, source: "demo-simulated", confidence: 70, steps };
+    }
 
-  if (result.ok && result.email && !isRoleEmail(result.email) && !isPlaceholderEmail(result.email)) {
-    // Persist via the guarded upsert (rejects role mailboxes/placeholder junk at the DB boundary).
-    if (!authorId) return { ...result, ok: false, steps: [...steps, "no author row to attach the contact to"] };
-    await upsertContact({
-      author_id: authorId,
-      type: "mailto",
-      value: result.email.startsWith("mailto:") ? result.email : `mailto:${result.email}`,
-      confidence: Math.min(1, (result.confidence ?? 60) / 100),
-      source: result.source ?? "agent-cascade",
-    }).catch(() => {});
-    await updateProspect(prospectId, {
-      status: "ready",
-      contact_email: result.email,
-      contact_source: result.source,
-      contact_confidence: result.confidence ?? null,
-      notes: { contact_steps: steps },
+    if (result.ok && result.email && !isRoleEmail(result.email) && !isPlaceholderEmail(result.email)) {
+      if (!authorId) {
+        await updateProspect(prospectId, { status: "qualified", notes: { contact_steps: steps } });
+        return { ...result, ok: false, steps: [...steps, "no author row to attach the contact to"] };
+      }
+      await upsertContact({
+        author_id: authorId,
+        type: "mailto",
+        value: result.email.startsWith("mailto:") ? result.email : `mailto:${result.email}`,
+        confidence: Math.min(1, (result.confidence ?? 60) / 100),
+        source: result.source ?? "agent-cascade",
+      }).catch(() => {});
+      await updateProspect(prospectId, {
+        status: "ready",
+        contact_email: result.email,
+        contact_source: result.source,
+        contact_confidence: result.confidence ?? null,
+        notes: { contact_steps: steps },
+      });
+    } else {
+      // Soft fail: reset to qualified WITHOUT contact_failed so the next pass can retry.
+      await updateProspect(prospectId, {
+        status: "qualified",
+        notes: { contact_steps: steps, contact_attempts: ((p.notes as any)?.contact_attempts ?? 0) + 1 },
+      });
+      result.ok = false;
+      result.steps.push("no usable contact found");
+    }
+
+    await emitEvent(p.campaign_id, "contact_intel", result.ok ? "contact_resolved" : "contact_missing", {
+      prospect_id: prospectId,
+      duration_ms: Date.now() - t0,
+      detail: { host: p.domain_host, source: result.source, confidence: result.confidence, email_domain: result.email?.split("@")[1], owner_name: result.owner_name },
     });
-  } else {
-    // No usable address: stay qualified but flagged — a later pass may find one (new article,
-    // provider key added). Never park a qualified prospect as dead on a transient miss.
-    await updateProspect(prospectId, {
-      status: "qualified",
-      notes: { contact_steps: steps, contact_failed: true },
-    });
-    result.ok = false;
-    result.steps.push("no usable contact found");
+    return result;
+  } catch (err: any) {
+    // Always reset status on unexpected error — never leave stuck in resolving_contact
+    await updateProspect(prospectId, { status: "qualified", notes: { contact_steps: steps, error: err?.message } }).catch(() => {});
+    return { ok: false, steps: [...steps, `error: ${err?.message ?? "unknown"}`] };
   }
-
-  await emitEvent(p.campaign_id, "contact_intel", result.ok ? "contact_resolved" : "contact_missing", {
-    prospect_id: prospectId,
-    duration_ms: Date.now() - t0,
-    detail: { host: p.domain_host, source: result.source, confidence: result.confidence, email_domain: result.email?.split("@")[1], owner_name: result.owner_name },
-  });
-  return result;
 }
 
 /** Domain-level fallback: homepage+contact scrape → AI scan → Hunter domain search → tagged pattern guess. */

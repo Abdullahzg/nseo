@@ -78,14 +78,14 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
       }
       case "resolving_contacts": {
         const { listProspects } = await import("./queries");
-        const qualified = (await listProspects(campaignId, ["qualified"], 15)).filter((x) => !x.notes?.contact_failed);
-        for (const p of pick(qualified, 5)) await resolveContactForProspect(p.id);
-        action = qualified.length ? `contact(${Math.min(5, qualified.length)})` : "contact(none)";
+        const qualified = (await listProspects(campaignId, ["qualified"], 20)).filter((x) => (x.notes?.contact_attempts ?? 0) < 3);
+        for (const p of pick(qualified, 8)) await resolveContactForProspect(p.id);
+        action = qualified.length ? `contact(${Math.min(8, qualified.length)})` : "contact(none)";
         break;
       }
       case "outreaching": {
         const { listProspects } = await import("./queries");
-        const ready = (await listProspects(campaignId, ["ready"], 20)).filter((x) => x.contact_email && !x.notes?.contact_failed);
+        const ready = (await listProspects(campaignId, ["ready"], 20)).filter((x) => x.contact_email);
         for (const p of pick(ready, 5)) await sendOutreachToProspect(p.id);
         action = ready.length ? `outreach(${Math.min(5, ready.length)})` : "outreach(none)";
         break;
@@ -151,15 +151,16 @@ async function transitionIfNeeded(campaignId: string, camp: any): Promise<string
     if ((counts.discovered ?? 0) === 0 && totalPool > 0) { nxt = "resolving_contacts"; reason = "all prospects evaluated"; }
   } else if (phase === "resolving_contacts") {
     const qualified = await listProspects(campaignId, "qualified", 200);
-    const actionable = qualified.filter((x) => !(x.notes?.contact_failed));
-    if ((counts.qualified ?? 0) === 0 || ((counts.resolving_contact ?? 0) === 0 && actionable.length === 0)) {
+    const actionable = qualified.filter((x) => (x.notes?.contact_attempts ?? 0) < 3);
+    const stuckResolving = await listProspects(campaignId, "resolving_contact" as any, 200);
+    if ((counts.qualified ?? 0) === 0 || (actionable.length === 0 && stuckResolving.length === 0)) {
       if ((counts.ready ?? 0) > 0) { nxt = "outreaching"; reason = "contacts resolved"; }
       else if ((counts.outreached ?? 0) + (counts.replied ?? 0) + (counts.negotiating ?? 0) > 0) { nxt = "monitoring"; reason = "outreach in flight"; }
       else { nxt = "completed"; reason = "no contactable prospects"; }
     }
   } else if (phase === "outreaching") {
     const ready = await listProspects(campaignId, "ready", 200);
-    const sendable = ready.filter((x) => x.contact_email && !(x.notes?.contact_failed));
+    const sendable = ready.filter((x) => x.contact_email);
     if (sendable.length === 0) { nxt = "monitoring"; reason = "initial outreach queued"; }
   } else if (phase === "monitoring") {
     if (desired != null && deals.filter((d) => d.status !== "cancelled").length >= desired) { nxt = "completed"; reason = "goal_reached"; }
