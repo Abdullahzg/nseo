@@ -303,6 +303,9 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     // Pre-assign the simulated publisher persona for this thread's scenario.
     try { const { assignDemoPersona } = await import("./demo"); await assignDemoPersona(prospectId); } catch {}
   }
+  // In demo mode, resolve the real SMTP sender so negotiation replies can actually send.
+  const smtpUser = process.env.SMTP_USER || process.env.SMTP_FROM_EMAIL || null;
+  const senderEmail = demo ? (smtpUser || camp.owner_email) : (camp.owner_email ?? null);
   const row: Record<string, unknown> = {
     workflow_id: workflowId,
     campaign_id: p.campaign_id,
@@ -310,8 +313,8 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     kind: "initial",
     subject: draft.subject,
     body: draft.body,
-    sender_email: camp.owner_email ?? null,
-    sent_by_email: camp.owner_email ?? null,
+    sender_email: senderEmail,
+    sent_by_email: senderEmail,
     to_email: recipientEmail,
     ai_managed: true,
     max_offer: p.ceiling ?? null,

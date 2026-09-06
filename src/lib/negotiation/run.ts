@@ -196,6 +196,7 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
 
   const { data: row } = await supabaseAdmin.from("outreach_emails").insert({
     workflow_id: initial.workflow_id, author_id: initial.author_id, parent_id: initialId,
+    campaign_id: (initial as any).campaign_id ?? null,
     kind: "negotiation", subject, body: effectiveDraft.body, status,
     sent_at: status === "sent" ? new Date().toISOString() : null,
     message_id: sent?.messageId ?? null,

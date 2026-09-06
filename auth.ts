@@ -40,7 +40,10 @@ const realAuth = NextAuth({
   },
 });
 
-export const handlers = realAuth.handlers;
-export const signIn = realAuth.signIn;
-export const signOut = realAuth.signOut;
+// In demo mode, provide no-op handlers so NextAuth's route handler doesn't reject everything
+const demoHandlers = { GET: async () => new Response("demo mode", { status: 200 }), POST: async () => new Response("demo mode", { status: 200 }) };
+
+export const handlers = isDemo ? demoHandlers : realAuth.handlers;
+export const signIn = isDemo ? undefined : realAuth.signIn;
+export const signOut = isDemo ? undefined : realAuth.signOut;
 export const auth = isDemo ? demoAuth : realAuth.auth;
