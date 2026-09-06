@@ -143,7 +143,7 @@ RULES:
 
 Output ONLY the personalized opening lines.`;
   const openerOut = await llmText(openerPrompt, { maxTokens: 300, temperature: 0.6 });
-  const customLine = openerOut && openerOut.text.length > 20 ? sanitizeBody(openerOut.text) : `I came across your piece on ${title} and thought it was a great take on the space. The way you covered the intersection of technology and journalism really stood out.`;
+  const customLine = openerOut && openerOut.text.length > 20 ? sanitizeBody(openerOut.text) : `I really enjoyed your article "${String(title).slice(0, 80)}", the way you broke down the key tools and trends in this space was exactly the kind of thoughtful coverage our readers appreciate.`;
 
   if (template) {
     // Resolve author name from prospect's author_id or qualification data
@@ -152,9 +152,11 @@ Output ONLY the personalized opening lines.`;
     if (prospect.author_id) {
       try {
         const { data: author } = await supabaseAdmin.from("authors").select("full_name").eq("id", prospect.author_id).maybeSingle();
-        if ((author as any)?.full_name) {
-          authorName = (author as any).full_name;
-          firstName = authorName.split(" ")[0];
+        const rawName = (author as any)?.full_name ?? "";
+        // Skip domain-like author names (e.g. "futureframe.media.invalid Editorial")
+        if (rawName && !rawName.includes(".") && rawName !== "there") {
+          authorName = rawName;
+          firstName = rawName.split(" ")[0];
         }
       } catch {}
     }
@@ -166,19 +168,25 @@ Output ONLY the personalized opening lines.`;
         firstName = qAuthor.split(" ")[0];
       }
     }
-    if (!firstName) firstName = "there";
+    if (!firstName) {
+      // Fall back to a clean publication name (strip .invalid/.test/.example TLDs)
+      const cleanPub = prospect.domain_host?.replace(/\.(invalid|test|example)$/i, "").split(".")[0] ?? "there";
+      firstName = cleanPub.charAt(0).toUpperCase() + cleanPub.slice(1);
+      authorName = `${firstName} (Editorial)`;
+    }
 
     // Fill template with placeholders
     const vars: Record<string, string> = {
-      author_name: authorName,
+      author_name: firstName !== "there" ? firstName : "there",
       first_name: firstName,
-      pub_name: prospect.domain_host,
-      website_name: websiteName,
+      pub_name: prospect.domain_host?.replace(/\.(invalid|test|example)$/i, "") ?? prospect.domain_host,
+      website_name: campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product",
       article_title: String(title).slice(0, 120),
       article_date: q.published_at?.slice(0, 10) ?? "",
       tool_mentioned: toolMentioned,
       custom_line: customLine,
       article_link: q.url ?? "",
+      signer_name: "Abdullah Zubair",
     };
     let body = fillTemplate(template.body, vars);
     body = dropEmptyLines(body);
@@ -297,6 +305,7 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   }
   const row: Record<string, unknown> = {
     workflow_id: workflowId,
+    campaign_id: p.campaign_id,
     author_id: authorId,
     kind: "initial",
     subject: draft.subject,

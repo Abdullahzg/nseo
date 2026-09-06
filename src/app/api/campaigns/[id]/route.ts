@@ -23,10 +23,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   ]);
 
   // Email tracking stats
-  const { data: emails } = await supabaseAdmin
-    .from("outreach_emails")
-    .select("id, status, opened_at, bounced_at, sent_at, created_at, email_template_id")
-    .eq("workflow_id", id);
+  let emails: any[] = [];
+  try {
+    const { data: emailRows, error: emailErr } = await supabaseAdmin
+      .from("outreach_emails")
+      .select("id, status, opened_at, bounced_at, sent_at, created_at, email_template_id")
+      .eq("campaign_id", id);
+    if (emailErr) console.error("[campaign-detail] email error:", emailErr.message);
+    emails = emailRows ?? [];
+  } catch (e: any) {
+    console.error("[campaign-detail] email stats error:", e?.message);
+  }
 
   const emailStats = {
     total: emails?.length ?? 0,
@@ -116,8 +123,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.action === "resume") {
     patch.emergency_stopped = false;
     patch.completion_reason = null;
-    // If campaign was stopped, restart from discovering (phase logic will auto-advance)
-    if (currentPhase === "stopped") {
+    // If campaign was stopped or is still in draft, start from discovering
+    if (currentPhase === "stopped" || currentPhase === "draft") {
       patch.phase = "discovering";
     }
     // If just paused (not stopped), keep current phase — don't override

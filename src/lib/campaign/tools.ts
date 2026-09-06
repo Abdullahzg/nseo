@@ -184,7 +184,7 @@ function heuristicRelevance(text: string, title: string, keywords: string[]): nu
   if (!keywords.length) return 40;
   let score = 0;
   for (const kw of keywords) {
-    const terms = kw.toLowerCase().split(/\s+/).filter((t) => t.length > 3);
+    const terms = kw.toLowerCase().split(/\s+/).filter((t) => t.length >= 2);
     const matched = terms.filter((t) => hay.includes(t)).length;
     if (matched > 0) score += Math.round((matched / Math.max(1, terms.length)) * 60);
   }

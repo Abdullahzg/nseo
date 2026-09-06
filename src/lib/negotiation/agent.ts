@@ -12,8 +12,12 @@ async function llm(prompt: string, maxTokens = 400, temperature = 0.4): Promise<
 // the model returns. em dash and en dash become commas; stray doubles get cleaned up.
 export function sanitizeBody(s: string): string {
   return s
-    .replace(/\s*[—–]\s*/g, ", ")
-    .replace(/[—–]/g, ", ")
+    // Replace em/en dashes used as separators (surrounded by spaces or at line boundaries)
+    .replace(/\s+[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+\s+/g, ", ")
+    .replace(/^[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+\s+/g, "")
+    .replace(/\s+[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+$/g, "")
+    // Replace standalone dashes (not within words)
+    .replace(/(?<![a-zA-Z])[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+(?![a-zA-Z])/g, ", ")
     .replace(/ ,/g, ",")
     .replace(/,\s*,/g, ",")
     .replace(/[ \t]{2,}/g, " ")

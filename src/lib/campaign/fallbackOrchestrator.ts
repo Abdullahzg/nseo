@@ -153,6 +153,7 @@ async function transitionIfNeeded(campaignId: string, camp: any): Promise<string
     if (have >= target || (have > 0 && (counts.discovered ?? 0) === 0)) { nxt = "qualifying"; reason = "pool filled"; }
   } else if (phase === "qualifying") {
     if ((counts.discovered ?? 0) === 0 && totalPool > 0) { nxt = "resolving_contacts"; reason = "all prospects evaluated"; }
+    else if ((counts.discovered ?? 0) === 0 && totalPool === 0 && (counts.qualified ?? 0) === 0 && ((counts.rejected ?? 0) > 0)) { nxt = "completed"; reason = "all prospects rejected"; }
   } else if (phase === "resolving_contacts") {
     const qualified = await listProspects(campaignId, "qualified", 200);
     const actionable = qualified.filter((x) => (x.notes?.contact_attempts ?? 0) < 3);
