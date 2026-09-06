@@ -74,7 +74,7 @@ export function TopNav() {
   const user = session?.user;
 
   return (
-    <header className="z-30 mb-4 flex h-12 shrink-0 items-center rounded-xl border border-border bg-card shadow-sm">
+    <header className="z-30 mb-4 flex h-12 shrink-0 items-center rounded-xl border border-border bg-card">
       <div className="flex h-full w-full items-center justify-between px-5 pl-14 lg:pl-5">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm">

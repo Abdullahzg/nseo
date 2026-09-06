@@ -142,7 +142,7 @@ export function Sidebar() {
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-      <div className="flex min-h-0 w-full flex-col rounded-2xl border border-border bg-card shadow-lg">
+      <div className="flex min-h-0 w-full flex-col rounded-2xl border border-border bg-card">
         {/* Brand */}
         <div className={cn("flex h-14 items-center border-b border-border px-4 shrink-0", collapsed && "justify-center px-2")}>
           {!collapsed && (
