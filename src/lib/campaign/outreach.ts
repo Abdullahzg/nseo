@@ -97,7 +97,7 @@ async function getTemplateById(id: string): Promise<{ subject: string; body: str
 
 // ─── outreach ────────────────────────────────────────────────────────────────
 
-interface OutreachDraft { subject: string; body: string; provider: string; simulated_reason?: string }
+interface OutreachDraft { subject: string; body: string; provider: string; simulated_reason?: string; template_id?: string | null }
 
 /** Personalized opener drafted from the stored article understanding, using templates when available. */
 export async function draftOutreachEmail(
@@ -110,10 +110,16 @@ export async function draftOutreachEmail(
   const websiteName = campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product";
   const toolMentioned = q.placement_angle?.split(" ").slice(0, 4).join(" ") ?? campaign.keywords?.[0] ?? "AI tools";
 
+  // A/B testing: if ab_variant_ids is set, randomly pick one; otherwise use email_template_id
+  let templateId = campaign.email_template_id;
+  if (campaign.ab_variant_ids?.length) {
+    templateId = campaign.ab_variant_ids[Math.floor(Math.random() * campaign.ab_variant_ids.length)];
+  }
+
   // Try to load the campaign's preferred template, or fall back to the first email template
   let template: { subject: string; body: string; guidance: string } | null = null;
-  if (campaign.email_template_id) {
-    template = await getTemplateById(campaign.email_template_id);
+  if (templateId) {
+    template = await getTemplateById(templateId);
   }
   if (!template) {
     template = await getDefaultTemplate();
@@ -185,7 +191,7 @@ Output ONLY the personalized opening lines.`;
     if (!subject) subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
     if (sequence?.subjectPrefix) subject = sequence.subjectPrefix + subject;
 
-    return { subject, body, provider: openerOut?.provider ?? "template+fallback" };
+    return { subject, body, provider: openerOut?.provider ?? "template+fallback", template_id: templateId };
   }
 
   // No template available — use LLM to draft the full email
@@ -220,6 +226,7 @@ Output ONLY the email body.`;
     subject,
     body,
     provider: out?.provider ?? "fallback-template",
+    template_id: templateId,
   };
 }
 
@@ -299,6 +306,7 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     to_email: recipientEmail,
     ai_managed: true,
     max_offer: p.ceiling ?? null,
+    email_template_id: draft.template_id ?? null,
     ...(demo
       ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` }
       : { status: "scheduled", scheduled_at: new Date().toISOString() }),

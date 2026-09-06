@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // Email tracking stats
   const { data: emails } = await supabaseAdmin
     .from("outreach_emails")
-    .select("id, status, opened_at, bounced_at, sent_at, created_at")
+    .select("id, status, opened_at, bounced_at, sent_at, created_at, email_template_id")
     .eq("workflow_id", id);
 
   const emailStats = {
@@ -35,10 +35,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     bounced: emails?.filter((e) => e.bounced_at).length ?? 0,
     openRate: 0,
     bounceRate: 0,
+    variants: {} as Record<string, { sent: number; opened: number; bounced: number; openRate: number }>,
   };
   if (emailStats.sent > 0) {
     emailStats.openRate = Math.round((emailStats.opened / emailStats.sent) * 100);
     emailStats.bounceRate = Math.round((emailStats.bounced / emailStats.sent) * 100);
+  }
+  // A/B variant breakdown
+  for (const e of emails ?? []) {
+    if (e.status !== "sent") continue;
+    const vid = e.email_template_id ?? "default";
+    if (!emailStats.variants[vid]) emailStats.variants[vid] = { sent: 0, opened: 0, bounced: 0, openRate: 0 };
+    emailStats.variants[vid].sent++;
+    if (e.opened_at) emailStats.variants[vid].opened++;
+    if (e.bounced_at) emailStats.variants[vid].bounced++;
+  }
+  for (const v of Object.values(emailStats.variants)) {
+    v.openRate = v.sent > 0 ? Math.round((v.opened / v.sent) * 100) : 0;
   }
 
   // ROI calculation
@@ -99,6 +112,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (Array.isArray(body.excluded_domains)) patch.excluded_domains = body.excluded_domains;
   if (typeof body.constraints_text === "string") patch.constraints_text = body.constraints_text;
   if (body.email_template_id !== undefined) patch.email_template_id = body.email_template_id || null;
+  if (Array.isArray(body.ab_variant_ids)) patch.ab_variant_ids = body.ab_variant_ids;
   if (body.action === "resume") {
     patch.emergency_stopped = false;
     patch.completion_reason = null;

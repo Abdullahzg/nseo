@@ -23,7 +23,7 @@ interface CampaignState {
   interventions: any[];
   events: any[];
   budget: { total: number; used: number; remaining: number; currency: string };
-  email_stats: { total: number; sent: number; opened: number; bounced: number; openRate: number; bounceRate: number };
+  email_stats: { total: number; sent: number; opened: number; bounced: number; openRate: number; bounceRate: number; variants: Record<string, { sent: number; opened: number; bounced: number; openRate: number }> };
   roi: { total_spent: number; deal_revenue: number; saved_amount: number; roi_pct: number };
 }
 
@@ -98,7 +98,7 @@ export default function CampaignPage() {
   const [assistText, setAssistText] = useState<Record<string, string>>({});
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
+  const [settingsForm, setSettingsForm] = useState<Record<string, any>>({});
   const [savingSettings, setSavingSettings] = useState(false);
   const [activitySearch, setActivitySearch] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -187,6 +187,7 @@ export default function CampaignPage() {
       if (settingsForm.excluded_domains !== undefined) patch.excluded_domains = settingsForm.excluded_domains.split(",").map((s: string) => s.trim()).filter(Boolean);
       if (settingsForm.constraints_text !== undefined) patch.constraints_text = settingsForm.constraints_text;
       if (settingsForm.email_template_id !== undefined) patch.email_template_id = settingsForm.email_template_id || null;
+      if (settingsForm.ab_variant_ids !== undefined) patch.ab_variant_ids = settingsForm.ab_variant_ids;
       await fetch(`/api/campaigns/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
       toast.success("Settings saved.");
       setSettingsOpen(false);
@@ -508,6 +509,7 @@ export default function CampaignPage() {
               excluded_domains: Array.isArray(c.excluded_domains) ? c.excluded_domains.join(", ") : (c.excluded_domains ?? ""),
               constraints_text: c.constraints_text ?? "",
               email_template_id: c.email_template_id ?? "",
+              ab_variant_ids: Array.isArray(c.ab_variant_ids) ? c.ab_variant_ids : [],
             });
           }
           setSettingsOpen(!settingsOpen);
@@ -542,6 +544,16 @@ export default function CampaignPage() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Constraints / notes for agents</label>
               <Input value={settingsForm.constraints_text ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, constraints_text: e.target.value }))} placeholder="e.g. Only English articles, no sponsored content" />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Email template</label>
+                <Input value={settingsForm.email_template_id ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, email_template_id: e.target.value }))} placeholder="Template ID (or leave empty for default)" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">A/B test variants (comma-separated IDs)</label>
+                <Input value={settingsForm.ab_variant_ids?.join(", ") ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, ab_variant_ids: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) }))} placeholder="e.g. abc123, def456" />
+              </div>
             </div>
             <div className="flex items-center gap-2 pt-1">
               <Button size="sm" onClick={saveSettings} disabled={savingSettings}>
@@ -807,6 +819,24 @@ export default function CampaignPage() {
                     <div className="text-muted-foreground">Opened</div>
                   </div>
                 </div>
+                {/* A/B variant breakdown */}
+                {Object.keys(state.email_stats.variants ?? {}).length > 1 && (
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">A/B test results</div>
+                    <div className="grid gap-2">
+                      {Object.entries(state.email_stats.variants).map(([vid, v]) => (
+                        <div key={vid} className="flex items-center gap-3 text-xs">
+                          <span className="font-mono text-muted-foreground w-20 truncate" title={vid}>{vid.slice(0, 8)}…</span>
+                          <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${v.openRate}%` }} />
+                          </div>
+                          <span className="text-muted-foreground w-12 text-right">{v.openRate}%</span>
+                          <span className="text-muted-foreground w-16 text-right">{v.opened}/{v.sent}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
