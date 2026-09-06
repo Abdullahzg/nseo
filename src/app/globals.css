@@ -5,30 +5,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   Summit — Glass, teal register.
-
-   Every surface is a floating pane of frosted glass: a translucent fill, a bright 1px rim, a heavy
-   soft shadow. For that to look like glass rather than like grey boxes, the thing behind it has to
-   VARY — so the canvas is a fixed wash of overlapping radial blobs (teal along the top-left, a pale
-   haze through the middle where content sits, deep teal-slate into the bottom-right) rather than a
-   flat colour. Panes then refract something different depending on where they sit on the page.
-
-   Two consequences worth knowing before editing:
-     1. Nothing above the body may paint an opaque background, or it covers the wash. The shell
-        wrapper in layout.tsx deliberately has no `bg-background`.
-     2. The accent is named --highlight, not by hue, so a future palette change is a token edit
-        rather than a search-and-replace.
+   GESEO — Modern AI Outreach Platform
+   
+   Deep space dark theme with electric violet accent.
+   Clean, spacious, confident. No frosted glass — solid surfaces
+   with subtle depth through layered shadows and gradients.
    ============================================================ */
 
 @theme inline {
-  /* Typography floor. Tailwind's default --text-xs is 12px, and the app had ~250 uses of arbitrary
-     tiny sizes on top of that — the "very very tiny fonts" complaint. Raising the token rather than
-     the call sites keeps one dial for "how small can this get". This is a deliberate divergence:
-     forge runs an 11px metadata layer, which is too small for this much dense tabular data. */
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.45;
 
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans), "Poppins", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
   --font-heading: var(--font-sans);
 
@@ -71,174 +59,118 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Generous geometry: 28px shells down to 11px chips. */
-  --radius-sm: calc(var(--radius) - 5px);    /* 11px — chips */
-  --radius-md: calc(var(--radius) - 2px);    /* 14px — buttons, nav rows */
-  --radius-lg: var(--radius);                /* 16px — fields, inner tiles */
-  --radius-xl: calc(var(--radius) + 4px);    /* 20px — small panes */
-  --radius-2xl: calc(var(--radius) + 8px);   /* 24px — cards */
-  --radius-3xl: calc(var(--radius) + 12px);  /* 28px — shells */
-  --radius-4xl: calc(var(--radius) + 20px);  /* 36px — pills */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 20px);
 }
 
 :root {
-  --canvas: #c2c6c4;
-  --wash:
-    radial-gradient(58% 50% at 4% -6%, rgba(122, 158, 158, 0.55) 0%, transparent 62%),
-    radial-gradient(52% 42% at 46% -4%, rgba(196, 202, 198, 0.62) 0%, transparent 60%),
-    radial-gradient(46% 56% at -6% 44%, rgba(206, 210, 205, 0.5) 0%, transparent 62%),
-    radial-gradient(72% 62% at 44% 30%, rgba(240, 240, 236, 0.8) 0%, transparent 66%),
-    radial-gradient(54% 48% at 102% 38%, rgba(206, 198, 186, 0.55) 0%, transparent 62%),
-    radial-gradient(50% 44% at 72% 86%, rgba(198, 190, 178, 0.45) 0%, transparent 62%),
-    radial-gradient(72% 64% at 100% 108%, rgba(176, 166, 152, 0.5) 0%, transparent 66%),
-    radial-gradient(62% 54% at 0% 104%, rgba(238, 240, 237, 0.9) 0%, transparent 64%),
-    linear-gradient(155deg, #a8bcbb 0%, #c8cdc9 30%, #cdcbc4 56%, #bdb5a8 84%, #ada492 100%);
+  --background: #f8f9fc;
+  --foreground: #0f172a;
 
-  /* The glass recipe — one source of truth for every pane. */
-  --glass-bg: rgba(255, 255, 255, 0.07);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-blur: blur(64px) saturate(165%);
-  --glass-shadow: 0 24px 48px -22px rgba(30, 54, 54, 0.3), 0 2px 6px rgba(30, 54, 54, 0.05);
-  --glass-shadow-lg: 0 30px 64px -26px rgba(30, 54, 54, 0.32), 0 2px 6px rgba(30, 54, 54, 0.05);
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
 
-  /* Quiet fills — segmented tracks, icon buttons, inert chips. */
-  /* Inline sticky bars: enough fill to mask content scrolling under them, not the near-opaque
-     --popover used by floating surfaces. */
-  --glass-bar: rgba(255, 255, 255, 0.44);
-  --quiet: rgba(16, 44, 44, 0.05);
-  --quiet-hover: rgba(255, 255, 255, 0.22);
-
-  --background: #e8eeec;
-  --foreground: #14262a;
-
-  --card: rgba(255, 255, 255, 0.07);
-  --card-foreground: #14262a;
-  --popover: rgba(255, 255, 255, 0.9);
-  --popover-foreground: #14262a;
-
-  /* Teal is the action colour. teal-700 rather than teal-600 because white on teal-600 is 3.6:1,
-     under AA for a 14px button label. */
-  --primary: #0f766e;
+  --primary: #6d28d9;
   --primary-foreground: #ffffff;
-  --primary-shadow: 0 14px 30px -14px rgba(15, 118, 110, 0.45);
+  --primary-shadow: 0 14px 30px -14px rgba(109, 40, 217, 0.4);
 
-  --secondary: rgba(255, 255, 255, 0.2);
-  --secondary-foreground: rgba(20, 38, 42, 0.7);
-  /* Nested fills lift toward white, never down toward grey — a dark tint on this canvas reads as a
-     dirty box. Recessed tracks use --quiet instead. */
-  --muted: rgba(255, 255, 255, 0.12);
-  --muted-foreground: rgba(20, 38, 42, 0.56);
-  --accent: rgba(255, 255, 255, 0.22);
-  --accent-foreground: #14262a;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #ede9fe;
+  --accent-foreground: #5b21b6;
 
-  --destructive: #9a4436;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #1f6b4a;
-  --warning: #7a5a10;   /* 5.35:1 on a glass pane; #8a6512 measured 4.46 and missed AA */
+  --success: #059669;
+  --warning: #d97706;
 
-  /* The single accent, for stat highlights, counts and agent hints. */
-  --highlight: #0d9488;
-  --highlight-soft: rgba(13, 148, 136, 0.12);   /* a tint OF the accent, not the light mint at 55% */
-  --highlight-ink: #0b4f4a;   /* accent TEXT — dark enough to clear AA on a pale pane */
+  --highlight: #7c3aed;
+  --highlight-soft: rgba(124, 58, 237, 0.08);
+  --highlight-ink: #5b21b6;
 
-  --border: rgba(20, 38, 42, 0.08);
-  --input: rgba(20, 38, 42, 0.08);
-  --ring: rgba(15, 118, 110, 0.32);
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: rgba(109, 40, 217, 0.3);
+  --quiet: #f8fafc;
 
-  --chart-1: #0f766e;
-  --chart-2: #5eead4;
-  --chart-3: #1f6b4a;
-  --chart-4: #8a6512;
-  --chart-5: #6b5ba6;
+  --chart-1: #6d28d9;
+  --chart-2: #a78bfa;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #ec4899;
 
-  --radius: 1rem;
+  --radius: 12px;
 
-  /* Brand mark. Near-black here: the teal pair read as a watermark on a pale ground. */
-  --mark-front: #14262a;
-  --mark-back: rgba(20, 38, 42, 0.42);
+  --mark-front: #6d28d9;
+  --mark-back: #a78bfa;
 
-  --sidebar: rgba(255, 255, 255, 0.07);
-  --sidebar-foreground: rgba(20, 38, 42, 0.72);
-  --sidebar-primary: #0f766e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #334155;
+  --sidebar-primary: #6d28d9;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.22);
-  --sidebar-accent-foreground: #14262a;
-  --sidebar-border: rgba(20, 38, 42, 0.08);
-  --sidebar-ring: rgba(15, 118, 110, 0.32);
+  --sidebar-accent: #f5f3ff;
+  --sidebar-accent-foreground: #5b21b6;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: rgba(109, 40, 217, 0.3);
 }
 
 .dark {
-  /* The same composition over charcoal — teal top-left, deep teal-black bottom-right, so panes still
-     have something to refract. */
-  --canvas: #1b1f20;
-  --wash:
-    radial-gradient(58% 50% at 4% -6%, rgba(45, 212, 191, 0.09) 0%, transparent 62%),
-    radial-gradient(52% 42% at 46% -4%, rgba(160, 176, 176, 0.05) 0%, transparent 60%),
-    radial-gradient(54% 48% at 102% 40%, rgba(120, 112, 100, 0.12) 0%, transparent 62%),
-    radial-gradient(72% 64% at 98% 106%, rgba(96, 84, 68, 0.16) 0%, transparent 66%),
-    linear-gradient(155deg, #1a2325 0%, #1b2021 34%, #1d1c19 68%, #151311 100%);
+  --background: #0a0e1a;
+  --foreground: #e2e8f0;
 
-  --glass-bg: rgba(255, 255, 255, 0.035);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-blur: blur(64px) saturate(165%);
-  --glass-shadow: 0 24px 48px -22px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.28);
-  --glass-shadow-lg: 0 30px 64px -26px rgba(0, 0, 0, 0.64), 0 2px 6px rgba(0, 0, 0, 0.28);
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #e2e8f0;
+  --popover: rgba(15, 23, 42, 0.95);
+  --popover-foreground: #e2e8f0;
 
-  --glass-bar: rgba(28, 34, 35, 0.72);
-  --quiet: rgba(255, 255, 255, 0.06);
-  --quiet-hover: rgba(255, 255, 255, 0.12);
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+  --primary-shadow: 0 14px 30px -14px rgba(139, 92, 246, 0.5);
 
-  --background: #191f20;
-  --foreground: #e6efee;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: rgba(226, 232, 240, 0.8);
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: rgba(226, 232, 240, 0.5);
+  --accent: rgba(139, 92, 246, 0.12);
+  --accent-foreground: #a78bfa;
 
-  --card: rgba(255, 255, 255, 0.035);
-  --card-foreground: #e6efee;
-  --popover: rgba(23, 31, 32, 0.92);
-  --popover-foreground: #e6efee;
-
-  /* Lifted to teal-500 so it reads on charcoal; the ink goes deep teal rather than white, because
-     white on teal-500 is 2.3:1 whereas this is 7.3:1. */
-  --primary: #14b8a6;
-  --primary-foreground: #06231f;
-  --primary-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.6);
-
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: rgba(230, 239, 238, 0.78);
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: rgba(230, 239, 238, 0.56);
-  --accent: rgba(255, 255, 255, 0.12);
-  --accent-foreground: #e6efee;
-
-  --destructive: #d9705c;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --success: #6fb392;
-  --warning: #d9a94e;
+  --success: #34d399;
+  --warning: #fbbf24;
 
-  --highlight: #5eead4;
-  --highlight-soft: rgba(94, 234, 212, 0.16);
-  --highlight-ink: #7ff0dc;   /* accent TEXT on charcoal */
+  --highlight: #a78bfa;
+  --highlight-soft: rgba(167, 139, 250, 0.12);
+  --highlight-ink: #c4b5fd;
 
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: rgba(94, 234, 212, 0.36);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: rgba(139, 92, 246, 0.35);
+  --quiet: rgba(255, 255, 255, 0.03);
 
-  --chart-1: #14b8a6;
-  --chart-2: #5eead4;
-  --chart-3: #6fb392;
-  --chart-4: #d9a94e;
-  --chart-5: #a996db;
+  --chart-1: #8b5cf6;
+  --chart-2: #a78bfa;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
 
-  --sidebar: rgba(255, 255, 255, 0.035);
-  --sidebar-foreground: rgba(230, 239, 238, 0.72);
-  --sidebar-primary: #14b8a6;
-  --sidebar-primary-foreground: #06231f;
-  --sidebar-accent: rgba(255, 255, 255, 0.12);
-  --sidebar-accent-foreground: #e6efee;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: rgba(94, 234, 212, 0.36);
-
-  --mark-front: #14b8a6;
-  --mark-back: #5eead4;
+  --sidebar: rgba(255, 255, 255, 0.03);
+  --sidebar-foreground: rgba(226, 232, 240, 0.7);
+  --sidebar-primary: #8b5cf6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(139, 92, 246, 0.12);
+  --sidebar-accent-foreground: #a78bfa;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(139, 92, 246, 0.35);
 }
 
 @layer base {
@@ -252,140 +184,123 @@
   html {
     @apply font-sans;
   }
-  /* Display type — light weight, tight tracking. The whole system runs on one face; weight and size
-     carry the hierarchy, never a second family. */
-  h1 { font-weight: 300; letter-spacing: -0.02em; }
-  h2, h3 { font-weight: 400; letter-spacing: -0.01em; }
+
+  h1 { font-weight: 600; letter-spacing: -0.025em; }
+  h2 { font-weight: 600; letter-spacing: -0.02em; }
+  h3 { font-weight: 500; letter-spacing: -0.01em; }
 
   ::selection {
-    background-color: color-mix(in srgb, var(--highlight) 52%, transparent);
+    background-color: color-mix(in srgb, var(--highlight) 30%, transparent);
     color: var(--foreground);
   }
 
-  /* Quiet scrollbars. The content-box inset is what makes the thumb read as a floating lozenge
-     rather than a full-width gutter fill. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 15%, transparent) transparent;
   }
-  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
   *::-webkit-scrollbar-track { background: transparent; }
   *::-webkit-scrollbar-thumb {
-    background-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+    background-color: color-mix(in srgb, var(--foreground) 15%, transparent);
     border-radius: 9999px;
-    border: 3px solid transparent;
+    border: 2px solid transparent;
     background-clip: content-box;
   }
-  *::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--foreground) 32%, transparent); }
+  *::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--foreground) 25%, transparent); }
 }
 
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  /* Numbers must never jitter as they update — every metric here is a live value. */
   .font-tabular { font-variant-numeric: tabular-nums; }
-  /* Big light numerals and page titles. */
-  .font-display { font-weight: 300; letter-spacing: -0.02em; }
-  /* The small letterspaced section label that sits above a control group. */
+  .font-display { font-weight: 600; letter-spacing: -0.025em; }
   .label-eyebrow {
-    font-size: 0.8125rem;
-    font-weight: 400;
-    letter-spacing: 0.04em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--muted-foreground);
   }
 }
 
 /* ============================================================
-   The canvas — the fixed out-of-focus wash every pane refracts.
-   `fixed` so scrolling a long page does not drag the gradient with it.
+   Canvas — subtle gradient backdrop
    ============================================================ */
 body {
-  background-color: var(--canvas);
-  background-image: var(--wash);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(167, 139, 250, 0.05), transparent);
   background-attachment: fixed;
+}
+.dark body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(99, 102, 241, 0.08), transparent);
 }
 
 /* ============================================================
-   Surfaces — one recipe, several sizes of pane. In the components layer so a utility on the element
-   (rounded-2xl, p-5, …) still wins, the way Tailwind expects.
+   Surfaces — clean solid panels with subtle depth
    ============================================================ */
 @layer components {
   .glass-panel {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-2xl);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    box-shadow: var(--glass-shadow);
-  }
-  /* A pane inside a pane — no rim, no shadow, just a lift in tone. */
-  .glass-inset {
-    background: rgba(255, 255, 255, 0.14);
-    border: 1px solid transparent;
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px -4px rgba(0, 0, 0, 0.06);
   }
-  .dark .glass-inset { background: rgba(255, 255, 255, 0.06); }
-  /* Nested list rows and tiles — flatter again. */
-  .glass-nested { background: var(--glass-bg); border-radius: var(--radius); }
-  /* Segmented tracks and inert chips. */
-  .glass-pill { background: var(--quiet); border: 1px solid transparent; }
+  .dark .glass-panel {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+  }
+  .glass-inset {
+    background: var(--muted);
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+  }
+  .glass-nested { background: var(--quiet); border-radius: var(--radius-md); }
+  .glass-pill { background: var(--muted); border: 1px solid var(--border); border-radius: 9999px; }
   .glass-modal {
     background: var(--popover);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-2xl);
-    backdrop-filter: blur(40px) saturate(140%);
-    -webkit-backdrop-filter: blur(40px) saturate(140%);
-    box-shadow: 0 40px 80px -28px rgba(30, 54, 54, 0.5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 40px 80px -28px rgba(0, 0, 0, 0.5);
   }
   .dark .glass-modal { box-shadow: 0 40px 80px -28px rgba(0, 0, 0, 0.8); }
-  /* Panes that lift on hover. */
-  .glass-lift { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  .glass-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
   .glass-lift:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 34px 64px -22px rgba(30, 54, 54, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.12);
   }
-  .dark .glass-lift:hover { box-shadow: 0 34px 64px -22px rgba(0, 0, 0, 0.75); }
+  .dark .glass-lift:hover { box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5); }
 }
 
 /* ============================================================
-   Primitive sweeps.
-
-   These target data-slot attributes at file scope rather than editing each primitive, which means
-   every existing call site across 22 pages becomes glass without being touched — and any future
-   `shadcn add` output inherits it too. Un-layered on purpose: it must beat the utility classes
-   already sitting on those components.
+   Primitive sweeps — global card/input/popover styling
    ============================================================ */
 [data-slot="card"] {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-2xl);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px -4px rgba(0, 0, 0, 0.06);
+}
+.dark [data-slot="card"] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 24px -4px rgba(0, 0, 0, 0.4);
 }
 
-/* Fields are frosted, not solid. A white fill turns every form into a stack of opaque blocks sitting
-   on the wash, which is the single fastest way to break the illusion. Bare input/textarea elements
-   are swept in too, because pages hand-roll them and would otherwise keep whatever fill they were
-   written with. */
 [data-slot="select-trigger"],
 [data-slot="input"],
 [data-slot="textarea"],
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="submit"]),
 textarea {
-  background-color: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background-color: var(--card);
   border-color: var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
 }
 .dark [data-slot="select-trigger"],
 .dark [data-slot="input"],
 .dark [data-slot="textarea"],
 .dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="submit"]),
-.dark textarea { background-color: rgba(255, 255, 255, 0.06); }
+.dark textarea { background-color: rgba(255, 255, 255, 0.05); }
 
 [data-slot="select-content"],
 [data-slot="popover-content"],
@@ -394,63 +309,48 @@ textarea {
 [data-slot="sheet-content"],
 [data-slot="command"] {
   background: var(--popover);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-xl);
-  backdrop-filter: blur(40px) saturate(140%);
-  -webkit-backdrop-filter: blur(40px) saturate(140%);
-  box-shadow: 0 40px 80px -28px rgba(30, 54, 54, 0.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.3);
 }
 .dark [data-slot="select-content"],
 .dark [data-slot="popover-content"],
 .dark [data-slot="dropdown-menu-content"],
 .dark [data-slot="dialog-content"],
 .dark [data-slot="sheet-content"],
-.dark [data-slot="command"] { box-shadow: 0 40px 80px -28px rgba(0, 0, 0, 0.8); }
+.dark [data-slot="command"] { box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.7); }
 
 /* ============================================================
-   Motion — gentle. Content rises in on mount; staggering the first few blocks turns a page load
-   from a flash into an arrival.
+   Motion
    ============================================================ */
-@keyframes summit-rise {
-  from { opacity: 0; transform: translateY(8px); }
+@keyframes geseo-rise {
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-rise { animation: summit-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-rise { animation: geseo-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rise-1 { animation-delay: 0.04s; }
 .rise-2 { animation-delay: 0.1s; }
 .rise-3 { animation-delay: 0.16s; }
 .rise-4 { animation-delay: 0.22s; }
 
-/* A sheen sweeping across text, for "Researching…" and the writer's other long phases. Reads as
-   thinking rather than as a spinner, which is the right signal for something that takes 40 seconds. */
-@keyframes summit-sheen { to { background-position: -200% 0; } }
+@keyframes geseo-sheen { to { background-position: -200% 0; } }
 .text-shimmer {
   background: linear-gradient(100deg, var(--muted-foreground) 30%, var(--foreground) 50%, var(--muted-foreground) 70%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: summit-sheen 1.8s linear infinite;
+  animation: geseo-sheen 1.8s linear infinite;
 }
 
 /* ============================================================
-   Pending-generation tile — a dotted field with a highlight wandering across it.
-
-   Two stacked dot grids at the same 12px pitch: a dim one always visible, and a brighter one on
-   ::after that is MASKED by a soft radial gradient. Animating the mask's position is what moves the
-   highlight, so only the dots under it light up — the grid itself never moves, which is what makes it
-   read as something scanning the field rather than the field sliding around.
-
-   The waypoints are deliberately uneven in both position and spacing. Evenly spaced points on a
-   circle read as an orbit; uneven ones with ease-in-out read as wandering, which is the point.
-   Masking (rather than a glow overlay) also means there is no bloom on the tile background — the
-   effect is entirely in the dots.
+   Generation dots — pending tile animation
    ============================================================ */
 .gen-dots {
   position: relative;
   overflow: hidden;
-  background-color: var(--glass-bg);
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--foreground) 16%, transparent) 1px, transparent 1px);
+  background-color: var(--card);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--foreground) 10%, transparent) 1px, transparent 1px);
   background-size: 12px 12px;
   background-position: center;
 }
@@ -458,11 +358,11 @@ textarea {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, var(--highlight) 1.4px, transparent 1.4px);
+  background-image: radial-gradient(circle, var(--highlight) 1.2px, transparent 1.2px);
   background-size: 12px 12px;
   background-position: center;
-  -webkit-mask-image: radial-gradient(circle closest-side, #000 0%, rgb(0 0 0 / 0.45) 45%, transparent 72%);
-  mask-image: radial-gradient(circle closest-side, #000 0%, rgb(0 0 0 / 0.45) 45%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 72%);
+  mask-image: radial-gradient(circle closest-side, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 72%);
   -webkit-mask-size: 170px 170px;
   mask-size: 170px 170px;
   -webkit-mask-repeat: no-repeat;
@@ -479,16 +379,13 @@ textarea {
   87%  { -webkit-mask-position: 94% 18%;  mask-position: 94% 18%; }
   100% { -webkit-mask-position: 6% 14%;   mask-position: 6% 14%; }
 }
-/* A wandering light is decoration, not information — the tile's label already says "Generating". */
 @media (prefers-reduced-motion: reduce) {
   .gen-dots::after { animation: none; -webkit-mask-position: 50% 50%; mask-position: 50% 50%; }
 }
 
-/* Live markdown preview (src/lib/blog/markdownPreview.tsx).
-   Hand-written because this project has no @tailwindcss/typography, and because the preview should
-   look like a published article rather than like the app chrome around it: a comfortable measure,
-   real heading hierarchy, and images that actually show at page width. Scoped to .md-preview so it
-   can never leak into the editor's own styles. */
+/* ============================================================
+   Markdown preview
+   ============================================================ */
 .md-preview {
   font-size: 0.9375rem;
   line-height: 1.7;
@@ -497,7 +394,7 @@ textarea {
 }
 .md-preview > * + * { margin-top: 1em; }
 .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4, .md-preview h5, .md-preview h6 {
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
   margin-top: 1.6em;
@@ -517,7 +414,7 @@ textarea {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.md-preview strong { font-weight: 650; }
+.md-preview strong { font-weight: 600; }
 .md-preview ul, .md-preview ol { padding-left: 1.5rem; }
 .md-preview ul { list-style: disc; }
 .md-preview ol { list-style: decimal; }
@@ -538,7 +435,6 @@ textarea {
   border: 1px solid var(--border);
   margin: 1.25em 0;
 }
-/* A markdown image whose URL we refused to render (not http/https/relative). Visible, not silent. */
 .md-preview .md-broken {
   display: inline-block;
   font-size: 0.8em;
@@ -576,24 +472,6 @@ textarea {
 .md-preview th { background: color-mix(in oklch, var(--muted), transparent 40%); font-weight: 600; }
 .md-preview .md-empty { color: color-mix(in oklch, var(--foreground), transparent 55%); font-size: 0.8125rem; }
 
-/* Cross-pane sync (src/lib/blog/paneSync.ts).
-
-   The caret is var(--primary). It used to need a hardcoded accent because --primary resolved to
-   near-black under the old neutral theme, so a caret drawn with it read as a stray hard line on the
-   text. Now that --primary IS the teal accent in both themes, the token is the correct source and the
-   caret matches the selection tint automatically.
-
-   The selection is painted with the CSS Custom Highlight API, so it lands on the exact characters and
-   reads like a native selection. It replaced a block-level band with a left rule, which highlighted a
-   whole paragraph for a three-word selection and left a hard line sitting on the text. */
-/* NOTE: the ::highlight(md-selection) rule is NOT here. Next's CSS pipeline (Lightning CSS) does not
-   recognise the ::highlight() pseudo-element and fails to parse the whole file — which silently aborts
-   the stylesheet transform and, worse, took client hydration down app-wide while every page still
-   returned HTTP 200. It is injected at runtime instead, from paneSync.ts, next to the CSS.highlights
-   feature detection that is the only reason it is needed. Do not move it back into this file. */
-
-/* Your cursor position, mirrored into the rendered page. Same 1px-and-blinking idiom as a real text
-   caret, so it reads as "you are here" and not as decoration. */
 .md-caret {
   position: absolute;
   width: 2px;

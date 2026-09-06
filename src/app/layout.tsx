@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -11,27 +11,19 @@ import { UsageTracker } from "@/components/layout/UsageTracker";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-// One face for the whole system. Hierarchy comes from weight and size — 300 for display type, 400
-// for everything else — never from a second family. A display serif was tried and pulled: against
-// frosted glass panes the contrast of two families fights the surfaces, which are already doing the
-// visual separating.
-const sans = Inter({
+const sans = Poppins({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  // `template` so a page setting `title: "Clusters"` renders "Clusters · Summit" without every page
-  // having to repeat the brand.
-  title: { default: "Summit — SEO & content engine", template: "%s · Summit" },
+  title: { default: "Geseo — AI Outreach Platform", template: "%s · Geseo" },
   description:
-    "Internal SEO and content engine for ImagineArt: keyword clusters, AI-written drafts, landing pages, image assets, technical audits and backlink outreach.",
-  applicationName: "Summit",
-  // The favicon is src/app/icon.svg, which Next picks up by file convention; this adds the sizes hint
-  // so the browser scales the single SVG rather than hunting for a raster fallback.
+    "AI-powered outreach platform: autonomous prospect discovery, qualification, contact resolution, personalized email outreach, and intelligent negotiation.",
+  applicationName: "Geseo",
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }] },
-  // An internal tool behind auth should never be indexed if it is ever exposed.
   robots: { index: false, follow: false },
 };
 
@@ -53,9 +45,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <SessionProvider session={session}>
             {user && <RouteProgress />}
             {user && <UsageTracker />}
-            <div className="flex h-svh overflow-hidden text-foreground">
+            <div className="flex h-svh overflow-hidden text-foreground bg-background">
               {user && <Sidebar />}
-              <div className="flex min-h-0 flex-1 flex-col min-w-0 py-4 pr-4 pl-4 lg:pl-0">
+              <div className="flex min-h-0 flex-1 flex-col min-w-0 p-4 lg:p-6">
                 {user && <TopNav />}
                 {user && <KeyHealthBanner />}
                 <main className="min-h-0 flex-1 overflow-y-auto">

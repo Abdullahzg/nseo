@@ -74,12 +74,12 @@ export function TopNav() {
   const user = session?.user;
 
   return (
-    <header className="z-30 mb-4 flex h-14 shrink-0 items-center rounded-3xl border border-[var(--glass-border)] bg-sidebar shadow-[var(--glass-shadow)] backdrop-blur-[72px] backdrop-saturate-150">
-      <div className="flex h-full w-full items-center justify-between px-5 pl-16 lg:pl-5">
+    <header className="z-30 mb-4 flex h-12 shrink-0 items-center rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex h-full w-full items-center justify-between px-5 pl-14 lg:pl-5">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-sm">
           <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors font-medium">
-            Summit
+            Geseo
           </Link>
           {segments.map((seg, i) => (
             <span key={seg} className="flex items-center gap-1.5">

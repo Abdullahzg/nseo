@@ -117,7 +117,7 @@ export function Sidebar() {
   return (
     <>
       <button
-        className="lg:hidden fixed top-3 left-4 z-50 grid size-9 place-items-center rounded-[14px] border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-[40px] backdrop-saturate-150"
+        className="lg:hidden fixed top-3 left-4 z-50 grid size-9 place-items-center rounded-xl border border-border bg-card shadow-sm"
         onClick={() => setMobileOpen(!mobileOpen)}
         aria-label="Toggle sidebar"
       >
@@ -137,26 +137,26 @@ export function Sidebar() {
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex transition-all duration-300 ease-in-out lg:static lg:z-auto",
-          "py-4 pl-4 pr-6",
-          collapsed ? "w-[104px]" : "w-[296px]",
+          "p-3",
+          collapsed ? "w-[104px]" : "w-[280px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-      <div className="flex min-h-0 w-full flex-col rounded-3xl border border-[var(--glass-border)] bg-sidebar shadow-[var(--glass-shadow-lg)] backdrop-blur-[72px] backdrop-saturate-150">
-        {/* Brand: the twin-peaks mark, drawn as vector so it needs no tile behind it. */}
-        <div className={cn("flex h-16 items-center border-b border-[var(--glass-border)] px-4 shrink-0", collapsed && "justify-center px-2")}>
+      <div className="flex min-h-0 w-full flex-col rounded-2xl border border-border bg-card shadow-lg">
+        {/* Brand */}
+        <div className={cn("flex h-14 items-center border-b border-border px-4 shrink-0", collapsed && "justify-center px-2")}>
           {!collapsed && (
             <Link href="/" className="flex min-w-0 items-center gap-2.5">
-              <SummitMark className="size-8 shrink-0" />
+              <SummitMark className="size-7 shrink-0" />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium tracking-tight">Summit</span>
-                <span className="block truncate text-xs text-muted-foreground">SEO engine</span>
+                <span className="block truncate text-sm font-semibold tracking-tight">Geseo</span>
+                <span className="block truncate text-[10px] text-muted-foreground">AI Outreach Platform</span>
               </span>
             </Link>
           )}
           {collapsed && (
-            <Link href="/" aria-label="Summit">
-              <SummitMark className="size-8" />
+            <Link href="/" aria-label="Geseo">
+              <SummitMark className="size-7" />
             </Link>
           )}
           <Button

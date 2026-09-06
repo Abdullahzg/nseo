@@ -25,7 +25,7 @@ function LoginContent() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center text-center gap-2">
           <SummitMark className="h-10 w-10 mb-1" />
-          <h1 className="text-2xl font-light tracking-tight">Summit</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Geseo</h1>
           <p className="text-sm text-muted-foreground">SEO, content and outreach engine</p>
         </div>
 

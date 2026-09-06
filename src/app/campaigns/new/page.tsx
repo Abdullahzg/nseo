@@ -96,7 +96,7 @@ export default function NewCampaignPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Campaign name</Label>
-              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Q3 backlinks for ImagineArt" />
+              <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Q3 backlinks for my product" />
             </div>
             <div className="space-y-1.5">
               <Label>Your website</Label>
