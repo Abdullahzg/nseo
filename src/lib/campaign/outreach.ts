@@ -259,6 +259,22 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   const DEMO_RECIPIENT = "ab.ghouri03@gmail.com";
   const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
 
+  // Per-domain rate limiting: max 3 emails per domain per hour
+  if (!demo && recipientEmail) {
+    const domain = recipientEmail.split("@")[1];
+    if (domain) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabaseAdmin
+        .from("outreach_emails")
+        .select("id", { count: "exact", head: true })
+        .like("to_email", `%@${domain}`)
+        .gte("created_at", oneHourAgo);
+      if ((count ?? 0) >= 3) {
+        return { ok: false, reason: `rate limit: 3 emails/hour max for @${domain}` };
+      }
+    }
+  }
+
   if (demo) {
     // Pre-assign the simulated publisher persona for this thread's scenario.
     try { const { assignDemoPersona } = await import("./demo"); await assignDemoPersona(prospectId); } catch {}
@@ -281,13 +297,20 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   const { data: inserted, error } = await supabaseAdmin.from("outreach_emails").insert(row as never).select("id").single();
   if (error) return { ok: false, reason: error.message };
 
+  // Add tracking pixel for open tracking (real mode only)
+  let sendBody = draft.body;
+  if (!demo && inserted) {
+    const pixelUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3100"}/api/track/open?id=${(inserted as any).id}`;
+    sendBody += `\n<img src="${pixelUrl}" width="1" height="1" style="display:none" alt="" />`;
+  }
+
   // Demo mode: actually send the email via SMTP so it's observable in the inbox.
   if (demo) {
     try {
       await sendEmail({
         to: DEMO_RECIPIENT,
         subject: draft.subject,
-        body: draft.body,
+        body: sendBody,
       });
       await supabaseAdmin.from("outreach_emails").update({
         status: "sent",

@@ -100,6 +100,8 @@ export default function CampaignPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [activitySearch, setActivitySearch] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const lastEventId = useRef(0);
 
   const load = useCallback(async () => {
@@ -249,6 +251,31 @@ export default function CampaignPage() {
     }
   }
 
+  async function importProspects(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    setImporting(true);
+    try {
+      const csv = await file.text();
+      const res = await fetch("/api/prospects/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaign_id: id, csv }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Import failed");
+      toast.success(`Imported ${data.imported} prospects${data.skipped ? `, ${data.skipped} skipped` : ""}`);
+      if (data.errors?.length) toast.warning(`Rows with issues: ${data.errors.join("; ")}`);
+      setImportOpen(false);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Import failed");
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  }
+
   async function assist(interventionId: string) {
     const input = (assistText[interventionId] ?? "").trim();
     if (!input) { toast.error("Provide the answer for the agent to continue."); return; }
@@ -351,6 +378,9 @@ export default function CampaignPage() {
             </Badge>
             {c.demo_mode && <Badge variant="outline" className="border-amber-500/50 text-amber-500">DEMO MODE</Badge>}
             {c.autonomy_mode === "autonomous" && <Badge variant="outline" className="border-violet-500/50 text-violet-400">AUTONOMOUS</Badge>}
+            {state.events.some((ev) => ev.action?.includes("fallback") || ev.detail?.summary?.includes("fallback")) && (
+              <Badge variant="outline" className="border-orange-500/50 text-orange-400">LLM FALLBACK</Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {c.objective || "Acquire editorial placements."}{c.website_url ? ` · ${c.website_url}` : ""}
@@ -403,6 +433,9 @@ export default function CampaignPage() {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => exportData("csv")} disabled={exporting} title="Export CSV">
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : "CSV"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setImportOpen(true)} title="Import prospects from CSV">
+            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Import"}
           </Button>
           <Button variant="ghost" size="sm" onClick={deleteCampaign} disabled={!!busy} title="Delete campaign" className="text-destructive hover:text-destructive">
             <CircleStop className="h-4 w-4" />
@@ -712,6 +745,22 @@ export default function CampaignPage() {
                   <div className="text-[11px] text-muted-foreground">Deals</div>
                 </div>
               </div>
+              {/* Qualification score breakdown */}
+              {(state.prospects_by_status.qualified ?? 0) > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">Qualification scores</div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, ((state.prospects_by_status.qualified ?? 0) / Math.max(1, (state.prospects_by_status.discovered ?? 1))) * 100)}%` }} />
+                    </div>
+                    <span className="text-muted-foreground">{Math.round(((state.prospects_by_status.qualified ?? 0) / Math.max(1, (state.prospects_by_status.discovered ?? 1))) * 100)}%</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 text-xs text-muted-foreground">
+                    <span>Approved: {state.prospects_by_status.qualified ?? 0}</span>
+                    <span>Rejected: {state.prospects_by_status.rejected ?? 0}</span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -743,6 +792,29 @@ export default function CampaignPage() {
           </Card>
         </div>
       </div>
+
+      {/* Import CSV modal */}
+      {importOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-semibold">Import Prospects from CSV</h3>
+            <p className="text-sm text-muted-foreground">
+              CSV must have a <code>url</code> or <code>domain</code> column. Optional: <code>name</code>, <code>email</code>.
+            </p>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={importProspects}
+              disabled={importing}
+              className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:px-4 file:py-2 file:text-sm file:font-medium hover:file:bg-primary/90"
+            />
+            {importing && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Importing…</p>}
+            <div className="flex justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setImportOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

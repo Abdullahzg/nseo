@@ -43,6 +43,7 @@ export interface ReplyClassification {
   intent: ReplyIntent;
   priceMentioned: number | null; // a $ figure they named, if any
   reason: string;
+  sentiment?: "positive" | "neutral" | "negative"; // emotional tone of the reply
   interventionType?: InterventionType; // set only when intent === "needs_human"
   interventionAsk?: string;            // short "what they literally asked for", shown to the human
   assistable?: boolean;                // true = a human input lets the AI continue; false = full handoff
@@ -124,14 +125,20 @@ export function classifyReplyIntentHeuristicOnly(replyText: string, subject = ""
   const t = text.toLowerCase();
   const price = (t.match(/\$\s?(\d[\d,]{1,6})/) || [])[1];
   const priceMentioned = price ? Number(price.replace(/,/g, "")) : null;
-  if (/\b(unsubscribe|remove me|stop emailing|do not contact)\b/.test(t)) return { intent: "unsubscribe", priceMentioned, reason: "heuristic" };
-  if (/\b(not interested|no thank|we don'?t|won'?t be able|pass\b|decline)\b/.test(t)) return { intent: "hard_no", priceMentioned, reason: "heuristic" };
-  if (/out of office|auto(-| )?reply|automatic reply|do-not-reply|noreply/.test(t)) return { intent: "auto", priceMentioned, reason: "heuristic" };
+
+  // Sentiment analysis
+  const positiveWords = /\b(thanks?|thank you|great|awesome|love|excited|interested|perfect|wonderful|fantastic|happy|glad|appreciate|absolutely|definitely|yes|sounds good|looks good|impressed)\b/i;
+  const negativeWords = /\b(sorry|unfortunately|no thanks?|not interested|can'?t|won'?t|decline|pass|stop|remove|unsubscribe|busy|not a fit|wrong person|already have|not now|later|never)\b/i;
+  const sentiment = positiveWords.test(t) ? "positive" : negativeWords.test(t) ? "negative" : "neutral";
+
+  if (/\b(unsubscribe|remove me|stop emailing|do not contact)\b/.test(t)) return { intent: "unsubscribe", priceMentioned, reason: "heuristic", sentiment };
+  if (/\b(not interested|no thank|we don'?t|won'?t be able|pass\b|decline)\b/.test(t)) return { intent: "hard_no", priceMentioned, reason: "heuristic", sentiment };
+  if (/out of office|auto(-| )?reply|automatic reply|do-not-reply|noreply/.test(t)) return { intent: "auto", priceMentioned, reason: "heuristic", sentiment };
   const hh = classifyInterventionHeuristic(t);
-  if (hh) return { intent: "needs_human", priceMentioned, reason: "heuristic", interventionType: hh.type, interventionAsk: hh.ask, assistable: hh.assistable };
-  if (priceMentioned) return { intent: "counter_offer", priceMentioned, reason: "heuristic" };
-  if (/\?\s*$|how much|what.*cost|tell me more|can you/.test(t)) return { intent: "question", priceMentioned, reason: "heuristic" };
-  return { intent: "interested", priceMentioned, reason: "heuristic" };
+  if (hh) return { intent: "needs_human", priceMentioned, reason: "heuristic", sentiment, interventionType: hh.type, interventionAsk: hh.ask, assistable: hh.assistable };
+  if (priceMentioned) return { intent: "counter_offer", priceMentioned, reason: "heuristic", sentiment };
+  if (/\?\s*$|how much|what.*cost|tell me more|can you/.test(t)) return { intent: "question", priceMentioned, reason: "heuristic", sentiment };
+  return { intent: "interested", priceMentioned, reason: "heuristic", sentiment };
 }
 
 // Deterministic backstop for the needs_human categories when there is no LLM. Order = priority.
