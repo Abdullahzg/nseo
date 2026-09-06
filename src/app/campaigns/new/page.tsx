@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Rocket } from "lucide-react";
@@ -10,11 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // New agentic campaign: objective + budget + constraints, then one meaningful action.
 export default function NewCampaignPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([]);
   const [form, setForm] = useState({
     name: "",
     website_url: "",
@@ -29,7 +31,12 @@ export default function NewCampaignPage() {
     excluded_domains: "",
     constraints_text: "",
     demo_mode: false,
+    email_template_id: "",
   });
+
+  useEffect(() => {
+    fetch("/api/email-templates").then((r) => r.json()).then((d) => setTemplates(d ?? [])).catch(() => {});
+  }, []);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -56,6 +63,7 @@ export default function NewCampaignPage() {
           excluded_domains: form.excluded_domains.split(",").map((s) => s.trim()).filter(Boolean),
           constraints_text: form.constraints_text || null,
           demo_mode: form.demo_mode,
+          email_template_id: form.email_template_id || null,
         }),
       });
       const d = await res.json();
@@ -146,6 +154,20 @@ export default function NewCampaignPage() {
             <Label>Additional constraints</Label>
             <Textarea rows={2} value={form.constraints_text} onChange={(e) => set("constraints_text", e.target.value)}
               placeholder="Relevant editorial websites only. Avoid obvious link farms. Escalate unusual contractual or payment requests." />
+          </div>
+          <div className="space-y-1.5 sm:col-span-3">
+            <Label>Email template (optional)</Label>
+            <Select value={form.email_template_id} onValueChange={(v) => set("email_template_id", v ?? "")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Default template" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Default template</SelectItem>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <label className="sm:col-span-3 flex items-center gap-3 rounded-lg border border-dashed p-3 cursor-pointer">
             <Switch checked={form.demo_mode} onCheckedChange={(v) => set("demo_mode", v)} />

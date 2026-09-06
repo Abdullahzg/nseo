@@ -469,7 +469,10 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
 /** Domain-level fallback: homepage+contact scrape → AI scan → Hunter domain search → tagged pattern guess. */
 async function domainLevelContact(host: string, steps: string[]): Promise<ContactResolution> {
   for (const url of [`https://${host}/contact`, `https://${host}/about`, `https://${host}`]) {
-    const sig = await scrapePageSignals(url).catch(() => null);
+    const sig = await Promise.race([
+      scrapePageSignals(url).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
+    ]);
     const em = sig?.emails.find((e) => !isRoleEmail(e) && !isPlaceholderEmail(e));
     if (em) { steps.push(`found email on ${new URL(url).pathname}`); return { ok: true, email: em, source: "page-scrape", confidence: 90, steps }; }
   }

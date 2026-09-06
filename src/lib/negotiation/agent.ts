@@ -166,6 +166,7 @@ export interface DraftInput {
   lastIntent: ReplyIntent;
   theirPrice?: number | null; // a $ figure they just named (from classification), if any
   senderName?: string;       // who signs the email
+  productName?: string;      // our product name (replaces hardcoded "ImagineArt")
   assistInput?: string | null;    // human-provided real info (link/availability/fact/redirect) — safe to quote
   assistHasAttachment?: boolean;  // a real file is being attached to this send, so promising an attachment is truthful
 }
@@ -192,6 +193,7 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
   const { settings, thread, authorName, publication, ceiling, floor, lastIntent } = input;
   const first = (authorName || "there").trim().split(/\s+/)[0] || "there";
   const signer = input.senderName || "Abdullah";
+  const product = input.productName || "our product";
   const usCount = thread.filter((m) => m.from === "us").length;
   const overLength = usCount >= settings.max_thread_length;
 
@@ -219,7 +221,7 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
     const openPctA = Math.min(100, Math.max(0, settings.opening_percent ?? 40));
     const closeAt = Math.max(floor, Math.round(floor + (ceiling - floor) * (openPctA / 100)));
     return {
-      body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works. I'll follow up shortly with a short blurb and everything you need from our side so you can add ImagineArt. Thanks ${first}.\n\nBest,\n${signer}`),
+      body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works. I'll follow up shortly with a short blurb and everything you need from our side so you can add ${product}. Thanks ${first}.\n\nBest,\n${signer}`),
       suggestedOffer: closeAt, shouldStop: true, statusHint: "agreed",
     };
   }
@@ -242,7 +244,7 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
     : "";
 
   const out = await llm(
-    `You are negotiating on behalf of ImagineArt via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).
+    `You are negotiating on behalf of ${product} via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).
 
 NEGOTIATION BRIEF (obey): ${settings.handbook}
 TONE: ${settings.tone}

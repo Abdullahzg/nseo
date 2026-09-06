@@ -136,9 +136,32 @@ Output ONLY the personalized opening lines.`;
   const customLine = openerOut && openerOut.text.length > 20 ? sanitizeBody(openerOut.text) : `I came across your piece on ${title} and thought it was a great take on the space. The way you covered the intersection of technology and journalism really stood out.`;
 
   if (template) {
+    // Resolve author name from prospect's author_id or qualification data
+    let authorName = "there";
+    let firstName = "";
+    if (prospect.author_id) {
+      try {
+        const { data: author } = await supabaseAdmin.from("authors").select("full_name").eq("id", prospect.author_id).maybeSingle();
+        if ((author as any)?.full_name) {
+          authorName = (author as any).full_name;
+          firstName = authorName.split(" ")[0];
+        }
+      } catch {}
+    }
+    if (!firstName) {
+      // Try from qualification data
+      const qAuthor = q.article_author ?? "";
+      if (qAuthor && qAuthor !== "Unknown") {
+        authorName = qAuthor;
+        firstName = qAuthor.split(" ")[0];
+      }
+    }
+    if (!firstName) firstName = "there";
+
     // Fill template with placeholders
     const vars: Record<string, string> = {
-      author_name: "there",
+      author_name: authorName,
+      first_name: firstName,
       pub_name: prospect.domain_host,
       website_name: websiteName,
       article_title: String(title).slice(0, 120),

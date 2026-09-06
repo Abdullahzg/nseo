@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { identifyCaller } from "@/lib/auth/service";
 import { getCampaignRow, getDeals, countProspectsByStatus, listInterventions, listAgentEvents, updateCampaignExt, setCampaignPhase } from "@/lib/campaign/queries";
 import { isActivePhase } from "@/lib/campaign/queries";
+import { supabaseAdmin } from "@/lib/db/supabase";
 
 export const maxDuration = 60;
 
@@ -44,16 +45,90 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
+  // Fetch current phase for resume logic
+  let currentPhase = "";
+  if (body.action === "resume") {
+    try {
+      const { data: cur } = await supabaseAdmin.from("campaigns").select("phase").eq("id", id).maybeSingle();
+      currentPhase = (cur as any)?.phase ?? "";
+    } catch {}
+  }
+
   const allowed = ["paused_discovery", "paused_outreach", "paused_negotiation", "emergency_stopped"] as const;
   const patch: Record<string, unknown> = {};
   for (const k of allowed) if (typeof body[k] === "boolean") patch[k] = body[k];
+  // Campaign settings fields (editable after creation)
+  if (typeof body.budget_total === "number") patch.budget_total = body.budget_total;
+  if (typeof body.max_per_deal === "number") patch.max_per_deal = body.max_per_deal;
+  if (typeof body.min_dr === "number") patch.min_dr = body.min_dr;
+  if (Array.isArray(body.geos)) patch.geos = body.geos;
+  if (Array.isArray(body.excluded_domains)) patch.excluded_domains = body.excluded_domains;
+  if (typeof body.constraints_text === "string") patch.constraints_text = body.constraints_text;
+  if (body.email_template_id !== undefined) patch.email_template_id = body.email_template_id || null;
   if (body.action === "resume") {
     patch.emergency_stopped = false;
-    patch.phase = "monitoring";
     patch.completion_reason = null;
-    await setCampaignPhase(id, "monitoring", null as never).catch(() => {});
+    // If campaign was stopped, restart from discovering (phase logic will auto-advance)
+    if (currentPhase === "stopped") {
+      patch.phase = "discovering";
+    }
+    // If just paused (not stopped), keep current phase — don't override
   }
   if (body.action === "stop") Object.assign(patch, { phase: "stopped", completion_reason: "stopped_by_user" });
   if (Object.keys(patch).length) await updateCampaignExt(id, patch);
   return NextResponse.json({ ok: true });
+}
+
+// DELETE /api/campaigns/[id] — delete campaign and all related data.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const caller = await identifyCaller(req);
+  if (!caller) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  const { id } = await params;
+
+  // Delete related data in order (foreign keys)
+  await supabaseAdmin.from("agent_events").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("outreach_emails").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("deals").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("prospects").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("interventions").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("negotiation_threads").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("budget_ledger").delete().eq("campaign_id", id);
+  await supabaseAdmin.from("campaigns").delete().eq("id", id);
+
+  return NextResponse.json({ ok: true });
+}
+
+// POST /api/campaigns/[id] — clone campaign (body: { action: "clone" }).
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const caller = await identifyCaller(req);
+  if (!caller) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+
+  if (body.action !== "clone") return NextResponse.json({ error: "unknown action" }, { status: 400 });
+
+  const src = await getCampaignRow(id);
+  if (!src) return NextResponse.json({ error: "source not found" }, { status: 404 });
+
+  // Create new campaign with same settings
+  const { data: newCamp, error } = await supabaseAdmin.from("campaigns").insert({
+    name: `${src.name} (copy)`,
+    keywords: src.keywords,
+    website_url: src.website_url,
+    objective: src.objective,
+    budget_total: src.budget_total,
+    currency: src.currency,
+    min_dr: src.min_dr,
+    geos: src.geos,
+    desired_deals: src.desired_deals,
+    max_per_deal: src.max_per_deal,
+    excluded_domains: src.excluded_domains,
+    constraints_text: src.constraints_text,
+    demo_mode: src.demo_mode,
+    email_template_id: src.email_template_id,
+    phase: "draft",
+  }).select("id").maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ id: newCamp!.id, name: `${src.name} (copy)` }, { status: 201 });
 }

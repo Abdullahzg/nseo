@@ -110,12 +110,27 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
   const senderCfg = (initial as any).sender_email ? await getUserEmailConfig((initial as any).sender_email).catch(() => null) : null;
   const senderName = (senderCfg?.from_name?.trim().split(/\s+/)[0]) || firstNameFromEmail((initial as any).sender_email);
 
+  // Resolve product name from campaign (replaces hardcoded "ImagineArt")
+  const campaignId = (email as any).campaign_id;
+  let productName = "our product";
+  if (campaignId) {
+    try {
+      const { data: camp } = await supabaseAdmin.from("campaigns").select("website_url, name").eq("id", campaignId).maybeSingle();
+      if ((camp as any)?.website_url) {
+        productName = (camp as any).website_url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      } else if ((camp as any)?.name) {
+        productName = (camp as any).name;
+      }
+    } catch {}
+  }
+
   const draft = await draftNegotiationReply({
     settings, thread,
     authorName: (email as any).author?.full_name ?? "there",
     publication: dom?.name ?? dom?.host ?? "",
     ceiling, floor: settings.min_price, lastIntent: cls.intent, theirPrice: cls.priceMentioned,
     senderName,
+    productName,
     assistInput: assisting ? opts!.assistInput : null,
     assistHasAttachment: !!asset,
   });

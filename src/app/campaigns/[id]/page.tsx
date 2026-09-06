@@ -6,7 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Activity, Bot, ChevronDown, ChevronRight, CircleStop, DollarSign, Hand, Loader2, Pause, Play, Plus,
-  Radar, Search, ShieldAlert, Sparkles, Target, Users, Zap,
+  Radar, Search, Settings, ShieldAlert, Sparkles, Target, Users, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +82,8 @@ function timeAgo(ts: string): string {
 }
 
 function phaseProgress(phase: string): number {
+  if (phase === "completed") return 100;
+  if (phase === "stopped" || phase === "failed") return 0;
   const i = PHASE_ORDER.indexOf(phase);
   if (i < 0) return 0;
   return Math.min(100, ((i + 1) / PHASE_ORDER.length) * 100);
@@ -93,6 +95,11 @@ export default function CampaignPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [assistText, setAssistText] = useState<Record<string, string>>({});
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState<Record<string, string>>({});
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [activitySearch, setActivitySearch] = useState("");
+  const [exporting, setExporting] = useState(false);
   const lastEventId = useRef(0);
 
   const load = useCallback(async () => {
@@ -125,6 +132,21 @@ export default function CampaignPage() {
 
   async function control(action: string) {
     setBusy(action);
+    // Optimistic UI: immediately update state for responsive feel
+    if (state?.campaign) {
+      const optimistic = { ...state };
+      if (action === "pause") {
+        optimistic.campaign = { ...optimistic.campaign, paused_outreach: true, paused_discovery: true, paused_negotiation: true };
+      } else if (action === "resume") {
+        optimistic.campaign = { ...optimistic.campaign, paused_outreach: false, paused_discovery: false, paused_negotiation: false, emergency_stopped: false };
+        if (optimistic.campaign.phase === "stopped") optimistic.campaign.phase = "discovering";
+      } else if (action === "stop") {
+        optimistic.campaign = { ...optimistic.campaign, phase: "stopped" };
+      } else if (action === "emergency") {
+        optimistic.campaign = { ...optimistic.campaign, emergency_stopped: true };
+      }
+      setState(optimistic);
+    }
     try {
       if (action === "start") {
         await fetch(`/api/campaigns/${id}/start`, { method: "POST" });
@@ -133,6 +155,7 @@ export default function CampaignPage() {
         const r = await fetch(`/api/campaigns/${id}/tick`, { method: "POST" }).then((x) => x.json());
         toast.success(`Tick done (${r.action ?? r.mode ?? ""}).`);
       } else {
+        if ((action === "emergency" || action === "stop") && !window.confirm(action === "emergency" ? "EMERGENCY STOP will halt ALL agents and outreach immediately. Are you sure?" : "Stop this campaign? It can be resumed later.")) return;
         const body: Record<string, unknown> =
           action === "pause" ? { paused_outreach: true, paused_discovery: true, paused_negotiation: true }
             : action === "resume" ? { action: "resume", paused_outreach: false, paused_discovery: false, paused_negotiation: false }
@@ -146,6 +169,83 @@ export default function CampaignPage() {
       toast.error(e?.message ?? "Failed");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function saveSettings() {
+    setSavingSettings(true);
+    try {
+      const patch: Record<string, unknown> = {};
+      if (settingsForm.budget_total) patch.budget_total = Number(settingsForm.budget_total);
+      if (settingsForm.max_per_deal) patch.max_per_deal = Number(settingsForm.max_per_deal);
+      if (settingsForm.min_dr) patch.min_dr = Number(settingsForm.min_dr);
+      if (settingsForm.geos !== undefined) patch.geos = settingsForm.geos.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (settingsForm.excluded_domains !== undefined) patch.excluded_domains = settingsForm.excluded_domains.split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (settingsForm.constraints_text !== undefined) patch.constraints_text = settingsForm.constraints_text;
+      if (settingsForm.email_template_id !== undefined) patch.email_template_id = settingsForm.email_template_id || null;
+      await fetch(`/api/campaigns/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      toast.success("Settings saved.");
+      setSettingsOpen(false);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to save settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  async function cloneCampaign() {
+    if (!window.confirm("Clone this campaign with all its settings?")) return;
+    setBusy("clone");
+    try {
+      const r = await fetch(`/api/campaigns/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "clone" }) }).then((x) => x.json());
+      if (r.error) throw new Error(r.error);
+      toast.success(`Cloned as "${r.name}"`);
+      window.location.href = `/campaigns/${r.id}`;
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to clone");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteCampaign() {
+    if (!window.confirm("DELETE this campaign and ALL its data? This cannot be undone.")) return;
+    if (!window.confirm("Are you REALLY sure? All prospects, emails, deals, and events will be permanently deleted.")) return;
+    setBusy("delete");
+    try {
+      await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+      toast.success("Campaign deleted.");
+      window.location.href = "/campaigns";
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to delete");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function exportData(format: "csv" | "json") {
+    setExporting(true);
+    try {
+      const data = {
+        campaign: state?.campaign,
+        prospects_by_status: state?.prospects_by_status,
+        deals: state?.deals,
+        events: state?.events,
+        budget: state?.budget,
+      };
+      const blob = new Blob([format === "json" ? JSON.stringify(data, null, 2) : convertToCSV(data)], { type: format === "json" ? "application/json" : "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${state?.campaign?.name ?? "campaign"}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export failed");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -192,6 +292,19 @@ export default function CampaignPage() {
 
   return (
     <div className="space-y-6">
+      {/* Loading skeleton */}
+      {!state && (
+        <div className="space-y-4 animate-pulse">
+          <div className="h-10 bg-white/5 rounded-lg w-1/3" />
+          <div className="h-20 bg-white/5 rounded-lg" />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="h-32 bg-white/5 rounded-lg" />
+            <div className="h-32 bg-white/5 rounded-lg" />
+            <div className="h-32 bg-white/5 rounded-lg" />
+          </div>
+        </div>
+      )}
+
       {/* Live status bar */}
       {state.is_active && (
         <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 via-emerald-500/[0.02] to-transparent p-4">
@@ -243,6 +356,12 @@ export default function CampaignPage() {
             {c.objective || "Acquire editorial placements."}{c.website_url ? ` · ${c.website_url}` : ""}
             {c.keywords?.length ? ` · ${(c.keywords as string[]).join(", ")}` : ""}
           </p>
+          {(c.geos?.length > 0 || c.constraints_text) && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {c.geos?.length > 0 && <Badge variant="outline" className="text-xs">Geo: {(c.geos as string[]).join(", ")}</Badge>}
+              {c.constraints_text && <Badge variant="outline" className="text-xs max-w-xs truncate" title={c.constraints_text}>Constraints: {c.constraints_text}</Badge>}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!state.is_active && c.phase !== "completed" && c.phase !== "stopped" && (
@@ -275,6 +394,19 @@ export default function CampaignPage() {
               <ShieldAlert className="h-4 w-4" /> Emergency stop
             </Button>
           )}
+          <div className="h-4 w-px bg-white/10" />
+          <Button variant="ghost" size="sm" onClick={cloneCampaign} disabled={!!busy} title="Clone campaign">
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => exportData("json")} disabled={exporting} title="Export JSON">
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : "JSON"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => exportData("csv")} disabled={exporting} title="Export CSV">
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : "CSV"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={deleteCampaign} disabled={!!busy} title="Delete campaign" className="text-destructive hover:text-destructive">
+            <CircleStop className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
@@ -327,6 +459,63 @@ export default function CampaignPage() {
             })}
           </div>
         </CardContent>
+      </Card>
+
+      {/* Settings */}
+      <Card>
+        <button className="w-full flex items-center justify-between px-6 py-3 text-left" onClick={() => {
+          if (!settingsOpen) {
+            setSettingsForm({
+              budget_total: String(c.budget_total ?? ""),
+              max_per_deal: String(c.max_per_deal ?? ""),
+              min_dr: String(c.min_dr ?? ""),
+              geos: Array.isArray(c.geos) ? c.geos.join(", ") : (c.geos ?? ""),
+              excluded_domains: Array.isArray(c.excluded_domains) ? c.excluded_domains.join(", ") : (c.excluded_domains ?? ""),
+              constraints_text: c.constraints_text ?? "",
+              email_template_id: c.email_template_id ?? "",
+            });
+          }
+          setSettingsOpen(!settingsOpen);
+        }}>
+          <CardTitle className="text-sm font-medium flex items-center gap-2"><Settings className="h-4 w-4" /> Campaign settings</CardTitle>
+          {settingsOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </button>
+        {settingsOpen && (
+          <CardContent className="pt-0 space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Budget (total)</label>
+                <Input type="number" min={0} value={settingsForm.budget_total ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, budget_total: e.target.value }))} placeholder="e.g. 500" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Max per deal</label>
+                <Input type="number" min={0} value={settingsForm.max_per_deal ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, max_per_deal: e.target.value }))} placeholder="e.g. 100" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Min DR</label>
+                <Input type="number" min={0} max={100} value={settingsForm.min_dr ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, min_dr: e.target.value }))} placeholder="e.g. 20" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Geos (comma-separated)</label>
+                <Input value={settingsForm.geos ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, geos: e.target.value }))} placeholder="e.g. US, UK, CA" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Excluded domains (comma-separated)</label>
+              <Input value={settingsForm.excluded_domains ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, excluded_domains: e.target.value }))} placeholder="e.g. competitor.com, spam.net" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Constraints / notes for agents</label>
+              <Input value={settingsForm.constraints_text ?? ""} onChange={(e) => setSettingsForm((f) => ({ ...f, constraints_text: e.target.value }))} placeholder="e.g. Only English articles, no sponsored content" />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" onClick={saveSettings} disabled={savingSettings}>
+                {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save settings
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Progress */}
@@ -455,8 +644,20 @@ export default function CampaignPage() {
           </button>
           {activityExpanded && (
             <CardContent>
+              <div className="mb-3">
+                <Input
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  placeholder="Search activity by agent, action, or keyword…"
+                  className="h-8 text-xs"
+                />
+              </div>
               <div className="max-h-[480px] overflow-y-auto space-y-1 pr-2">
-                {[...state.events].reverse().slice(0, 120).map((ev) => (
+                {[...state.events].reverse().filter((ev) => {
+                  if (!activitySearch) return true;
+                  const q = activitySearch.toLowerCase();
+                  return ev.agent?.toLowerCase().includes(q) || ev.action?.toLowerCase().includes(q) || eventSummary(ev)?.toLowerCase().includes(q);
+                }).slice(0, 120).map((ev) => (
                   <div key={ev.id} className="flex gap-2 text-xs border-l-2 pl-2 py-0.5 group"
                     style={{ borderColor: ev.level === "error" ? "#ef4444" : ev.level === "warn" ? "#f59e0b" : "rgba(16,185,129,.6)" }}>
                     <span className="text-muted-foreground whitespace-nowrap">{new Date(ev.ts).toLocaleTimeString()}</span>
@@ -639,4 +840,27 @@ function buildAgentBoard(state: CampaignState | null) {
       itemCount: itemCounts[agent] ?? 0,
     };
   });
+}
+
+function convertToCSV(data: any): string {
+  const rows: string[] = [];
+  // Campaign summary
+  rows.push("Section,Field,Value");
+  rows.push(`Campaign,name,"${data.campaign?.name ?? ""}"`);
+  rows.push(`Campaign,phase,"${data.campaign?.phase ?? ""}"`);
+  rows.push(`Campaign,budget_total,"${data.budget?.total ?? 0}"`);
+  rows.push(`Campaign,budget_used,"${data.budget?.used ?? 0}"`);
+  rows.push("");
+  // Deals
+  rows.push("Deal,Publication,Status,Price,Started,Completed");
+  for (const d of data.deals ?? []) {
+    rows.push(`Deal,"${d.publication_name ?? ""}","${d.status ?? ""}","${d.price ?? ""}","${d.created_at ?? ""}","${d.completed_at ?? ""}"`);
+  }
+  rows.push("");
+  // Events (last 50)
+  rows.push("Event,Agent,Action,Detail,Time");
+  for (const e of (data.events ?? []).slice(-50)) {
+    rows.push(`Event,"${e.agent ?? ""}","${e.action ?? ""}","${(e.detail?.summary ?? "").replace(/"/g, '""')}","${e.ts ?? ""}"`);
+  }
+  return rows.join("\n");
 }
