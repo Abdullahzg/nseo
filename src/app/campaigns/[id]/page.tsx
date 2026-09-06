@@ -23,6 +23,8 @@ interface CampaignState {
   interventions: any[];
   events: any[];
   budget: { total: number; used: number; remaining: number; currency: string };
+  email_stats: { total: number; sent: number; opened: number; bounced: number; openRate: number; bounceRate: number };
+  roi: { total_spent: number; deal_revenue: number; saved_amount: number; roi_pct: number };
 }
 
 const AGENT_ICONS: Record<string, any> = {
@@ -763,6 +765,83 @@ export default function CampaignPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Email tracking stats */}
+          {state.email_stats && state.email_stats.total > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Email Performance</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Open rate</div>
+                    <div className="flex items-end gap-2">
+                      <span className="text-2xl font-semibold">{state.email_stats.openRate}%</span>
+                      <span className="text-xs text-muted-foreground mb-1">{state.email_stats.opened}/{state.email_stats.sent}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${state.email_stats.openRate}%` }} />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-muted-foreground">Bounce rate</div>
+                    <div className="flex items-end gap-2">
+                      <span className="text-2xl font-semibold">{state.email_stats.bounceRate}%</span>
+                      <span className="text-xs text-muted-foreground mb-1">{state.email_stats.bounced}/{state.email_stats.sent}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full bg-red-500 rounded-full" style={{ width: `${state.email_stats.bounceRate}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.email_stats.total}</div>
+                    <div className="text-muted-foreground">Total</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.email_stats.sent}</div>
+                    <div className="text-muted-foreground">Sent</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.email_stats.opened}</div>
+                    <div className="text-muted-foreground">Opened</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ROI Dashboard */}
+          {state.roi && (state.deals.length > 0 || state.roi.total_spent > 0) && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">ROI Dashboard</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">Total spent</div>
+                    <div className="text-xl font-semibold">{fmtMoney(state.roi.total_spent, state.budget.currency)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">Deal value</div>
+                    <div className="text-xl font-semibold">{fmtMoney(state.roi.deal_revenue, state.budget.currency)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">Negotiated savings</div>
+                    <div className="text-xl font-semibold text-emerald-400">{fmtMoney(state.roi.saved_amount, state.budget.currency)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">ROI</div>
+                    <div className={cn("text-xl font-semibold", state.roi.roi_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {state.roi.roi_pct > 0 ? "+" : ""}{state.roi.roi_pct}%
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                  {state.deals.length} deal{state.deals.length !== 1 ? "s" : ""} closed · {state.budget.remaining > 0 ? `${fmtMoney(state.budget.remaining, state.budget.currency)} budget remaining` : "budget exhausted"}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-2">

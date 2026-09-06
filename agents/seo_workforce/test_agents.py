@@ -376,9 +376,9 @@ class TestDelegationChain:
         assert "intervention_agent" in campaign_manager.tool_names
 
     def test_campaign_manager_has_16_total_tools(self):
-        """9 raw @tools + 7 as_tool() wrappers = 16 total tools on campaign_manager."""
+        """campaign_manager has 9 raw tools + 7 specialist agent-as-tools = 17."""
         from seo_workforce.agents import campaign_manager
-        assert len(campaign_manager.tool_names) == 16
+        assert len(campaign_manager.tool_names) == 17
 
     def test_specialists_have_individual_tools(self):
         """Each specialist has exactly 1-2 tools for its narrow responsibility."""
@@ -391,7 +391,7 @@ class TestDelegationChain:
         assert len(discovery_agent.tool_names) == 1
         assert len(qualification_agent.tool_names) == 1
         assert len(contact_agent.tool_names) == 1
-        assert len(outreach_agent.tool_names) == 1
+        assert len(outreach_agent.tool_names) == 2  # queue_outreach_batch + schedule_followups
         assert len(negotiation_agent.tool_names) == 2
         assert len(intervention_agent.tool_names) == 1
 
@@ -400,7 +400,7 @@ class TestDelegationChain:
         from seo_workforce.agents import campaign_manager
         raw_tools = ["get_campaign_state", "plan_discovery", "run_discovery_batch",
                      "run_qualification_batch", "run_contact_resolution",
-                     "queue_outreach_batch", "run_negotiation_tick",
+                     "queue_outreach_batch", "schedule_followups", "run_negotiation_tick",
                      "list_open_interventions", "complete_campaign"]
         specialist_names = ["strategy_agent", "discovery_agent", "qualification_agent",
                            "contact_agent", "outreach_agent", "negotiation_agent",

@@ -22,6 +22,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     listAgentEvents(id, 0, 300).catch(() => []),
   ]);
 
+  // Email tracking stats
+  const { data: emails } = await supabaseAdmin
+    .from("outreach_emails")
+    .select("id, status, opened_at, bounced_at, sent_at, created_at")
+    .eq("workflow_id", id);
+
+  const emailStats = {
+    total: emails?.length ?? 0,
+    sent: emails?.filter((e) => e.status === "sent").length ?? 0,
+    opened: emails?.filter((e) => e.opened_at).length ?? 0,
+    bounced: emails?.filter((e) => e.bounced_at).length ?? 0,
+    openRate: 0,
+    bounceRate: 0,
+  };
+  if (emailStats.sent > 0) {
+    emailStats.openRate = Math.round((emailStats.opened / emailStats.sent) * 100);
+    emailStats.bounceRate = Math.round((emailStats.bounced / emailStats.sent) * 100);
+  }
+
+  // ROI calculation
+  const totalSpent = Number(camp.budget_used ?? 0);
+  const dealRevenue = deals.reduce((sum, d) => sum + (Number(d.agreed_price) || 0), 0);
+  const savedAmount = deals.reduce((sum, d) => {
+    if (d.original_ask != null && d.agreed_price != null) return sum + (Number(d.original_ask) - Number(d.agreed_price));
+    return sum;
+  }, 0);
+
   return NextResponse.json({
     campaign: camp,
     is_active: isActivePhase(camp.phase),
@@ -31,9 +58,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     events,
     budget: {
       total: Number(camp.budget_total ?? 0),
-      used: Number(camp.budget_used ?? 0),
-      remaining: Number(camp.budget_total ?? 0) - Number(camp.budget_used ?? 0),
+      used: totalSpent,
+      remaining: Number(camp.budget_total ?? 0) - totalSpent,
       currency: camp.currency ?? "USD",
+    },
+    email_stats: emailStats,
+    roi: {
+      total_spent: totalSpent,
+      deal_revenue: dealRevenue,
+      saved_amount: savedAmount,
+      roi_pct: totalSpent > 0 ? Math.round(((dealRevenue - totalSpent) / totalSpent) * 100) : 0,
     },
   });
 }

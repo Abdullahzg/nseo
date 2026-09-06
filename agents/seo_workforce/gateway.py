@@ -104,6 +104,11 @@ async def emit_events(campaign_id: str | None, events: list[dict]) -> dict:
     return await _request("POST", "/api/agent/events", {"events": events})
 
 
+async def schedule_followups(campaign_id: str, limit: int = 10) -> dict:
+    """Schedule follow-up emails for prospects who haven't replied (multi-touch sequences)."""
+    return await _request("POST", "/api/agent/tools/followups", {"campaign_id": campaign_id, "limit": limit}, timeout=120.0)
+
+
 # ── legacy send processor (all real SMTP delivery + trust gates live there) ──
 
 async def run_send_processor() -> dict:

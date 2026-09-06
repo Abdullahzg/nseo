@@ -100,7 +100,11 @@ async function getTemplateById(id: string): Promise<{ subject: string; body: str
 interface OutreachDraft { subject: string; body: string; provider: string; simulated_reason?: string }
 
 /** Personalized opener drafted from the stored article understanding, using templates when available. */
-export async function draftOutreachEmail(prospect: any, campaign: any): Promise<OutreachDraft> {
+export async function draftOutreachEmail(
+  prospect: any,
+  campaign: any,
+  sequence?: { subjectPrefix?: string; bodyPrefix?: string }
+): Promise<OutreachDraft> {
   const q = prospect.qualification ?? {};
   const title = q.title ?? prospect.title ?? prospect.domain_host;
   const websiteName = campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product";
@@ -174,10 +178,12 @@ Output ONLY the personalized opening lines.`;
     body = dropEmptyLines(body);
     body = stripPlaceholders(body);
     body = sanitizeBody(body);
+    if (sequence?.bodyPrefix) body = sequence.bodyPrefix + body;
 
     let subject = fillTemplate(template.subject, vars);
     subject = stripPlaceholders(subject);
     if (!subject) subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
+    if (sequence?.subjectPrefix) subject = sequence.subjectPrefix + subject;
 
     return { subject, body, provider: openerOut?.provider ?? "template+fallback" };
   }
@@ -204,11 +210,14 @@ RULES:
 
 Output ONLY the email body.`;
   const out = await llmText(prompt, { maxTokens: 500, temperature: 0.6 });
-  const body = out ? sanitizeBody(out.text) : sanitizeBody(
+  let body = out ? sanitizeBody(out.text) : sanitizeBody(
     `Hi there,\n\n${customLine}\n\nWe build ${websiteName} and think it could be a natural fit for your coverage of ${toolMentioned}. Would you be open to including it, and if so what would your rate be?\n\nBest,`
   );
+  if (sequence?.bodyPrefix) body = sequence.bodyPrefix + body;
+  let subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
+  if (sequence?.subjectPrefix) subject = sequence.subjectPrefix + subject;
   return {
-    subject: `Quick idea for your "${String(title).slice(0, 60)}" piece`,
+    subject,
     body,
     provider: out?.provider ?? "fallback-template",
   };
@@ -334,6 +343,148 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     duration_ms: Date.now() - t0,
   });
   return { ok: true, email_id: (inserted as any).id, simulated: demo };
+}
+
+// ─── multi-touch sequences ────────────────────────────────────────────────────
+
+/** Default sequence: initial + 2 follow-ups spaced 2 and 4 days apart */
+const DEFAULT_SEQUENCE_DELAYS_MS = [0, 2 * 86400_000, 4 * 86400_000];
+const SEQUENCE_TEMPLATES = [
+  { kind: "initial" as const, subjectPrefix: "", bodyPrefix: "" },
+  { kind: "followup" as const, subjectPrefix: "Following up: ", bodyPrefix: "Just circling back on my previous email — " },
+  { kind: "followup" as const, subjectPrefix: "Re: ", bodyPrefix: "Bumping this to the top of your inbox. " },
+];
+
+/**
+ * Schedule the next touch in a multi-touch sequence for a prospect.
+ * Checks if there are remaining steps and if the previous step hasn't been replied to.
+ */
+export async function scheduleNextSequenceTouch(prospectId: string): Promise<{ ok: boolean; scheduled?: boolean; reason?: string }> {
+  const p = await getProspect(prospectId);
+  if (!p) return { ok: false, reason: "prospect not found" };
+  if (!p.contact_email) return { ok: false, reason: "no contact" };
+
+  const camp = await getCampaignRow(p.campaign_id);
+  if (!camp) return { ok: false, reason: "campaign not found" };
+  if (camp.emergency_stopped) return { ok: false, reason: "emergency stop" };
+
+  // Count existing emails in this thread
+  const workflowId = await ensureAgenticWorkflow(camp);
+  const { data: existing } = await supabaseAdmin
+    .from("outreach_emails")
+    .select("id, kind, replied_at, sent_at, scheduled_at")
+    .eq("workflow_id", workflowId)
+    .eq("author_id", p.author_id)
+    .order("created_at", { ascending: true });
+
+  const emails = (existing ?? []) as any[];
+  const currentStep = emails.length;
+
+  // No more steps in sequence
+  if (currentStep >= SEQUENCE_TEMPLATES.length) {
+    return { ok: true, scheduled: false, reason: "sequence complete" };
+  }
+
+  // Don't schedule if they already replied
+  const hasReply = emails.some((e) => e.replied_at);
+  if (hasReply) {
+    return { ok: true, scheduled: false, reason: "already replied" };
+  }
+
+  const template = SEQUENCE_TEMPLATES[currentStep];
+  const delayMs = DEFAULT_SEQUENCE_DELAYS_MS[currentStep];
+  const scheduledAt = new Date(Date.now() + delayMs).toISOString();
+
+  // Draft the follow-up email
+  const draft = await draftOutreachEmail(p, camp, {
+    subjectPrefix: template.subjectPrefix,
+    bodyPrefix: template.bodyPrefix,
+  });
+
+  let authorId = p.author_id;
+  if (!authorId) {
+    try {
+      const { data: a } = await supabaseAdmin.from("authors").select("id").eq("primary_domain_id", p.domain_host).limit(1).maybeSingle();
+      authorId = (a as any)?.id ?? null;
+    } catch { authorId = null; }
+  }
+
+  const demo = !!camp.demo_mode;
+  const DEMO_RECIPIENT = "ab.ghouri03@gmail.com";
+  const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
+
+  const { error } = await supabaseAdmin.from("outreach_emails").insert({
+    workflow_id: workflowId,
+    author_id: authorId,
+    kind: template.kind,
+    parent_id: emails[0]?.id ?? null,
+    subject: draft.subject,
+    body: draft.body,
+    sender_email: camp.owner_email ?? null,
+    sent_by_email: camp.owner_email ?? null,
+    to_email: recipientEmail,
+    ai_managed: true,
+    max_offer: p.ceiling ?? null,
+    status: demo ? "sent" : "scheduled",
+    sent_at: demo ? new Date().toISOString() : null,
+    scheduled_at: demo ? null : scheduledAt,
+    message_id: demo ? `<demo-${crypto.randomUUID()}@simulated.local>` : null,
+  } as never);
+
+  if (error) return { ok: false, reason: error.message };
+
+  await emitEvent(camp.id, "outreach", "sequence_scheduled", {
+    prospect_id: prospectId,
+    detail: { step: currentStep + 1, total_steps: SEQUENCE_TEMPLATES.length, scheduled_at: scheduledAt, kind: template.kind, subject: draft.subject },
+  });
+
+  return { ok: true, scheduled: true };
+}
+
+/**
+ * Process due follow-ups: find scheduled follow-ups whose scheduled_at has passed
+ * and whose thread hasn't received a reply yet.
+ */
+export async function processDueFollowUps(campaignId: string): Promise<{ processed: number; skipped: number }> {
+  const now = new Date().toISOString();
+  const workflowIds = await campaignWorkflowIds(campaignId);
+  if (!workflowIds.length) return { processed: 0, skipped: 0 };
+
+  const { data: due } = await supabaseAdmin
+    .from("outreach_emails")
+    .select("id, parent_id, workflow_id, author_id, subject, body, to_email, scheduled_at")
+    .in("workflow_id", workflowIds)
+    .eq("status", "scheduled")
+    .eq("kind", "followup")
+    .not("scheduled_at", "is", null)
+    .lte("scheduled_at", now);
+
+  if (!due?.length) return { processed: 0, skipped: 0 };
+
+  let processed = 0;
+  let skipped = 0;
+
+  for (const email of due as any[]) {
+    // Check if the parent thread has received a reply
+    if (email.parent_id) {
+      const { data: parent } = await supabaseAdmin
+        .from("outreach_emails")
+        .select("replied_at")
+        .eq("id", email.parent_id)
+        .maybeSingle();
+      if ((parent as any)?.replied_at) { skipped++; continue; }
+    }
+
+    // Mark as sent (the burst processor will handle actual delivery)
+    await supabaseAdmin
+      .from("outreach_emails")
+      .update({ status: "sent", sent_at: now })
+      .eq("id", email.id);
+
+    processed++;
+  }
+
+  return { processed, skipped };
 }
 
 // ─── negotiation tick ─────────────────────────────────────────────────────────

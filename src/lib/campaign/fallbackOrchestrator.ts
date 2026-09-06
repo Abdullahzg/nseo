@@ -96,6 +96,10 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
         const r = await processRepliesTick(campaignId, { detectReplies: true });
         action = "monitor";
         details.replies = r;
+        // Process due follow-ups for multi-touch sequences
+        const { processDueFollowUps } = await import("./outreach");
+        const fu = await processDueFollowUps(campaignId);
+        details.followups = fu;
         // Nudge real delivery of any scheduled mail (no-op in demo mode).
         void runSendProcessorHint();
         break;

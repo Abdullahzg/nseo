@@ -32,6 +32,7 @@ from .tools import (
     run_qualification_batch,
     run_contact_resolution,
     queue_outreach_batch,
+    schedule_followups,
     run_negotiation_tick,
     list_open_interventions,
     complete_campaign,
@@ -142,14 +143,15 @@ contact_agent = Agent(
 outreach_agent = Agent(
     name="outreach_agent",
     model=MODEL,
-    description="Queues personalized outreach emails through the guarded send pipeline.",
+    description="Queues personalized outreach emails and manages multi-touch follow-up sequences.",
     system_prompt=(
         "You are the Outreach Agent.\n"
         "Call queue_outreach_batch for ready prospects with resolved contacts.\n"
+        "Call schedule_followups to schedule follow-up emails for prospects who haven't replied.\n"
         "Emails are drafted from stored article analysis and sent only through the guarded "
         "processor. Report queued vs refused (with reasons like role-mailbox or duplicate inbox)."
     ),
-    tools=[queue_outreach_batch],
+    tools=[queue_outreach_batch, schedule_followups],
 )
 
 negotiation_agent = Agent(
@@ -200,7 +202,7 @@ campaign_manager = Agent(
         "- qualifying: run_qualification_batch.\n"
         "- resolving_contacts: run_contact_resolution.\n"
         "- outreaching: queue_outreach_batch (skip if paused_outreach).\n"
-        "- monitoring: run_negotiation_tick (skip if paused_negotiation).\n"
+        "- monitoring: run_negotiation_tick + schedule_followups for multi-touch sequences (skip if paused_negotiation).\n"
         "Advance the recommended phase when the current one has no more work (the state JSON\n"
         "includes counts per status). If open interventions exist, mention them but DO NOT try\n"
         "to resolve them yourself — a human must supply the missing input.\n"
@@ -217,6 +219,7 @@ campaign_manager = Agent(
         run_qualification_batch,
         run_contact_resolution,
         queue_outreach_batch,
+        schedule_followups,
         run_negotiation_tick,
         list_open_interventions,
         complete_campaign,
@@ -241,6 +244,7 @@ ALL_TOOLS = [
     run_qualification_batch,
     run_contact_resolution,
     queue_outreach_batch,
+    schedule_followups,
     run_negotiation_tick,
     list_open_interventions,
     complete_campaign,

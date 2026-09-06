@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, Plus, X, Loader2, Pencil } from "lucide-react";
+import Link from "next/link";
+import { Megaphone, Plus, X, Loader2, Pencil, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,10 +96,15 @@ export default function CampaignsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={openNew} size="sm">
-          <Plus className="h-4 w-4 mr-1.5" />
-          New Campaign
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/campaigns/compare" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <BarChart3 className="h-3.5 w-3.5" /> Compare
+          </Link>
+          <Button onClick={openNew} size="sm">
+            <Plus className="h-4 w-4 mr-1.5" />
+            New Campaign
+          </Button>
+        </div>
       </div>
 
       {/* Campaign grid */}

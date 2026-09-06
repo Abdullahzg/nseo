@@ -186,6 +186,29 @@ async def queue_outreach_batch(limit: int = 5, tool_context: Any = None) -> str:
 
 
 @tool(context=True)
+async def schedule_followups(limit: int = 10, tool_context: Any = None) -> str:
+    """Schedule follow-up emails for prospects who haven't replied yet (multi-touch sequences).
+
+    Checks prospects in 'outreached' status and schedules the next touch in their
+    sequence (initial + 2 follow-ups spaced 2 and 4 days apart).
+
+    Args:
+        limit: Number of prospects to check for follow-up scheduling (1-20, default 10).
+    """
+    try:
+        campaign_id = tool_context.invocation_state["campaign_id"]
+        out = await gateway.schedule_followups(campaign_id, limit=max(1, min(20, int(limit))))
+        return _j({
+            "scheduled": out.get("scheduled", 0),
+            "skipped_replied": out.get("skipped_replied", 0),
+            "skipped_complete": out.get("skipped_complete", 0),
+            "errors": (out.get("errors") or [])[:5],
+        })
+    except Exception as e:
+        return _j({"error": str(e)})
+
+
+@tool(context=True)
 async def run_negotiation_tick(tool_context: Any = None) -> str:
     """Sweep inbound replies and answer AI-managed threads within policy (one bounded pass).
 
