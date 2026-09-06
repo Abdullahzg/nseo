@@ -13,6 +13,7 @@ import { getNegotiationSettings } from "@/lib/negotiation/settings";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
 import { addressHasOtherSentInitial, getUserEmailConfig } from "@/lib/db/queries";
+import { sendEmail } from "@/lib/email/smtp";
 import {
   getCampaignRow, getProspect, updateProspect, reserveBudget,
   createDeal, getDealByAnchor, updateDeal,
@@ -65,40 +66,126 @@ export async function listCampaignThreads(campaignId: string): Promise<CampaignT
   }));
 }
 
+// ─── email template engine ──────────────────────────────────────────────────
+
+/** Replace {{placeholder}} tokens with values. */
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
+}
+
+/** Drop lines that contain an unfilled placeholder. */
+function dropEmptyLines(template: string): string {
+  return template.split("\n").filter((line) => !/\{\{[^}]+\}\}/.test(line)).join("\n");
+}
+
+/** Strip any leftover {{tokens}} and clean whitespace. */
+function stripPlaceholders(text: string): string {
+  return text.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+async function getDefaultTemplate(): Promise<{ subject: string; body: string; guidance: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("email_templates").select("subject, body, guidance").eq("channel", "email").limit(1).maybeSingle();
+  return (data as any) ?? null;
+}
+
+async function getTemplateById(id: string): Promise<{ subject: string; body: string; guidance: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("email_templates").select("subject, body, guidance").eq("id", id).limit(1).maybeSingle();
+  return (data as any) ?? null;
+}
+
 // ─── outreach ────────────────────────────────────────────────────────────────
 
 interface OutreachDraft { subject: string; body: string; provider: string; simulated_reason?: string }
 
-/** Personalized opener drafted by Gemini from the stored article understanding. */
+/** Personalized opener drafted from the stored article understanding, using templates when available. */
 export async function draftOutreachEmail(prospect: any, campaign: any): Promise<OutreachDraft> {
   const q = prospect.qualification ?? {};
-  const first = "there"; // recipient name unknown until reply; opener addresses the publication
+  const title = q.title ?? prospect.title ?? prospect.domain_host;
+  const websiteName = campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product";
+  const toolMentioned = q.placement_angle?.split(" ").slice(0, 4).join(" ") ?? campaign.keywords?.[0] ?? "AI tools";
+
+  // Try to load the campaign's preferred template, or fall back to the first email template
+  let template: { subject: string; body: string; guidance: string } | null = null;
+  if (campaign.email_template_id) {
+    template = await getTemplateById(campaign.email_template_id);
+  }
+  if (!template) {
+    template = await getDefaultTemplate();
+  }
+
+  // Generate the AI personalized opener ({{custom_line}})
+  const guidance = template?.guidance ?? "Write a warm, specific 2-3 sentence opener referencing their article.";
+  const openerPrompt = `Write a short personalized opener for an outreach email.
+
+THEIR ARTICLE: ${title}
+PUBLICATION: ${prospect.domain_host}
+OUR PRODUCT: ${websiteName}
+WHY WE FIT: ${q.why_fit ?? "relevant to their coverage"}
+
+RULES:
+- 2-3 sentences. Warm, specific about THEIR article. Not salesy.
+- Do NOT include greeting (Hi/Hey) or sign-off (Best/Thanks).
+- Do NOT promise attachments, links, meetings, or payments.
+- Plain text only. No em dashes or en dashes.
+- Reference something specific about their article title or topic.
+
+Output ONLY the personalized opening lines.`;
+  const openerOut = await llmText(openerPrompt, { maxTokens: 300, temperature: 0.6 });
+  const customLine = openerOut && openerOut.text.length > 20 ? sanitizeBody(openerOut.text) : `I came across your piece on ${title} and thought it was a great take on the space. The way you covered the intersection of technology and journalism really stood out.`;
+
+  if (template) {
+    // Fill template with placeholders
+    const vars: Record<string, string> = {
+      author_name: "there",
+      pub_name: prospect.domain_host,
+      website_name: websiteName,
+      article_title: String(title).slice(0, 120),
+      article_date: q.published_at?.slice(0, 10) ?? "",
+      tool_mentioned: toolMentioned,
+      custom_line: customLine,
+      article_link: q.url ?? "",
+    };
+    let body = fillTemplate(template.body, vars);
+    body = dropEmptyLines(body);
+    body = stripPlaceholders(body);
+    body = sanitizeBody(body);
+
+    let subject = fillTemplate(template.subject, vars);
+    subject = stripPlaceholders(subject);
+    if (!subject) subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
+
+    return { subject, body, provider: openerOut?.provider ?? "template+fallback" };
+  }
+
+  // No template available — use LLM to draft the full email
   const prompt = `Write a short outreach email to the writer/editor of an article, asking whether they'd consider including or mentioning our product.
 
 OUR PRODUCT SITE: ${campaign.website_url || "(see objective)"}
 CAMPAIGN OBJECTIVE: ${campaign.objective || "editorial coverage for our product"}
 TARGET TOPICS: ${(campaign.keywords ?? []).join(", ") || "n/a"}
 
-THEIR ARTICLE: ${q.title ?? prospect.title ?? prospect.domain_host}
+THEIR ARTICLE: ${title}
 WHY WE FIT (analysis): ${q.why_fit ?? "relevant to their coverage"}
 SUGGESTED ANGLE: ${q.placement_angle ?? "a natural inclusion in their coverage"}
 PUBLICATION: ${prospect.domain_host}
 
 RULES:
-- 3 to 4 sentences. Warm, human, specific. Not salesy.
+- 4 to 6 sentences. Warm, human, specific. Not salesy.
 - Reference something specific about THEIR article (use the title/topic naturally).
-- Ask whether they accept such inclusions and what their rate would be (ask-first pricing: never name a number first).
+- Ask whether they accept such inclusions and what their rate would be.
 - Do NOT promise attachments, links, meetings, or payments.
-- Plain text only. Never use em dashes or en dashes; use commas or periods instead. No placeholders.
-- Start "Hi there," and end "Best,".
+- Plain text only. Never use em dashes or en dashes.
+- Start with a greeting and end with a sign-off.
 
 Output ONLY the email body.`;
-  const out = await llmText(prompt, { maxTokens: 260, temperature: 0.6 });
+  const out = await llmText(prompt, { maxTokens: 500, temperature: 0.6 });
   const body = out ? sanitizeBody(out.text) : sanitizeBody(
-    `Hi there,\n\nI enjoyed your recent piece on ${q.title ?? prospect.domain_host}. We build ${campaign.website_url?.replace(/^https?:\/\//, "") ?? "a tool in this space"} and think it could genuinely fit your coverage. Would you be open to including it, and if so what would your rate be?\n\nBest,`
+    `Hi there,\n\n${customLine}\n\nWe build ${websiteName} and think it could be a natural fit for your coverage of ${toolMentioned}. Would you be open to including it, and if so what would your rate be?\n\nBest,`
   );
   return {
-    subject: `Quick idea for your ${q.title ? `"${String(q.title).slice(0, 60)}"` : prospect.domain_host} piece`,
+    subject: `Quick idea for your "${String(title).slice(0, 60)}" piece`,
     body,
     provider: out?.provider ?? "fallback-template",
   };
@@ -145,6 +232,10 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   }
 
   const demo = !!camp.demo_mode;
+  // Demo mode: route ALL emails to the test inbox so the full flow is observable.
+  const DEMO_RECIPIENT = "ab.ghouri03@gmail.com";
+  const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
+
   if (demo) {
     // Pre-assign the simulated publisher persona for this thread's scenario.
     try { const { assignDemoPersona } = await import("./demo"); await assignDemoPersona(prospectId); } catch {}
@@ -157,6 +248,7 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     body: draft.body,
     sender_email: camp.owner_email ?? null,
     sent_by_email: camp.owner_email ?? null,
+    to_email: recipientEmail,
     ai_managed: true,
     max_offer: p.ceiling ?? null,
     ...(demo
@@ -165,6 +257,24 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   };
   const { data: inserted, error } = await supabaseAdmin.from("outreach_emails").insert(row as never).select("id").single();
   if (error) return { ok: false, reason: error.message };
+
+  // Demo mode: actually send the email via SMTP so it's observable in the inbox.
+  if (demo) {
+    try {
+      await sendEmail({
+        to: DEMO_RECIPIENT,
+        subject: draft.subject,
+        body: draft.body,
+      });
+      await supabaseAdmin.from("outreach_emails").update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      }).eq("id", (inserted as any).id);
+    } catch (e: any) {
+      // Log but don't fail — the row is recorded as sent for demo flow continuity.
+      console.error("[demo-send] SMTP failed:", e?.message);
+    }
+  }
 
   await updateProspect(prospectId, { status: "outreached" });
   await emitEvent(p.campaign_id, "outreach", demo ? "outreach_sent_simulated" : "outreach_queued", {

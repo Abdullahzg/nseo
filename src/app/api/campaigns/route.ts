@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       ...(Array.isArray(body.excluded_domains) ? { excluded_domains: body.excluded_domains } : {}),
       ...(body.constraints_text ? { constraints_text: String(body.constraints_text) } : {}),
       ...(body.demo_mode != null ? { demo_mode: !!body.demo_mode } : {}),
+      ...(body.email_template_id ? { email_template_id: body.email_template_id } : {}),
       phase: "draft",
     };
     await supabaseAdmin.from("campaigns").update(objPatch).eq("id", campaign.id).then(
