@@ -24,7 +24,19 @@ interface CampaignState {
   events: any[];
   budget: { total: number; used: number; remaining: number; currency: string };
   email_stats: { total: number; sent: number; opened: number; bounced: number; openRate: number; bounceRate: number; variants: Record<string, { sent: number; opened: number; bounced: number; openRate: number }> };
-  roi: { total_spent: number; deal_revenue: number; saved_amount: number; roi_pct: number };
+  roi: {
+    total_publisher_asking: number;
+    final_placement_spend: number;
+    negotiated_savings: number;
+    savings_pct: number;
+    placements_agreed: number;
+    avg_agreed_price: number;
+    reply_rate: number;
+    agreement_rate: number;
+    autonomy_rate: number;
+    human_interventions: number;
+    manual_actions_avoided: number;
+  };
 }
 
 const AGENT_ICONS: Record<string, any> = {
@@ -844,33 +856,59 @@ export default function CampaignPage() {
             </Card>
           )}
 
-          {/* ROI Dashboard */}
-          {state.roi && (state.deals.length > 0 || state.roi.total_spent > 0) && (
+          {/* Campaign Metrics Dashboard */}
+          {state.roi && (state.deals.length > 0 || state.roi.final_placement_spend > 0) && (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">ROI Dashboard</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Campaign Metrics</CardTitle></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">Total spent</div>
-                    <div className="text-xl font-semibold">{fmtMoney(state.roi.total_spent, state.budget.currency)}</div>
+                    <div className="text-xs text-muted-foreground">Publisher asking total</div>
+                    <div className="text-xl font-semibold">{fmtMoney(state.roi.total_publisher_asking, state.budget.currency)}</div>
                   </div>
                   <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">Deal value</div>
-                    <div className="text-xl font-semibold">{fmtMoney(state.roi.deal_revenue, state.budget.currency)}</div>
+                    <div className="text-xs text-muted-foreground">Final placement spend</div>
+                    <div className="text-xl font-semibold">{fmtMoney(state.roi.final_placement_spend, state.budget.currency)}</div>
                   </div>
                   <div className="rounded-lg border p-3">
                     <div className="text-xs text-muted-foreground">Negotiated savings</div>
-                    <div className="text-xl font-semibold text-emerald-400">{fmtMoney(state.roi.saved_amount, state.budget.currency)}</div>
+                    <div className="text-xl font-semibold text-emerald-400">{fmtMoney(state.roi.negotiated_savings, state.budget.currency)}</div>
                   </div>
                   <div className="rounded-lg border p-3">
-                    <div className="text-xs text-muted-foreground">ROI</div>
-                    <div className={cn("text-xl font-semibold", state.roi.roi_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-                      {state.roi.roi_pct > 0 ? "+" : ""}{state.roi.roi_pct}%
-                    </div>
+                    <div className="text-xs text-muted-foreground">Savings</div>
+                    <div className="text-xl font-semibold text-emerald-400">{state.roi.savings_pct}%</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.roi.placements_agreed}</div>
+                    <div className="text-muted-foreground">Placements</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{fmtMoney(state.roi.avg_agreed_price, state.budget.currency)}</div>
+                    <div className="text-muted-foreground">Avg price</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.roi.reply_rate}%</div>
+                    <div className="text-muted-foreground">Reply rate</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2 text-center text-xs">
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.roi.agreement_rate}%</div>
+                    <div className="text-muted-foreground">Agreement rate</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.roi.autonomy_rate}%</div>
+                    <div className="text-muted-foreground">Autonomy rate</div>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <div className="font-semibold">{state.roi.human_interventions}</div>
+                    <div className="text-muted-foreground">Human interventions</div>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
-                  {state.deals.length} deal{state.deals.length !== 1 ? "s" : ""} closed · {state.budget.remaining > 0 ? `${fmtMoney(state.budget.remaining, state.budget.currency)} budget remaining` : "budget exhausted"}
+                  {state.roi.manual_actions_avoided} manual actions avoided · {state.budget.remaining > 0 ? `${fmtMoney(state.budget.remaining, state.budget.currency)} budget remaining` : "budget exhausted"}
                 </div>
               </CardContent>
             </Card>

@@ -61,13 +61,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     v.openRate = v.sent > 0 ? Math.round((v.opened / v.sent) * 100) : 0;
   }
 
-  // ROI calculation
+  // Campaign metrics calculation (no fake ROI - spend is cost, not revenue)
+  const totalPublisherAsking = deals.reduce((sum, d) => sum + (Number(d.original_ask) || Number(d.agreed_price) || 0), 0);
+  const finalPlacementSpend = deals.reduce((sum, d) => sum + (Number(d.agreed_price) || 0), 0);
+  const negotiatedSavings = totalPublisherAsking - finalPlacementSpend;
+  const savingsPct = totalPublisherAsking > 0 ? Math.round((negotiatedSavings / totalPublisherAsking) * 100) : 0;
+  const placementsAgreed = deals.length;
+  const avgAgreedPrice = placementsAgreed > 0 ? Math.round(finalPlacementSpend / placementsAgreed) : 0;
+
+  // Activity metrics
+  const totalOutreached = (byStatus as any).outreached ?? 0;
+  const totalReplied = (byStatus as any).replied ?? 0;
+  const replyRate = totalOutreached > 0 ? Math.round((totalReplied / totalOutreached) * 100) : 0;
+  const agreementRate = totalOutreached > 0 ? Math.round((placementsAgreed / totalOutreached) * 100) : 0;
+
+  // Autonomy metrics
+  const humanInterventions = interventions.length;
+  const totalAgentActions = events.length;
+  const manualActionsAvoided = Math.max(0, totalAgentActions - humanInterventions);
+  const autonomyRate = totalAgentActions > 0 ? Math.round((manualActionsAvoided / totalAgentActions) * 100) : 100;
+
+  // Budget tracking
   const totalSpent = Number(camp.budget_used ?? 0);
-  const dealRevenue = deals.reduce((sum, d) => sum + (Number(d.agreed_price) || 0), 0);
-  const savedAmount = deals.reduce((sum, d) => {
-    if (d.original_ask != null && d.agreed_price != null) return sum + (Number(d.original_ask) - Number(d.agreed_price));
-    return sum;
-  }, 0);
 
   return NextResponse.json({
     campaign: camp,
@@ -84,10 +99,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     },
     email_stats: emailStats,
     roi: {
-      total_spent: totalSpent,
-      deal_revenue: dealRevenue,
-      saved_amount: savedAmount,
-      roi_pct: totalSpent > 0 ? Math.round(((dealRevenue - totalSpent) / totalSpent) * 100) : 0,
+      total_publisher_asking: totalPublisherAsking,
+      final_placement_spend: finalPlacementSpend,
+      negotiated_savings: negotiatedSavings,
+      savings_pct: savingsPct,
+      placements_agreed: placementsAgreed,
+      avg_agreed_price: avgAgreedPrice,
+      reply_rate: replyRate,
+      agreement_rate: agreementRate,
+      autonomy_rate: autonomyRate,
+      human_interventions: humanInterventions,
+      manual_actions_avoided: manualActionsAvoided,
     },
   });
 }
