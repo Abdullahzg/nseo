@@ -50,6 +50,15 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
 
   try {
     switch (before) {
+      case "draft": {
+        // A campaign starts in "draft". The first tick transitions it to
+        // "planning" and runs the strategy phase. The transition logic at the
+        // end of the tick will then advance to "discovering".
+        await planDiscoveryQueries(campaignId).catch(() => null);
+        await setCampaignPhase(campaignId, "planning", "campaign_started");
+        action = "start";
+        break;
+      }
       case "planning": {
         await planDiscoveryQueries(campaignId).catch(() => null);
         await setCampaignPhase(campaignId, "discovering");
@@ -147,7 +156,9 @@ async function transitionIfNeeded(campaignId: string, camp: any): Promise<string
   let nxt: string | null = null;
   let reason: string | undefined;
 
-  if (phase === "discovering") {
+   if (phase === "planning") {
+    nxt = "discovering"; reason = "strategy_complete";
+   } else if (phase === "discovering") {
     const target = Math.max(POOL_TARGET_MIN, (desired ?? 3) * 12);
     const have = (counts.discovered ?? 0) + (counts.qualified ?? 0) + (counts.ready ?? 0) + (counts.outreached ?? 0) + (counts.replied ?? 0) + (counts.negotiating ?? 0);
     if (have >= target || (have > 0 && (counts.discovered ?? 0) === 0)) { nxt = "qualifying"; reason = "pool filled"; }

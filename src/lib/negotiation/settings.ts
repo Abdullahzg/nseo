@@ -15,14 +15,22 @@ export interface PricingRule {
 export type Aggressiveness = "gentle" | "balanced" | "firm";
 
 export interface NegotiationSettings {
-  ai_autonomy: boolean;       // false = AI drafts for human approval; true = AI sends on its own
-  handbook: string;           // the negotiation brief / criteria the model follows
+  ai_autonomy: boolean;
+  handbook: string;
   tone: string;
-  aggressiveness: Aggressiveness; // how hard/fast the AI pushes and concedes
-  opening_percent: number;    // where in [floor..ceiling] the AI opens (e.g. 40 = 40%)
-  style_rules: string;        // hard writing rules for every generated email (e.g. no em dashes)
-  max_thread_length: number;  // max AI messages in a thread before it escalates to a human
-  min_price: number;          // floor: never offer/accept below this
+  aggressiveness: Aggressiveness;
+  opening_percent: number;
+  style_rules: string;
+  max_thread_length: number;
+  // P0.3 — correct pricing semantics: Geseo is the BUYER of publisher placement.
+  // These replace the former `min_price` (which was semantically backwards).
+  max_placement_price: number;  // hard ceiling: never accept above this
+  target_placement_price: number; // target offer (what we aim to pay)
+  campaign_budget: number;       // total campaign budget across all placements
+  auto_accept_below: number;     // accept autonomously if publisher asks <= this
+  human_approval_above: number;  // if publisher asks > this, require human approval
+  absolute_max_price: number;    // NEVER accept above this regardless of autonomy
+  min_price: number;            // kept for backward compatibility (maps to max_placement_price)
   currency: string;
   anti_highball: string;
   pricing_rules: PricingRule[];
@@ -41,7 +49,14 @@ export const DEFAULT_NEGOTIATION_SETTINGS: NegotiationSettings = {
   opening_percent: 20,
   style_rules: "Plain text only. Never use em dashes or en dashes; use commas or periods instead. No bracketed placeholders. Keep it short and human.",
   max_thread_length: 4,
-  min_price: 0,
+  // P0.3 — correct pricing semantics (see plan)
+  max_placement_price: 250,  // hard ceiling
+  target_placement_price: 150,
+  campaign_budget: 1000,
+  auto_accept_below: 150,
+  human_approval_above: 200,
+  absolute_max_price: 300,
+  min_price: 0, // backward compat — floor is 0 (we pay the least possible)
   currency: "USD",
   anti_highball:
     "If they open very high, do not anchor to it. Acknowledge, restate our value, come back near our tier ceiling, and move in small steps.",
@@ -70,7 +85,7 @@ export async function getNegotiationSettings(): Promise<NegotiationSettings> {
 
 export async function saveNegotiationSettings(patch: Partial<NegotiationSettings>): Promise<NegotiationSettings> {
   const row: any = { id: true, updated_at: new Date().toISOString() };
-  for (const k of ["ai_autonomy", "handbook", "tone", "aggressiveness", "opening_percent", "style_rules", "max_thread_length", "min_price", "currency", "anti_highball"] as const) {
+  for (const k of ["ai_autonomy", "handbook", "tone", "aggressiveness", "opening_percent", "style_rules", "max_thread_length", "max_placement_price", "target_placement_price", "campaign_budget", "auto_accept_below", "human_approval_above", "absolute_max_price", "min_price", "currency", "anti_highball"] as const) {
     if (patch[k] !== undefined) row[k] = patch[k];
   }
   if (patch.pricing_rules !== undefined) row.pricing_rules = JSON.stringify(patch.pricing_rules);

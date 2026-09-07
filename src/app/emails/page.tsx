@@ -1,1 +1,2 @@
-﻿<Redirect to="/sending" permanent />
+﻿import { redirect } from "next/navigation";
+export default function Page() { redirect("/sending"); }

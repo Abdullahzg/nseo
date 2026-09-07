@@ -27,6 +27,9 @@ const INTERVENTION_REASON: Record<string, string> = {
   over_policy: "They want terms beyond our price ceiling or policy.",
   inbound_attachment: "They sent a file for us to review.",
   other_channel: "They want to move to another channel (WhatsApp/phone/etc.).",
+  thread_limit: "Negotiation thread has reached its maximum configured length.",
+  budget_exception: "Publisher price exceeds autonomous approval threshold.",
+  policy_exception: "Publisher violates campaign compliance policy.",
   other: "This reply needs a person to handle it.",
 };
 
@@ -34,7 +37,7 @@ export interface NegotiationResult {
   ok: boolean; draftId?: string; body?: string; ceiling: number | null;
   suggestedOffer: number | null; statusHint: string | null; intent: string | null;
   autonomy: boolean; persistedAs: string; sent: boolean; sendError?: string | null; recipientMissing?: boolean;
-  error?: string;
+  error?: string; suppressed?: boolean; paused?: boolean;
 }
 
 // Generate (and, when autonomy is ON, immediately SEND) the AI's next negotiation reply for a
@@ -62,6 +65,7 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
     .order("created_at", { ascending: true });
   const rows = (threadRows ?? []) as any[];
   const initial = rows.find((r) => r.id === initialId) ?? (email as any);
+  const parentMsgId = (initial as any).message_id ?? undefined;
 
   const thread: ThreadMessage[] = [];
   let latestReply: any = null;
@@ -80,6 +84,22 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
   const tier = maxOfferFor(dom?.dr ?? null, dom?.organic_traffic ?? null, dom?.us_traffic_share ?? null, settings.pricing_rules);
   const ceiling = (email as any).max_offer != null ? Number((email as any).max_offer) : (tier?.offer ?? null);
 
+  // P0.6 — enforce max_thread_length: if the AI has already sent
+  // max_thread_length responses in this thread, stop automatic negotiation.
+  // Transition to needs_human so a person can take over.
+  const ourMessages = thread.filter((m) => m.from === "us").length;
+  if (ourMessages >= (settings.max_thread_length ?? 4) && !assisting) {
+    await updateOutreachEmail(initialId, {
+      negotiation_status: "needs_human",
+      intervention_type: "thread_limit",
+      intervention_ask: `Max negotiation turns (${settings.max_thread_length ?? 4}) reached. Thread has ${ourMessages} AI messages.`,
+      intervention_reason: "Negotiation thread has reached its maximum configured length.",
+      intervention_at: new Date().toISOString(),
+      negotiation_notes: `thread limit: ${ourMessages}/${settings.max_thread_length ?? 4} AI messages`,
+    } as any);
+    return { ...base, ok: true, ceiling, intent: cls.intent ?? latestReply?.reply_excerpt ?? "", statusHint: "needs_human", persistedAs: "needs_human", paused: true };
+  }
+
   // HUMAN-INTERVENTION SHORT-CIRCUIT. If the writer asked for something the AI cannot do (a
   // document/call/redirect/etc.) and no human assist input was supplied, never draft or send a
   // hollow reply â€” flag the thread for a person and stop. (When assisting, the human HAS provided
@@ -96,6 +116,36 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
       negotiation_notes: `needs human: ${itype} â€” ${cls.interventionAsk ?? ""}`,
     } as any);
     return { ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human", persistedAs: "needs_human" };
+  }
+
+  const { addSuppression } = await import("@/lib/db/queries");
+
+  // P0.8 — hard no / unsubscribe: suppress domain permanently, send no more emails.
+  if ((cls.intent === "hard_no" || cls.intent === "unsubscribe") && latestReply && !assisting) {
+    try { await addSuppression("domain", (latestReply as any)?.author?.domain ?? "", "reply declined/opt-out"); } catch {}
+    if ((email as any).author?.full_name) { try { await addSuppression("author", (email as any).author.full_name, "reply declined/opt-out"); } catch {} }
+    const first = ((email as any).author?.full_name ?? "there").trim().split(/\s+/)[0] || "there";
+    const senderCfg2 = (initial as any).sender_email ? await getUserEmailConfig((initial as any).sender_email).catch(() => null) : null;
+    const signName = (senderCfg2?.from_name?.trim().split(/\s+/)[0]) || (firstNameFromEmail((initial as any).sender_email) ?? "Abdullah");
+    const goodByeBody = sanitizeBody(`Hi ${first},\n\nTotally understand, thanks for letting me know and no worries at all. I will not follow up. Wishing you well.\n\nBest,\n${signName}`);
+    const goodByeSubject = /^re:/i.test(initial.subject ?? "") ? initial.subject : `Re: ${initial.subject ?? "(no subject)"}`;
+    const goodBye: any = await deliverOutreach({ to: initial.to_email ?? "", subject: goodByeSubject, body: goodByeBody, sender: initial.sender_email, sentBy: initial.sent_by_email, inReplyTo: parentMsgId, references: parentMsgId }).catch((e: any) => ({ ok: false, error: e?.message }));
+    const gStatus = goodBye?.ok ? "sent" : "failed";
+    await supabaseAdmin.from("outreach_emails").insert({
+      workflow_id: initial.workflow_id, author_id: initial.author_id, parent_id: initialId,
+      campaign_id: (initial as any).campaign_id ?? null,
+      kind: "negotiation", subject: goodByeSubject, body: goodByeBody, status: gStatus,
+      sent_at: gStatus === "sent" ? new Date().toISOString() : null,
+      message_id: goodBye?.messageId ?? null,
+      error: gStatus === "failed" ? (goodBye?.error ?? "send failed") : null,
+      sender_email: initial.sender_email, sent_by_email: initial.sent_by_email,
+      ai_managed: true, max_offer: ceiling, negotiation_status: "declined",
+    });
+    await updateOutreachEmail(initialId, {
+      negotiation_status: "declined",
+      negotiation_notes: `suppressed after ${cls.intent}: ${cls.reason}`,
+    } as any);
+    return { ...base, ok: true, ceiling, intent: cls.intent, statusHint: "declined", persistedAs: "declined", suppressed: true };
   }
 
   // When assisting, load any uploaded document so the draft can truthfully say it's attached.
@@ -180,9 +230,8 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
 
   const { data: mc } = await supabaseAdmin.from("contacts").select("value").eq("author_id", initial.author_id).eq("type", "mailto").limit(1).maybeSingle();
   // Test-send override on the initial keeps the whole AI thread on the test address.
-  const recipient = ((initial as any).recipient_override && (initial as any).recipient_override.trim())
+const recipient = ((initial as any).recipient_override && (initial as any).recipient_override.trim())
     || ((mc as any)?.value ?? "").replace(/^mailto:/i, "").trim();
-  const parentMsgId = (initial as any).message_id ?? undefined;
 
   // Clear any previous UNSENT draft so we never pile up stale drafts.
   await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", initialId).eq("kind", "negotiation").eq("status", "draft");

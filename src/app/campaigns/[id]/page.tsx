@@ -381,6 +381,12 @@ export default function CampaignPage() {
             </Badge>
             {c.demo_mode && <Badge variant="outline" className="border-amber-500/50 text-amber-500">DEMO MODE</Badge>}
             {c.autonomy_mode === "autonomous" && <Badge variant="outline" className="border-violet-500/50 text-violet-400">AUTONOMOUS</Badge>}
+            <Badge variant="outline" className="border-emerald-500/50 text-emerald-400">
+              Execution: Strands Agents
+            </Badge>
+            <Badge variant="outline" className="border-emerald-500/50 text-emerald-400">
+              Fallback: OFF
+            </Badge>
             {state.events.some((ev) => ev.action?.includes("fallback") || ev.detail?.summary?.includes("fallback")) && (
               <Badge variant="outline" className="border-orange-500/50 text-orange-400">LLM FALLBACK</Badge>
             )}

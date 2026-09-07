@@ -1,1 +1,2 @@
-﻿<Redirect to="/campaigns/autonomous" permanent />
+﻿import { redirect } from "next/navigation";
+export default function Page() { redirect("/campaigns/autonomous"); }

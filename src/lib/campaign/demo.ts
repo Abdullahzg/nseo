@@ -89,11 +89,12 @@ export async function injectDemoReplies(campaignId: string): Promise<number> {
     if (!a || !a.sent_at) continue;
     if (["agreed", "declined", "needs_human", "handoff"].includes(a.negotiation_status)) continue;
 
-    // Persona comes from the prospect row linked through author.
+    // Persona comes from the prospect row scoped to THIS campaign (not just author_id).
     const { data: prospect } = await supabaseAdmin
       .from("campaign_prospects")
       .select("id, notes, domain_host")
-      .or(`author_id.eq.${a.author_id}`)
+      .eq("campaign_id", campaignId)
+      .eq("author_id", a.author_id)
       .limit(1)
       .maybeSingle();
     let persona = ((prospect as any)?.notes?.demo_persona ?? "") as DemoPersona;
