@@ -78,11 +78,11 @@ export default function HomePage() {
               <Link href="/campaigns" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Sign in
               </Link>
-              <Link href="/campaigns/new">
-                <Button size="sm" className="rounded-xl px-6">
-                  Get started <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
-              </Link>
+            <Link href="/campaigns/autonomous">
+              <Button size="sm" className="rounded-xl px-6">
+                Get started <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Button>
+            </Link>
             </div>
           </div>
         </nav>
@@ -109,7 +109,7 @@ export default function HomePage() {
             8 AI agents run your entire backlink outreach pipeline. From prospect discovery to deal closure, fully autonomous.
           </p>
           <div className="fade-up mt-10 flex flex-wrap items-center justify-center gap-3" style={{ animationDelay: "200ms" }}>
-            <Link href="/campaigns/new">
+            <Link href="/campaigns/autonomous">
               <Button size="lg" className="rounded-xl px-6 h-11">
                 Create campaign <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
@@ -208,7 +208,7 @@ export default function HomePage() {
             No credit card required. Toggle demo mode to see the full pipeline in action with simulated publishers.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="/campaigns/new">
+            <Link href="/campaigns/autonomous">
               <Button size="lg" className="rounded-xl px-8 h-12 text-base">
                 Create campaign <ArrowRight className="ml-2 h-4 w-4" />
               </Button>

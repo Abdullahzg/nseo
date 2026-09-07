@@ -55,38 +55,12 @@ const NAV_GROUPS: Array<{
   items: Array<{ name: string; href: string; icon: LucideIcon; exact?: boolean }>;
 }> = [
   {
-    label: "Outreach",
+    label: "Geseo",
     items: [
-      { name: "Autonomous Campaigns", href: "/campaigns/autonomous", icon: Bot },
-      { name: "Backlink Outreach", href: "/backlinks", icon: Link2, exact: true },
-      { name: "Status", href: "/sending", icon: Activity },
+      { name: "Campaigns", href: "/campaigns/autonomous", icon: Bot },
+      { name: "Decisions", href: "/sending", icon: Activity },
       { name: "Inbox", href: "/inbox", icon: Inbox },
-    ],
-  },
-  {
-    label: "Content",
-    items: [
-      { name: "Blog", href: "/blog", icon: Newspaper, exact: true },
-      { name: "AI Writer", href: "/blog/writer", icon: PenLine },
-      { name: "Clusters", href: "/blog/clusters", icon: Layers },
-      { name: "Landing pages", href: "/landing", icon: LayoutTemplate },
-      { name: "Assets", href: "/media", icon: ImageIcon },
-      { name: "Voices", href: "/blog/voices", icon: Mic2 },
-    ],
-  },
-  {
-    label: "SEO",
-    items: [
-      { name: "Site Audit", href: "/site-audit", icon: ScanSearch },
-      { name: "Growth Agents", href: "/seo-agents", icon: Bot },
-    ],
-  },
-  {
-    label: "Workspace",
-    items: [
-      { name: "Handbook", href: "/handbook", icon: BookOpen },
-      { name: "Notifications", href: "/notifications", icon: Bell },
-      { name: "Admin", href: "/admin", icon: Rocket },
+      { name: "Agent Runs", href: "/site-audit", icon: ScanSearch },
       { name: "Settings", href: "/settings", icon: Settings },
     ],
   },

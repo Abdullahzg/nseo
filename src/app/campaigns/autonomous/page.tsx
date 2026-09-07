@@ -65,7 +65,7 @@ export default function AutonomousCampaignsPage() {
             An agent workforce researches prospects, resolves contacts, runs outreach and negotiates deals within your budget.
           </p>
         </div>
-        <Button onClick={() => (window.location.href = "/campaigns/new")}><Plus className="h-4 w-4" /> New campaign</Button>
+        <Link href="/campaigns/new"><Button><Plus className="h-4 w-4" /> New campaign</Button></Link>
       </div>
 
       {loading && <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>}
@@ -76,7 +76,9 @@ export default function AutonomousCampaignsPage() {
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               No autonomous campaigns yet. Create one with an objective, keywords and a budget — then press Start once.
             </p>
-            <Button variant="outline" onClick={() => (window.location.href = "/campaigns/new")}>Create your first campaign</Button>
+            <Link href="/campaigns/new">
+              <Button variant="outline">Create your first campaign</Button>
+            </Link>
           </CardContent>
         </Card>
       )}

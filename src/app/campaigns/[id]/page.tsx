@@ -413,9 +413,6 @@ export default function CampaignPage() {
               <Button variant="outline" size="sm" onClick={() => control("pause")} disabled={!!busy}>
                 <Pause className="h-4 w-4" /> Pause
               </Button>
-              <Button variant="outline" size="sm" onClick={() => control("tick")} disabled={!!busy}>
-                {busy === "tick" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} Tick now
-              </Button>
             </>
           )}
           {(c.phase === "stopped" || c.paused_outreach) && (
