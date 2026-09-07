@@ -174,6 +174,46 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
     } catch {}
   }
 
+  // P0.3 — Budget exception: BEFORE drafting, if the publisher's price exceeds auto-approval
+  // threshold but is within absolute max, create a budget_exception and pause.
+  // Do NOT let the LLM auto-agree to a price that requires human approval.
+  if (cls.priceMentioned != null && !assisting) {
+    const approvalThreshold = settings.human_approval_above ?? 0;
+    const absoluteMax = settings.absolute_max_price ?? ceiling ?? Infinity;
+    if (cls.priceMentioned > approvalThreshold && cls.priceMentioned <= absoluteMax) {
+      // Price exceeds auto-approval but is within absolute max — require human approval
+      await updateOutreachEmail(initialId, {
+        negotiation_status: "needs_human",
+        intervention_type: "budget_exception",
+        intervention_ask: `Publisher asks ${settings.currency} ${cls.priceMentioned}, but auto-approval limit is ${settings.currency} ${approvalThreshold}. Absolute max is ${settings.currency} ${absoluteMax}.`,
+        intervention_reason: INTERVENTION_REASON.budget_exception,
+        intervention_at: new Date().toISOString(),
+        negotiation_notes: `budget_exception: their_price=${cls.priceMentioned} > threshold=${approvalThreshold}, absolute_max=${absoluteMax}`,
+        original_ask: cls.priceMentioned,
+      } as any);
+      return {
+        ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human",
+        persistedAs: "needs_human", paused: true, suggestedOffer: cls.priceMentioned,
+      };
+    }
+    if (cls.priceMentioned > absoluteMax) {
+      // Price exceeds absolute max — never allow acceptance, counter within policy or escalate
+      await updateOutreachEmail(initialId, {
+        negotiation_status: "needs_human",
+        intervention_type: "budget_exception",
+        intervention_ask: `Publisher asks ${settings.currency} ${cls.priceMentioned}, which exceeds absolute maximum of ${settings.currency} ${absoluteMax}. Cannot accept.`,
+        intervention_reason: "Publisher price exceeds absolute maximum allowed price.",
+        intervention_at: new Date().toISOString(),
+        negotiation_notes: `budget_exception: their_price=${cls.priceMentioned} > absolute_max=${absoluteMax}`,
+        original_ask: cls.priceMentioned,
+      } as any);
+      return {
+        ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human",
+        persistedAs: "needs_human", paused: true, suggestedOffer: cls.priceMentioned,
+      };
+    }
+  }
+
   const draft = await draftNegotiationReply({
     settings, thread,
     authorName: (email as any).author?.full_name ?? "there",
@@ -260,31 +300,6 @@ const recipient = ((initial as any).recipient_override && (initial as any).recip
   const waived = /\b(waive[ds]?|free of charge|no cost|no charge|complimentary|on the house|gratis|won'?t charge)\b/i.test(latestReply?.reply_excerpt ?? "");
   const agreedPrice = effectiveDraft.statusHint === "agreed" ? (waived ? 0 : (effectiveDraft.suggestedOffer ?? cls.priceMentioned ?? null)) : null;
 
-  // P0.3 — Budget exception: if agreed price exceeds auto-approval threshold, pause for human.
-  // This is the main judge-facing HITL moment.
-  if (effectiveDraft.statusHint === "agreed" && agreedPrice != null && !waived && !assisting) {
-    const approvalThreshold = settings.human_approval_above ?? settings.absolute_max_price ?? ceiling ?? 0;
-    if (agreedPrice > approvalThreshold) {
-      // Price exceeds auto-approval — create budget_exception intervention
-      await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", initialId).eq("kind", "negotiation").eq("status", "draft");
-      const initialAsk = cls.priceMentioned ?? agreedPrice;
-      await updateOutreachEmail(initialId, {
-        negotiation_status: "needs_human",
-        intervention_type: "budget_exception",
-        intervention_ask: `Publisher agreed at ${settings.currency} ${agreedPrice}, but auto-approval limit is ${settings.currency} ${approvalThreshold}. Initial ask was ${settings.currency} ${initialAsk}.`,
-        intervention_reason: INTERVENTION_REASON.budget_exception,
-        intervention_at: new Date().toISOString(),
-        negotiation_notes: `budget_exception: agreed=${agreedPrice} > threshold=${approvalThreshold}, initial_ask=${initialAsk}`,
-        // Store pricing context for the HITL card
-        original_ask: initialAsk,
-        agreed_price: agreedPrice,
-      } as any);
-      return {
-        ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human",
-        persistedAs: "needs_human", paused: true, suggestedOffer: agreedPrice,
-      };
-    }
-  }
   await updateOutreachEmail(initialId, {
     negotiation_status: effectiveDraft.statusHint,
     negotiation_notes: `their intent: ${cls.intent} (${cls.reason}); our offer: ${effectiveDraft.suggestedOffer ?? "-"}; ceiling: ${ceiling ?? "placement-only"}`,

@@ -35,6 +35,15 @@ function pick<T>(arr: T[], n: number): T[] {
 
 /** Executes ONE bounded work unit for the campaign's current phase. */
 export async function runFallbackTick(campaignId: string): Promise<TickOutcome> {
+  // HARD GUARD: In HACKATHON_MODE / REQUIRE_STRANDS, this function must NEVER execute.
+  // The tick route should have already returned 503 before reaching here, but this is
+  // defense-in-depth: if someone calls runFallbackTick directly, refuse in hackathon mode.
+  const HACKATHON_MODE = process.env.HACKATHON_MODE === "true" || process.env.HACKATHON_MODE === "1";
+  const REQUIRE_STRANDS = HACKATHON_MODE || process.env.REQUIRE_STRANDS === "true";
+  if (REQUIRE_STRANDS) {
+    return { ok: false, mode: "fallback-ts", action: "noop", error: "HACKATHON_MODE/REQUIRE_STRANDS: TypeScript fallback orchestration is disabled" };
+  }
+
   const camp = await getCampaignRow(campaignId);
   if (!camp) return { ok: false, mode: "fallback-ts", action: "noop", error: "campaign not found" };
   if (camp.emergency_stopped) return { ok: true, mode: "fallback-ts", action: "noop", details: { reason: "emergency stop" } };

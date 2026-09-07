@@ -23,6 +23,7 @@ import {
   BookOpen,
   Activity,
   Inbox,
+  Cpu,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ const NAV_GROUPS: Array<{
       { name: "Campaigns", href: "/campaigns/autonomous", icon: Bot },
       { name: "Decisions", href: "/sending", icon: Activity },
       { name: "Inbox", href: "/inbox", icon: Inbox },
-      { name: "Agent Runs", href: "/site-audit", icon: ScanSearch },
+      { name: "Agent Runs", href: "/agent-runs", icon: Cpu },
       { name: "Settings", href: "/settings", icon: Settings },
     ],
   },

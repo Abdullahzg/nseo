@@ -107,14 +107,14 @@ describe("draftNegotiationReply deterministic policy paths (no LLM)", () => {
     expect(d === null || d.statusHint !== "agreed").toBe(true);
   });
 
-  it("closes at the opening percent of [floor..ceiling] when they accept without a number", async () => {
+  it("vague accept with no price asks for confirmation (does not invent price)", async () => {
     const d = await draftNegotiationReply({
       settings, thread: [], authorName: "J", publication: "P",
       ceiling: 200, floor: 50, lastIntent: "accept", theirPrice: null, senderName: "A",
     });
-    expect(d!.statusHint).toBe("agreed");
-    // opening_percent 40 → floor + (ceiling-floor)*0.4 = 110
-    expect(d!.suggestedOffer).toBe(110);
+    // No prior price in thread — should ask for confirmation, not close
+    expect(d!.statusHint).toBe("negotiating");
+    expect(d!.shouldStop).toBe(false);
   });
 });
 

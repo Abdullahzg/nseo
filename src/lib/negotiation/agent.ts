@@ -227,13 +227,39 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
       suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed",
     };
   }
-  // Accepted our terms with no explicit number: close at our lowball opening (the least we would pay).
-  if (lastIntent === "accept" && theirPrice == null && ceiling != null) {
-    const openPctA = Math.min(100, Math.max(0, settings.opening_percent ?? 40));
-    const closeAt = Math.max(floor, Math.round(floor + (ceiling - floor) * (openPctA / 100)));
+  // Accept with no explicit price in THIS message: scan thread for a prior price context.
+  // Do NOT invent a price — if no mutually established price exists, ask for confirmation.
+  if (lastIntent === "accept" && theirPrice == null) {
+    // Look backwards through the thread for the most recent price mentioned by either side.
+    let lastKnownPrice: number | null = null;
+    for (let i = thread.length - 1; i >= 0; i--) {
+      const msg = thread[i];
+      const priceMatch = msg.body.match(/\$\s?(\d[\d,]{1,6})/);
+      if (priceMatch) {
+        lastKnownPrice = Number(priceMatch[1].replace(/,/g, ""));
+        break;
+      }
+    }
+    // If a prior price exists in thread context and is within bounds, accept at that price.
+    if (lastKnownPrice != null && lastKnownPrice >= floor && (ceiling == null || lastKnownPrice <= ceiling)) {
+      return {
+        body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${lastKnownPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`),
+        suggestedOffer: lastKnownPrice, shouldStop: true, statusHint: "agreed",
+      };
+    }
+    // No prior price found, or prior price out of bounds: ask for confirmation.
+    // Keep negotiation active — do NOT close a deal without an explicit number.
     return {
-      body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works. I'll follow up shortly with a short blurb and everything you need from our side so you can add ${product}. Thanks ${first}.\n\nBest,\n${signer}`),
-      suggestedOffer: closeAt, shouldStop: true, statusHint: "agreed",
+      body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works! Just to confirm, could you let me know your rate for this placement so I can get things moving on our end?\n\nBest,\n${signer}`),
+      suggestedOffer: null, shouldStop: false, statusHint: "negotiating",
+    };
+  }
+
+  // Hard rule: thread length exceeded → stop, do not rely on LLM for this.
+  if (overLength) {
+    return {
+      body: sanitizeBody(`Hi ${first},\n\nThanks for the back-and-forth — I think we've explored this enough for now. I'll keep the door open and check in if things change on our end. Wishing you well.\n\nBest,\n${signer}`),
+      suggestedOffer: null, shouldStop: true, statusHint: "stalled",
     };
   }
 

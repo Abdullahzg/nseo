@@ -159,7 +159,7 @@ describe("Negotiation Reply Drafting", () => {
     expect(d === null || d.statusHint !== "agreed").toBe(true);
   });
 
-  it("16: closes at opening percent when no number given", async () => {
+  it("16: vague accept with no price asks for confirmation (does not invent price)", async () => {
     const d = await draftNegotiationReply({
       settings,
       thread: [],
@@ -171,9 +171,10 @@ describe("Negotiation Reply Drafting", () => {
       theirPrice: null,
       senderName: "A",
     });
-    expect(d!.statusHint).toBe("agreed");
-    // opening_percent 40 → floor + (ceiling-floor)*0.4 = 110
-    expect(d!.suggestedOffer).toBe(110);
+    // No prior price in thread — should ask for confirmation, not close
+    expect(d!.statusHint).toBe("negotiating");
+    expect(d!.shouldStop).toBe(false);
+    expect(d!.suggestedOffer).toBeNull();
   });
 
   it("17: unsubscribe → stop, decline", async () => {
@@ -315,8 +316,10 @@ describe("Negotiation Reply Drafting", () => {
       theirPrice: null,
       senderName: "A",
     });
-    // Without LLM, interested intent returns null even with overLength
-    expect(d).toBeNull();
+    // Hard rule: thread length exceeded returns a wind-down message without LLM
+    expect(d).not.toBeNull();
+    expect(d!.shouldStop).toBe(true);
+    expect(d!.statusHint).toBe("stalled");
   });
 
   it("26: no ceiling → placement only, no dollar offer", async () => {
@@ -400,7 +403,7 @@ describe("Negotiation Reply Drafting", () => {
     expect(d).toBeNull();
   });
 
-  it("31: accept with no prior thread → opening offer", async () => {
+  it("31: accept with no prior thread and no price → asks for confirmation", async () => {
     const d = await draftNegotiationReply({
       settings,
       thread: [],
@@ -412,8 +415,9 @@ describe("Negotiation Reply Drafting", () => {
       theirPrice: null,
       senderName: "A",
     });
-    expect(d!.statusHint).toBe("agreed");
-    expect(d!.suggestedOffer).toBeDefined();
+    // No prior price in thread — should ask for confirmation, not invent a price
+    expect(d!.statusHint).toBe("negotiating");
+    expect(d!.shouldStop).toBe(false);
   });
 
   it("32: counter at floor → null (needs LLM to accept)", async () => {
