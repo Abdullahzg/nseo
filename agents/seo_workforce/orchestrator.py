@@ -134,7 +134,7 @@ class CampaignOrchestrator:
 
         try:
             result = await asyncio.wait_for(
-                agent.invoke_async(prompt),
+                agent.invoke_async(prompt, invocation_state={"campaign_id": campaign_id}),
                 timeout=TICK_TIMEOUT_S,
             )
             summary = str(result) if result else ""

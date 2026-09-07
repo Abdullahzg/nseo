@@ -74,7 +74,11 @@ def _build_model():
         from strands.models import GeminiModel
 
         log.info("Using Gemini model provider: %s", config.GEMINI_MODEL)
-        return GeminiModel(model=config.GEMINI_MODEL)
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        return GeminiModel(
+            client_args={"api_key": api_key} if api_key else {},
+            model_id=config.GEMINI_MODEL,
+        )
     else:
         raise ValueError(f"Unknown MODEL_PROVIDER: {provider}")
 
