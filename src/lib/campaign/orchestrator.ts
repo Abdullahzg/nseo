@@ -15,6 +15,7 @@ import { countDueDemoReplies } from "./demo";
 import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
 import { withKeys } from "@/lib/ai/context";
+import { setActivity } from "./queries";
 import { getOwnerKeys } from "@/lib/db/queries";
 import type { Campaign } from "./types";
 
@@ -109,6 +110,7 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
 
     // Budget check happens before the first model call of the tick.
     await assertTokenBudget();
+    await setActivity(campaignId, { agent: "manager", doing: "choosing the next step", model: "Nemotron 3 Super" });
 
     // MODEL: choose one action. If the model returns no tool call, policy takes the first available.
     let chosen: AvailableAction = actions[0];
@@ -177,6 +179,7 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
     else await recordEvent({ campaign_id: campaignId, agent: "system", action: "tick_error", engine: "system", level: "error", human: `Step failed: ${e?.message ?? e}`, detail: { kind, via: opts.via } });
     return done({ ok: false, phase_before: before, phase_after: (await getCampaign(campaignId))?.phase ?? before, action: "error", decided_by: null, error: e?.message ?? String(e), details: { kind } });
   } finally {
+    await setActivity(campaignId, null);
     await releaseTickLock(campaignId).catch(() => {});
   }
 }

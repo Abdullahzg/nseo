@@ -21,7 +21,7 @@ import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
 import { scrapePageSignals } from "@/lib/enrich/pageSignals";
 import { resolveEmailCascade } from "@/lib/enrich/cascade";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
-import { getCampaign, updateProspect, getProspect, upsertProspect, recordEvent, listProspects } from "./queries";
+import { getCampaign, updateProspect, getProspect, upsertProspect, recordEvent, listProspects, setActivity } from "./queries";
 import { DEMO_FIXTURES, demoContactFor } from "./demo";
 import type { Campaign, Prospect, ScoreBreakdown } from "./types";
 
@@ -63,6 +63,7 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
   // Publications the owner already knows come first — no search credit spent, no model call to find them.
   const seeded = await loadSeeds(camp, known);
   const provider = camp.search_web === false ? null : searchProvider();
+  if (provider) await setActivity(camp.id, { agent: "discovery", doing: `searching ${provider} for publications` });
   if (!provider) {
     if (seeded > 0 || (camp.seed_contacts?.length ?? 0) > 0) return { found: seeded, created: seeded, duplicates: 0, suppressed: 0, provider: "seed" };
     throw new Error("No search provider: add a Tavily key in Settings, or list publications you already know");
@@ -306,7 +307,10 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
 export async function qualifyBatch(camp: Campaign, limit: number): Promise<{ evaluated: number; qualified: number; errors: string[] }> {
   const pending = await listProspects(camp.id, "discovered", limit);
   const out = { evaluated: 0, qualified: 0, errors: [] as string[] };
-  for (const p of pending) {
+  const { count: total } = await supabaseAdmin.from("campaign_prospects").select("id", { count: "exact", head: true }).eq("campaign_id", camp.id);
+  const done = (total ?? 0) - pending.length;
+  for (const [i, p] of pending.entries()) {
+    await setActivity(camp.id, { agent: "qualification", doing: "reading", target: p.domain_host, n: done + i + 1, of: total ?? undefined, model: "Nemotron 3 Super" });
     try { const r = await evaluateProspect(p.id); out.evaluated++; if (r.qualified) out.qualified++; }
     catch (e: any) {
       out.errors.push(e?.message ?? String(e));
@@ -322,6 +326,7 @@ export async function contactBatch(camp: Campaign, limit: number): Promise<{ att
   const out = { attempted: 0, found: 0 };
   for (const p of qualified) {
     out.attempted++;
+    await setActivity(camp.id, { agent: "contact", doing: "finding an editor at", target: p.domain_host });
     try { const r = await resolveContactForProspect(p.id); if (r.ok) out.found++; }
     catch (e: any) { await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_error", engine: "system", level: "error", prospect_id: p.id, human: `Contact lookup failed for ${p.domain_host}: ${e?.message ?? e}` }); }
   }

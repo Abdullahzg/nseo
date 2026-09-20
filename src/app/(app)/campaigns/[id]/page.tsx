@@ -4,6 +4,9 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import { StatusHeader, type CampaignState } from "@/components/campaign/StatusHeader";
 import { ActivityFeed, type FeedEvent } from "@/components/campaign/ActivityFeed";
 import { EditorInbox } from "@/components/campaign/EditorInbox";
+import { Pipeline } from "@/components/campaign/Pipeline";
+import { Publications } from "@/components/campaign/Publications";
+import { Tools } from "@/components/campaign/Tools";
 
 const STATE_POLL_MS = 15_000;
 const AUTO_STEP_MS = 12_000;
@@ -20,6 +23,8 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   const [autoStep, setAutoStep] = useState(true);
   const [stepError, setStepError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools">("activity");
+  const [refreshKey, setRefreshKey] = useState(0);
   const newest = useRef(0);
 
   const loadState = useCallback(async () => {
@@ -62,8 +67,15 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       if (!r.ok) setStepError(d.error ?? "The step failed. The feed has the details.");
       else if (d.action === "rate_limited" || d.action === "locked") { setNote("A step just ran. The next one starts in a few seconds."); setTimeout(() => setNote(null), 4000); }
     } catch (e: any) { setStepError(e?.message ?? "Network error"); }
-    finally { steppingRef.current = false; setStepping(false); await loadState(); await loadFeed("new"); }
+    finally { steppingRef.current = false; setStepping(false); await loadState(); await loadFeed("new"); setRefreshKey((k) => k + 1); }
   }, [id, loadState, loadFeed]);
+
+  // While a step runs (up to 45 s) the header's live line follows the agents: poll state every 2 s.
+  useEffect(() => {
+    if (!stepping) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") loadState(); }, 2000);
+    return () => clearInterval(t);
+  }, [stepping, loadState]);
 
   // Demo auto-run: only while visible, only while active, only in demo mode. The interval is
   // stable (its deps change only when the campaign's activity flips), so 20 s is really 20 s.
@@ -90,16 +102,32 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       <StatusHeader s={state} busy={busy} onControl={control} onStep={step} stepping={stepping} autoStep={autoStep} setAutoStep={setAutoStep} />
       {stepError && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Step failed.</span> {stepError}</div>}
       {note && <div className="text-sm text-ink-3 fade-in">{note}</div>}
-      {state.campaign.demo_mode && ["outreaching", "monitoring", "completed"].includes(state.campaign.phase) && (
-        <EditorInbox campaignId={id} active={active && ["outreaching", "monitoring"].includes(state.campaign.phase)} onChanged={() => { loadState(); loadFeed("new"); }} />
-      )}
-      <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="label">What the agent did, newest first</h2>
-          <span className="text-xs text-ink-3">Tap a line to see which Nemotron model decided it, and why.</span>
+
+      <Pipeline s={state} />
+
+      <div>
+        <div className="flex gap-1 border-b border-rule mb-6 overflow-x-auto" role="tablist">
+          {([["activity", "Activity"], ["publications", `Publications${state.numbers.found ? ` · ${state.numbers.found}` : ""}`], ["conversations", `Conversations${state.numbers.contacted ? ` · ${state.numbers.contacted}` : ""}`], ["tools", "Tools"]] as const).map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 h-10 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === k ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}>{label}</button>
+          ))}
         </div>
-        <ActivityFeed events={events} loading={loadingFeed} onMore={() => loadFeed("older")} hasMore={hasMore && events.length >= 60} />
-      </section>
+        {tab === "activity" && (
+          <section>
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="label">What the agents did, newest first</h2>
+              <span className="text-xs text-ink-3">Tap a line to see which Nemotron model decided it, and why.</span>
+            </div>
+            <ActivityFeed events={events} loading={loadingFeed} onMore={() => loadFeed("older")} hasMore={hasMore && events.length >= 60} />
+          </section>
+        )}
+        {tab === "publications" && <Publications campaignId={id} refreshKey={refreshKey} />}
+        {tab === "conversations" && (
+          state.numbers.contacted > 0
+            ? <EditorInbox campaignId={id} active={active && ["outreaching", "monitoring"].includes(state.campaign.phase)} onChanged={() => { loadState(); loadFeed("new"); setRefreshKey((k) => k + 1); }} />
+            : <div className="card p-6 text-sm text-ink-2">No emails yet. Conversations appear here once the Writer has emailed an editor{state.campaign.demo_mode ? "" : " — replies arrive from your Gmail over IMAP"}.</div>
+        )}
+        {tab === "tools" && <Tools s={state} />}
+      </div>
     </div>
   );
 }

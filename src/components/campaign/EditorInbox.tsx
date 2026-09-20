@@ -26,6 +26,7 @@ const SUGGESTIONS: { label: string; text: string }[] = [
 const STATUS_LABEL: Record<string, string> = { agreed: "deal", declined: "declined", needs_human: "needs you", negotiating: "negotiating", stalled: "wound down", withdrawn: "closed", handoff: "you took over" };
 
 export function EditorInbox({ campaignId, active, onChanged }: { campaignId: string; active: boolean; onChanged: () => void }) {
+  const [demo, setDemo] = useState(true);
   const [threads, setThreads] = useState<ThreadView[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -34,7 +35,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/campaigns/${campaignId}/threads`, { cache: "no-store" });
-    if (r.ok) setThreads((await r.json()).threads ?? []);
+    if (r.ok) { const d = await r.json(); setThreads(d.threads ?? []); setDemo(d.demo !== false); }
   }, [campaignId]);
 
   useEffect(() => { load(); }, [load]);
@@ -63,8 +64,8 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
   return (
     <section>
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-        <h2 className="label">The editors' inbox <span className="font-normal normal-case text-ink-3">(simulated)</span></h2>
-        <span className="text-xs text-ink-3">{active ? "Scripted editors reply on their own. Or open a thread and reply as the editor yourself — the agent answers you live." : "The campaign has finished; the threads are read-only."}</span>
+        <h2 className="label">Conversations <span className="font-normal normal-case text-ink-3">{demo ? "(simulated inbox)" : "(from your Gmail)"}</span></h2>
+        <span className="text-xs text-ink-3">{!demo ? "Every email both ways. Replies are read from your inbox over IMAP each scheduler round." : active ? "Scripted editors reply on their own. Or open a thread and reply as the editor yourself — the agent answers you live." : "The campaign has finished; the threads are read-only."}</span>
       </div>
       <div className="card divide-y divide-rule">
         {threads.map((t) => {
@@ -93,7 +94,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
                       {m.body}
                     </div>
                   ))}
-                  {active && t.open ? (
+                  {demo && active && t.open ? (
                     <div className="space-y-2">
                       <div className="flex flex-wrap gap-1.5">
                         {SUGGESTIONS.map((s) => <button key={s.label} type="button" className="chip hover:bg-paper-2" onClick={() => setText(s.text)}>{s.label}</button>)}
@@ -104,7 +105,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-ink-3">{t.status === "needs_human" ? "Parked on the Needs-you screen: answer it there and the agent resumes this thread." : "This thread is closed."}</div>
+                    <div className="text-sm text-ink-3">{t.status === "needs_human" ? "Parked on the Needs-you screen: answer it there and the agent resumes this thread." : !t.open ? "This thread is closed." : demo ? "" : "Waiting for the editor. The Inbox agent checks your Gmail every scheduler round."}</div>
                   )}
                   {result && <div className={`text-sm ${result.ok ? "text-accent" : "text-danger"}`}>{result.text}</div>}
                 </div>

@@ -10,6 +10,11 @@ export async function getCampaign(id: string): Promise<Campaign | null> {
   return (data as Campaign) ?? null;
 }
 
+/** The header's live line: "Judge is reading designdigest.creative.invalid (3 of 12)". Best-effort, never throws. */
+export async function setActivity(campaignId: string, activity: Omit<import("./agents").Activity, "at"> | null): Promise<void> {
+  try { await supabaseAdmin.from("campaigns").update({ activity: activity ? { ...activity, at: new Date().toISOString() } : null }).eq("id", campaignId); } catch { /* cosmetic */ }
+}
+
 export async function updateCampaign(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await supabaseAdmin.from("campaigns").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;

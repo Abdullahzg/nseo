@@ -55,13 +55,14 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
           {error && <div className="text-sm text-danger mt-2">{error}</div>}
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="btn" disabled={!!busy || answer.trim().length < 2} onClick={() => send("answer")}>{busy === "answer" ? "Resuming…" : "Answer & resume"}</button>
-            <button className="btn btn-ghost" disabled={!!busy} onClick={() => send("take_over")} title="The agent leaves this thread to you">{busy === "take_over" ? "…" : "Take over thread"}</button>
+            <button className="btn btn-ghost" disabled={!!busy} onClick={() => send("take_over")} title="The agent stops writing to this editor. You continue from your own inbox.">{busy === "take_over" ? "…" : "I'll handle it myself"}</button>
             {!confirmDismiss ? (
               <button className="btn btn-ghost" disabled={!!busy} onClick={() => setConfirmDismiss(true)}>Dismiss</button>
             ) : (
               <span className="inline-flex items-center gap-2 text-sm"><span className="text-ink-2">Close this thread? The editor won't hear back.</span><button className="btn btn-sm" disabled={!!busy} onClick={() => send("dismiss")}>{busy === "dismiss" ? "…" : "Yes, close it"}</button><button className="btn btn-ghost btn-sm" onClick={() => setConfirmDismiss(false)}>Keep</button></span>
             )}
           </div>
+          <div className="mt-2 text-xs text-ink-3"><b className="font-medium text-ink-2">Answer &amp; resume</b>: the agent writes the next email with your line as context, and keeps going. <b className="font-medium text-ink-2">I'll handle it myself</b>: the agent stops writing to this editor; you continue from your inbox. <b className="font-medium text-ink-2">Dismiss</b>: close the thread; the editor won't hear back.</div>
         </div>
       )}
     </article>

@@ -25,6 +25,9 @@ export function ownerAllowed(email: string | null | undefined): boolean {
   return owners.includes(e) || domains.includes(e.split("@")[1] ?? "");
 }
 
+/** Who the local developer is when Google is not configured (DEV_OWNER_EMAIL, else dev@local). */
+export function devOwnerEmail(): string { return (process.env.DEV_OWNER_EMAIL?.trim() || "dev@local").toLowerCase(); }
+
 /** Local dev without Google OAuth: the developer is the owner. Never in production. */
 export function devOwnerBypass(): boolean {
   return !process.env.GOOGLE_CLIENT_ID?.trim() && process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1";
@@ -35,7 +38,7 @@ export async function identifyCaller(req: NextRequest): Promise<Caller> {
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
   const cron = process.env.CRON_SECRET?.trim();
   if (cron && bearer && safeEqual(bearer, cron)) return { kind: "cron" };
-  if (devOwnerBypass()) return { kind: "owner", email: (process.env.DEV_OWNER_EMAIL?.trim() || "dev@local").toLowerCase() };
+  if (devOwnerBypass()) return { kind: "owner", email: devOwnerEmail() };
   try {
     const { auth } = await import("@auth");
     const session = await auth().catch(() => null);

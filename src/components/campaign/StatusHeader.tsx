@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { money, int } from "@/lib/ui/format";
+import { AGENT_LABEL } from "@/lib/campaign/agents";
 
 export interface CampaignState {
   campaign: { id: string; name: string; phase: string; paused: boolean; paused_reason: string | null; paused_kind: string | null; demo_mode: boolean; desired_deals: number; keywords: string[]; tick_count: number; completion_reason: string | null };
@@ -10,6 +11,39 @@ export interface CampaignState {
   numbers: { found: number; contacted: number; replied: number; deals: number };
   budget: { total: number; used: number; currency: string };
   open_interventions: number;
+  activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string } | null;
+  agents?: Record<string, { events: number; model_calls: number; cost_usd: number }>;
+  tools?: ToolUsage;
+  counts?: Record<string, number>;
+  contacts?: number;
+}
+
+export interface ToolUsage {
+  nebius: { calls: number; cost_usd: number; tokens_in: number; tokens_out: number; models: Record<string, number> };
+  tavily: { searches: number; results: number; used: boolean };
+  seeds: { listed: number };
+  fixtures: { loaded: number };
+  pages: { fetched: number };
+  gmail: { sent: number; simulated: number; replies: number };
+  ledger: { deals: number; committed: number };
+}
+
+/** "Judge is reading designdigest.creative.invalid (3 of 12)" — or what the campaign is waiting for. */
+export function activityLine(s: CampaignState, stepping: boolean): string {
+  const a = s.activity;
+  const fresh = a && Date.now() - new Date(a.at).getTime() < 90_000;
+  if (a && fresh) {
+    const who = AGENT_LABEL[a.agent] ?? a.agent;
+    const count = a.n && a.of ? ` (${a.n} of ${a.of})` : "";
+    return `${who} is ${a.doing}${a.target ? ` ${a.target}` : ""}${count}${a.model ? ` · ${a.model}` : ""}`;
+  }
+  if (stepping) return "Starting the next step…";
+  const c = s.campaign;
+  if (c.phase === "completed") return "Finished.";
+  if (c.phase === "stopped") return "Stopped.";
+  if (c.paused) return "Paused.";
+  if (c.phase === "monitoring") return c.demo_mode ? "Waiting for editors to reply (simulated editors answer on the next step)." : "Waiting for editors to reply. The inbox is checked every 5 minutes.";
+  return c.demo_mode ? "Next step in a few seconds." : "Next step when the scheduler runs (every 5 minutes).";
 }
 
 export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, setAutoStep }: {
@@ -28,7 +62,16 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         {s.is_active && !c.paused && <span className="inline-flex items-center gap-1.5"><span className="live-dot" />live</span>}
       </div>
 
-      <h1 className="serif text-2xl sm:text-[34px] leading-tight font-medium max-w-3xl">{s.sentence}</h1>
+      <div className="flex items-start gap-4">
+        <div className={`orb mt-1 ${terminal ? "orb-done" : c.paused || !s.is_active ? "orb-idle" : ""}`} aria-hidden="true" />
+        <div className="min-w-0">
+          <h1 className="serif text-2xl sm:text-[34px] leading-tight font-medium max-w-3xl">{s.sentence}</h1>
+          <div className="mt-2 text-sm text-ink-2 min-h-5" aria-live="polite">
+            {!terminal && s.is_active && !c.paused && <span className="inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle" style={{ background: "#76b900" }} />}
+            {activityLine(s, stepping)}
+          </div>
+        </div>
+      </div>
 
       {c.paused && c.paused_kind && c.paused_kind !== "user" && (
         <div className={`card p-4 text-sm ${c.paused_kind === "nebius" ? "border-danger-soft bg-danger-soft/40" : "border-attention-soft bg-attention-soft/40"}`}>

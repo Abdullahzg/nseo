@@ -96,6 +96,7 @@ create table campaigns (
   plan_text text,
   seed_contacts jsonb not null default '[]',      -- [{url, email?}] publications the owner already knows
   search_web boolean not null default true,        -- false: contact only the seeded publications, never search
+  activity jsonb,                                  -- what an agent is doing right now {agent, doing, target, n, of, at}; null when idle
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   completed_at timestamptz,

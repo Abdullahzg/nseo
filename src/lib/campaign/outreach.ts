@@ -10,7 +10,7 @@ import { negotiateThread, type NegotiationResult } from "@/lib/negotiation/run";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
 import { addressHasOtherSentInitial, createFollowupRow, getUserEmailConfig } from "@/lib/db/queries";
-import { getCampaign, getProspect, updateProspect, reserveBudget, createDeal, getDealByAnchor, createIntervention, resolveIntervention, listProspects, listCampaignThreads, recordEvent, updateCampaign, setPhase, getDeals } from "./queries";
+import { getCampaign, getProspect, updateProspect, reserveBudget, createDeal, getDealByAnchor, createIntervention, resolveIntervention, listProspects, listCampaignThreads, recordEvent, updateCampaign, setPhase, getDeals, setActivity } from "./queries";
 import { assignDemoPersona, injectDemoReplies } from "./demo";
 import type { Campaign, Prospect } from "./types";
 
@@ -117,6 +117,7 @@ export async function outreachBatch(camp: Campaign, limit: number): Promise<{ se
   const ready = (await listProspects(camp.id, "ready", 50)).filter((x) => x.contact_email).slice(0, limit);
   const out = { sent: 0, refused: [] as Array<{ host: string; reason: string }> };
   for (const p of ready) {
+    await setActivity(camp.id, { agent: "outreach", doing: "writing to the editor at", target: p.domain_host, model: "Nemotron 3 Nano" });
     try {
       const r = await sendOutreachToProspect(p.id);
       if (r.ok) out.sent++;
@@ -246,6 +247,7 @@ export interface RepliesTick { detected: number; handled: number; needs_human: n
 /** One bounded monitoring unit: sweep inbound (demo injects, real IMAP), then answer up to `limit` threads. */
 export async function processReplies(camp: Campaign, limit: number): Promise<RepliesTick> {
   const out: RepliesTick = { detected: 0, handled: 0, needs_human: 0, deals: 0, errors: [] };
+  await setActivity(camp.id, { agent: "inbox", doing: camp.demo_mode ? "checking the simulated inbox" : "checking Gmail over IMAP" });
   if (camp.demo_mode) {
     out.detected = await injectDemoReplies(camp.id, camp.what_you_sell ?? camp.name);
     if (out.detected) await recordEvent({ campaign_id: camp.id, agent: "inbox", action: "replies_received", engine: "fixture", human: `${out.detected} editor ${out.detected === 1 ? "reply" : "replies"} arrived (simulated)`, detail: { simulated: true } });
@@ -271,6 +273,7 @@ export async function processReplies(camp: Campaign, limit: number): Promise<Rep
     const lastAnswer = (last as any[])?.[0]?.sent_at as string | undefined;
     if (lastAnswer && lastAnswer >= th.replied_at) continue; // already answered — never answer twice
     n++;
+    await setActivity(camp.id, { agent: "negotiation", doing: "answering the editor at", target: th.to_email?.split("@")[1] ?? null, model: "Nemotron 3 Nano + Ultra" });
     try {
       const r = await handleThread(camp, th.id);
       out.handled++;
