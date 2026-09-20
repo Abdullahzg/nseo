@@ -1,4 +1,4 @@
--- Geseo — the complete schema for the campaign flow. One file, applied with `supabase db reset`
+-- Nseo — the complete schema for the campaign flow. One file, applied with `supabase db reset`
 -- locally or `supabase db push` to a hosted project. Nothing here is historical.
 create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto;

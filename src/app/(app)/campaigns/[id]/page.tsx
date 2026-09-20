@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { StatusHeader, type CampaignState } from "@/components/campaign/StatusHeader";
 import { ActivityFeed, type FeedEvent } from "@/components/campaign/ActivityFeed";
+import { EditorInbox } from "@/components/campaign/EditorInbox";
 
 const STATE_POLL_MS = 15_000;
 const AUTO_STEP_MS = 12_000;
@@ -89,6 +90,9 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       <StatusHeader s={state} busy={busy} onControl={control} onStep={step} stepping={stepping} autoStep={autoStep} setAutoStep={setAutoStep} />
       {stepError && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Step failed.</span> {stepError}</div>}
       {note && <div className="text-sm text-ink-3 fade-in">{note}</div>}
+      {state.campaign.demo_mode && ["outreaching", "monitoring", "completed"].includes(state.campaign.phase) && (
+        <EditorInbox campaignId={id} active={active && ["outreaching", "monitoring"].includes(state.campaign.phase)} onChanged={() => { loadState(); loadFeed("new"); }} />
+      )}
       <section>
         <div className="flex items-baseline justify-between mb-3">
           <h2 className="label">What the agent did, newest first</h2>

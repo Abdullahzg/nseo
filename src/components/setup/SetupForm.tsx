@@ -36,7 +36,7 @@ export function SetupForm() {
   // one click. Cached per browser session so reloads don't spend a model call.
   useEffect(() => {
     try {
-      const cached = sessionStorage.getItem("geseo.plan.default");
+      const cached = sessionStorage.getItem("nseo.plan.default");
       if (cached) { setPlan(JSON.parse(cached)); return; }
     } catch { /* no storage */ }
     preview(true);
@@ -55,7 +55,7 @@ export function SetupForm() {
       if (!r.ok) throw new Error(d.error ?? "Could not build the plan.");
       const p = { text: d.plan, model: d.model, tokens: d.tokens, latency_ms: d.latency_ms };
       setPlan(p);
-      if (isDefault) { try { sessionStorage.setItem("geseo.plan.default", JSON.stringify(p)); } catch { /* ignore */ } }
+      if (isDefault) { try { sessionStorage.setItem("nseo.plan.default", JSON.stringify(p)); } catch { /* ignore */ } }
     } catch (e: any) { setError(e.message); } finally { setPreviewing(false); }
   }
 

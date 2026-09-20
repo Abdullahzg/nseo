@@ -2,7 +2,7 @@
 // campaigns — enforced by a CHECK constraint in the database, not by this file.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-export const GUEST_COOKIE = "geseo_guest";
+export const GUEST_COOKIE = "nseo_guest";
 const secret = () => process.env.AUTH_SECRET || "dev-only-guest-secret";
 
 function sign(id: string): string {

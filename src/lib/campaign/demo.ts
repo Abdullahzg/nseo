@@ -33,13 +33,14 @@ export function demoContactFor(host: string): { name: string; email: string } {
   return DEMO_FIXTURES.find((f) => f.host === host)?.editor ?? { name: "Editor", email: `editor@${host}` };
 }
 
-export type DemoPersona = "high_anchor" | "meeting_request" | "quick_deal" | "decliner" | "autoresponder" | "factual_question";
+export type DemoPersona = "high_anchor" | "meeting_request" | "quick_deal" | "decliner" | "autoresponder" | "factual_question" | "manual";
 const PERSONAS: DemoPersona[] = ["high_anchor", "meeting_request", "quick_deal", "decliner", "high_anchor", "factual_question", "autoresponder", "high_anchor"];
 
 const REPLY_DELAY_MS = Number(process.env.DEMO_REPLY_DELAY_MS ?? 0);
 
 /** Scripted editor replies. Each stage is a genuine test of the negotiation policy. */
 function nextPersonaMessage(persona: DemoPersona, theirMsgCount: number, product: string): { subject?: string; body: string } | null {
+  if (persona === "manual") return null; // a person is playing this editor from the simulated inbox
   switch (persona) {
     case "high_anchor":
       if (theirMsgCount === 0) return { body: `Hi, thanks for reaching out! We could include ${product} in an upcoming roundup. Our rate for a featured placement is $280.` };
@@ -91,6 +92,7 @@ export async function countDueDemoReplies(campaignId: string): Promise<number> {
     if (!th.prospect_id) continue;
     const p = await getProspect(th.prospect_id);
     const persona = (p?.demo_persona as DemoPersona) || null;
+    if (persona === "manual") continue;
     if (!persona) { n++; continue; } // unassigned = first reply still due
     const st = await demoStage(th.id);
     if (!st || !st.ourSentAfter) continue;
@@ -101,7 +103,7 @@ export async function countDueDemoReplies(campaignId: string): Promise<number> {
 
 export async function assignDemoPersona(prospectId: string): Promise<DemoPersona> {
   const p = await getProspect(prospectId);
-  if (p?.demo_persona && PERSONAS.includes(p.demo_persona as DemoPersona)) return p.demo_persona as DemoPersona;
+  if (p?.demo_persona && (PERSONAS.includes(p.demo_persona as DemoPersona) || p.demo_persona === "manual")) return p.demo_persona as DemoPersona;
   const { count } = await supabaseAdmin.from("campaign_prospects").select("id", { count: "exact", head: true }).eq("campaign_id", p!.campaign_id).not("demo_persona", "is", null);
   const persona = PERSONAS[(count ?? 0) % PERSONAS.length];
   await updateProspect(prospectId, { demo_persona: persona });

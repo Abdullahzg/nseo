@@ -12,8 +12,10 @@ export function ago(iso: string | null | undefined): string {
   return `${Math.round(s / 86400)}d ago`;
 }
 
-export const modelShort = (m: string | null | undefined) => {
+export const modelShort = (m: string | null | undefined): string => {
   if (!m) return "";
+  // A line can carry several models ("nano + ultra": the classifier, then the counter-writer).
+  if (m.includes(" + ")) return [...new Set(m.split(" + ").map((x) => modelShort(x.trim())))].join(" + ");
   if (/super/i.test(m)) return "Nemotron 3 Super";
   if (/nano/i.test(m)) return "Nemotron 3 Nano";
   if (/lightning/i.test(m)) return "Nemotron 3.5 Lightning";

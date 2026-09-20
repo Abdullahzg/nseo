@@ -121,14 +121,16 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   }
 
   // Sign as the person whose inbox this goes out from.
-  const senderCfg = (initial as any).sender_email ? await getUserEmailConfig((initial as any).sender_email).catch(() => null) : null;
-  let senderName = senderCfg?.from_name?.trim().split(/\s+/)[0] || firstNameFromEmail((initial as any).sender_email);
+  // Sign with the owner's configured name (Settings) even in demo, where nothing is sent from a mailbox.
   let productName = "our product";
+  let ownerEmail: string | null = (initial as any).sender_email ?? null;
   if ((initial as any).campaign_id) {
     const { data: camp } = await supabaseAdmin.from("campaigns").select("website_url, name, what_you_sell, owner_email").eq("id", (initial as any).campaign_id).maybeSingle();
     productName = (camp as any)?.what_you_sell || (camp as any)?.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") || (camp as any)?.name || productName;
-    if (!senderName) senderName = firstNameFromEmail((camp as any)?.owner_email) || "the team";
+    ownerEmail = ownerEmail || (camp as any)?.owner_email || null;
   }
+  const senderCfg = ownerEmail ? await getUserEmailConfig(ownerEmail).catch(() => null) : null;
+  let senderName = senderCfg?.from_name?.trim().split(/\s+/)[0] || firstNameFromEmail(ownerEmail);
   senderName = senderName || "the team";
 
   // 3) MODEL (or a policy closing): write the next email.

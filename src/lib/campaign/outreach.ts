@@ -328,10 +328,10 @@ export async function checkCompletion(camp: Campaign): Promise<{ completed: bool
 }
 
 /**
- * A finished campaign does not leave editors hanging. Every thread still open — mid-negotiation or
- * parked for the owner — gets one polite, fixed closing line (policy, no model call), and its
- * Needs-you card is closed with the reason. Real mode queues the email for the scheduler's transport
- * pass; demo records it as simulated.
+ * A finished campaign does not leave editors hanging. Every thread the agent was mid-conversation on
+ * gets one polite, fixed closing line (policy, no model call). Threads parked on a Needs-you card are
+ * left to the owner. Real mode queues the email for the scheduler's transport pass; demo records it
+ * as simulated.
  */
 export async function windDownOpenThreads(camp: Campaign, reason: "goal_reached" | "budget_exhausted"): Promise<{ closed: number }> {
   const { data: threads } = await supabaseAdmin.from("outreach_emails")
@@ -342,7 +342,9 @@ export async function windDownOpenThreads(camp: Campaign, reason: "goal_reached"
   const signer = senderCfg?.from_name?.trim().split(/\s+/)[0] || (local ? local.charAt(0).toUpperCase() + local.slice(1) : "the team");
   let closed = 0;
   for (const t of (threads ?? []) as any[]) {
-    if (["agreed", "declined", "stalled", "handoff", "withdrawn"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
+    // A thread parked for the owner stays parked: the card is theirs to answer or dismiss, and they may
+    // still want that placement. Only threads the AGENT was mid-conversation on are closed here.
+    if (["agreed", "declined", "stalled", "handoff", "withdrawn", "needs_human"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
     const why = reason === "goal_reached" ? "we have now filled the placements we were planning for this round" : "our budget for this round is now fully allocated";
     const body = sanitizeBody(`Hi there,\n\nThank you for the conversation. I wanted to close the loop properly: ${why}, so I will not take this one further right now. I have kept your details and rate, and I will reach out again when the next round opens. Wishing you well.\n\nBest,\n${signer}`);
     const subject = /^re:/i.test(t.subject ?? "") ? t.subject : `Re: ${t.subject ?? "(no subject)"}`;
@@ -352,7 +354,6 @@ export async function windDownOpenThreads(camp: Campaign, reason: "goal_reached"
       ...(camp.demo_mode ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` } : { status: "scheduled", scheduled_at: new Date().toISOString() }),
     }).select("id").single();
     await supabaseAdmin.from("outreach_emails").update({ negotiation_status: "withdrawn" }).eq("id", t.id);
-    await supabaseAdmin.from("interventions").update({ status: "dismissed", answer: `Closed automatically: ${reason.replace("_", " ")}`, resolved_by: "policy", resolved_at: new Date().toISOString() }).eq("anchor_email_id", t.id).eq("status", "open");
     if (t.prospect_id) await updateProspect(t.prospect_id, { status: "lost" }).catch(() => {});
     closed++;
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "thread_withdrawn", engine: "policy", thread_id: t.id, prospect_id: t.prospect_id, human: `Closed the open thread with ${t.prospect?.domain_host ?? t.to_email?.split("@")[1] ?? "the editor"} politely — ${reason === "goal_reached" ? "the goal is reached" : "the budget is spent"}${camp.demo_mode ? " (simulated)" : ""}`, detail: { reason, email_id: (row as any)?.id, body } });

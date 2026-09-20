@@ -1,6 +1,6 @@
 # Feedback on Nebius Token Factory and NVIDIA Nemotron
 
-Written from building Geseo (Sept 2026). Everything below was observed with real calls; where I
+Written from building Nseo (Sept 2026). Everything below was observed with real calls; where I
 measured something the numbers are in `docs/RESEARCH.md`.
 
 ## What worked well

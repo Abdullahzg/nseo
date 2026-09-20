@@ -22,7 +22,7 @@ export interface NegotiationSettings {
   opening_percent: number;
   style_rules: string;
   max_thread_length: number;
-  // P0.3 — correct pricing semantics: Geseo is the BUYER of publisher placement.
+  // P0.3 — correct pricing semantics: Nseo is the BUYER of publisher placement.
   // These replace the former `min_price` (which was semantically backwards).
   max_placement_price: number;  // hard ceiling: never accept above this
   target_placement_price: number; // target offer (what we aim to pay)

@@ -129,9 +129,9 @@ async function discoverFixtures(camp: Campaign): Promise<DiscoverResult> {
 export const PAGE_TYPES = ["editorial_article", "news_or_press_coverage", "vendor_product_page", "competitor_product_page", "press_release", "directory_or_listing", "video_or_social", "other"] as const;
 export type PageType = (typeof PAGE_TYPES)[number];
 export const PLACEABLE_PAGE_TYPES: PageType[] = ["editorial_article", "news_or_press_coverage"];
-interface RelevanceVerdict { relevance_0_100: number; why_fit: string; placement_angle: string; spam_risk: "low" | "medium" | "high"; is_editorial: boolean; page_type: PageType }
-const RELEVANCE_SCHEMA = { name: "relevance_verdict", schema: { type: "object", properties: { relevance_0_100: { type: "integer", minimum: 0, maximum: 100 }, why_fit: { type: "string" }, placement_angle: { type: "string" }, spam_risk: { type: "string", enum: ["low", "medium", "high"] }, is_editorial: { type: "boolean" }, page_type: { type: "string", enum: [...PAGE_TYPES] } }, required: ["relevance_0_100", "why_fit", "placement_angle", "spam_risk", "is_editorial", "page_type"], additionalProperties: false } };
-const isRelevance = (v: unknown): v is RelevanceVerdict => { const o = v as any; return !!o && Number.isFinite(o.relevance_0_100) && typeof o.why_fit === "string" && ["low", "medium", "high"].includes(o.spam_risk) && typeof o.is_editorial === "boolean" && (PAGE_TYPES as readonly string[]).includes(o.page_type); };
+interface RelevanceVerdict { relevance_0_100: number; why_fit: string; placement_angle: string; spam_risk: "low" | "medium" | "high"; is_editorial: boolean; page_type: PageType; publisher_makes_the_product: boolean }
+const RELEVANCE_SCHEMA = { name: "relevance_verdict", schema: { type: "object", properties: { relevance_0_100: { type: "integer", minimum: 0, maximum: 100 }, why_fit: { type: "string" }, placement_angle: { type: "string" }, spam_risk: { type: "string", enum: ["low", "medium", "high"] }, is_editorial: { type: "boolean" }, page_type: { type: "string", enum: [...PAGE_TYPES] }, publisher_makes_the_product: { type: "boolean" } }, required: ["relevance_0_100", "why_fit", "placement_angle", "spam_risk", "is_editorial", "page_type", "publisher_makes_the_product"], additionalProperties: false } };
+const isRelevance = (v: unknown): v is RelevanceVerdict => { const o = v as any; return !!o && Number.isFinite(o.relevance_0_100) && typeof o.why_fit === "string" && ["low", "medium", "high"].includes(o.spam_risk) && typeof o.is_editorial === "boolean" && (PAGE_TYPES as readonly string[]).includes(o.page_type) && typeof o.publisher_makes_the_product === "boolean"; };
 
 export interface EvaluateResult { prospect_id: string; qualified: boolean; score: number; score_basis: "full" | "relevance_only"; reason: string }
 
@@ -165,18 +165,22 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
     if (r && typeof r.dr === "number") { dr = r.dr; drSource = `measured:${r.source}`; await upsertDomain(p.domain_host, { dr: r.dr, dr_checked_at: new Date().toISOString(), metrics_source: r.source } as any).catch(() => {}); }
   }
 
-  // 3) MODEL: relevance. Throws on failure — there is no keyword fallback.
+  // 3) MODEL: relevance and "could this publisher feature us?". Throws on failure — no keyword fallback.
+  // Super with thinking: Nano (thinking off) judged relevance well but called vendors' own product
+  // pages "editorial" two runs out of three; telling a publication from a product page needs a
+  // moment of reasoning, and this call happens once per prospect.
   const r = await nebiusJson<RelevanceVerdict>({
-    role: "fast", thinking: false, max_tokens: 600, schema: RELEVANCE_SCHEMA, validate: isRelevance,
+    role: "orchestrator", thinking: true, max_tokens: 1500, schema: RELEVANCE_SCHEMA, validate: isRelevance,
     messages: [
-      { role: "system", content: "You evaluate whether a web page is a good placement target for a product's SEO outreach: a THIRD-PARTY publication (blog, magazine, news site, review site) whose editor could realistically add or feature the product. Classify page_type honestly: a company's own product or feature page is vendor_product_page; a rival tool's page is competitor_product_page; a wire/PR item is press_release; a roundup or how-to written by a publication is editorial_article. is_editorial means real written content, not a link farm. Judge topical fit and realistic fit of the product. JSON only." },
+      { role: "system", content: "You evaluate whether a web page is a good placement target for a product's SEO outreach: a THIRD-PARTY publication (blog, magazine, news site, review site) whose editor could realistically add or feature the product. First answer one factual question: does the organisation that publishes this page ALSO make the tool/product the page is about (e.g. adobe.com describing Adobe Firefly, canva.com describing Canva's feature, a tool's own homepage)? That is publisher_makes_the_product=true and page_type=vendor_product_page (or competitor_product_page if that tool competes with ours). A wire/PR item is press_release; a roundup, review or how-to written by a publication about other people's tools is editorial_article. is_editorial means real written content, not a link farm. Judge topical fit and realistic fit of the product. JSON only." },
       { role: "user", content: `Product: ${camp.what_you_sell ?? camp.name} (${camp.website_url ?? ""})
 Target keywords: ${camp.keywords.join(", ")}
 Publication: ${p.domain_host}
+URL: ${p.prospect_url ?? ""}
 Article title: ${title || "(unknown)"}
 Article excerpt:
 """${(text || title).slice(0, 3000)}"""
-Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words), spam_risk, is_editorial, page_type.` },
+Return: publisher_makes_the_product (bool), page_type, relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words), spam_risk, is_editorial.` },
     ],
   });
   const v = r.data;
@@ -186,7 +190,7 @@ Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words
   const drPass = dr == null ? null : dr >= camp.min_dr;
   const relevancePass = relevance >= 40;
   const editorialPass = v.is_editorial && v.spam_risk !== "high";
-  const placeablePass = PLACEABLE_PAGE_TYPES.includes(v.page_type);
+  const placeablePass = PLACEABLE_PAGE_TYPES.includes(v.page_type) && !v.publisher_makes_the_product;
   const qualified = drPass !== false && relevancePass && editorialPass && placeablePass;
   const score_basis: "full" | "relevance_only" = dr == null ? "relevance_only" : "full";
   const score = score_basis === "full" ? Math.round(0.45 * relevance + 0.55 * Math.min(100, dr!)) : relevance;
@@ -210,11 +214,11 @@ Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words
   ];
   const reason = qualified
     ? `${v.why_fit}${dr == null ? " (authority unverified — relevance only)" : ""}`
-    : drPass === false ? `DR ${dr}, below your floor of ${camp.min_dr}` : !relevancePass ? `relevance ${relevance}/100 — ${v.why_fit}` : !placeablePass ? `${v.page_type.replace(/_/g, " ")}, not a publication that could feature us — ${v.why_fit}` : `${v.spam_risk}-risk / non-editorial — ${v.why_fit}`;
+    : drPass === false ? `DR ${dr}, below your floor of ${camp.min_dr}` : !relevancePass ? `relevance ${relevance}/100 — ${v.why_fit}` : !placeablePass ? `${v.publisher_makes_the_product ? "the publisher makes the product on this page" : v.page_type.replace(/_/g, " ")}, not a publication that could feature us — ${v.why_fit}` : `${v.spam_risk}-risk / non-editorial — ${v.why_fit}`;
 
   await updateProspect(prospectId, {
     status: qualified ? "qualified" : "rejected", opportunity_score: score, score_basis, score_breakdown: breakdown, ceiling,
-    qualification: { checks, title, why_fit: v.why_fit, placement_angle: v.placement_angle, is_editorial: v.is_editorial, page_type: v.page_type, article_author: meta.author ?? null },
+    qualification: { checks, title, why_fit: v.why_fit, placement_angle: v.placement_angle, is_editorial: v.is_editorial, page_type: v.publisher_makes_the_product && PLACEABLE_PAGE_TYPES.includes(v.page_type) ? "vendor_product_page" : v.page_type, article_author: meta.author ?? null },
   });
   if (qualified) await ensureProspectAuthor({ ...p, qualification: { checks, article_author: meta.author ?? null } }).catch(() => {});
 

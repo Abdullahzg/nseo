@@ -1,3 +1,4 @@
+import { Wordmark } from "@/components/layout/Logo";
 import { Nav } from "@/components/layout/Nav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -9,7 +10,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
       <footer className="border-t border-rule">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-ink-3">
-          <span>Geseo</span>
+          <Wordmark />
           <span>Decisions by NVIDIA Nemotron 3 on Nebius Token Factory</span>
         </div>
       </footer>

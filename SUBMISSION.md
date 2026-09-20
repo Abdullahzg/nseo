@@ -2,7 +2,7 @@
 
 ## Project description (for the Devpost form)
 
-**What it is.** Geseo is an autonomous outreach agent for getting a product featured in editorial
+**What it is.** Nseo is an autonomous outreach agent for getting a product featured in editorial
 publications. You give it your website, one line about what you sell, three keywords, a target
 number of placements and a budget. It searches for publications, judges which are worth pursuing,
 finds a human editor at each, writes them, reads their replies, negotiates a price under your
@@ -42,7 +42,7 @@ Token Factory (`nvidia/nemotron-3-super-120b-a12b`, `nvidia/NVIDIA-Nemotron-3-Na
 
 | Time | Screen | Voice |
 |---|---|---|
-| 0:00–0:15 | Setup page, cursor idle | "This is Geseo. It gets your product featured in publications without you doing the outreach. Every decision it makes is a NVIDIA Nemotron 3 model running on Nebius Token Factory, and I'll show you each one as it happens." |
+| 0:00–0:15 | Setup page, cursor idle | "This is Nseo. It gets your product featured in publications without you doing the outreach. Every decision it makes is a NVIDIA Nemotron 3 model running on Nebius Token Factory, and I'll show you each one as it happens." |
 | 0:15–0:35 | Setup with the plan already written; hover the Nano chip | "Six fields. Before anything starts, Nemotron 3 Nano — thinking off, structured output, about three hundred tokens — has already written the plan in plain English. That's the cheap fast path we use for every high-volume judgment." |
 | 0:35–0:55 | Press **Launch demo**; Campaign screen; first lines appear | "Demo mode: the publications and editors are fixtures, but every decision on them is real. Top of the page is one sentence that is always true — it's computed by code, never by a model." |
 | 0:55–1:20 | Expand a **manager** line | "Each step, Nemotron 3 Super picks exactly one action as a tool call. Here's its reasoning, the tokens, the latency. Code decides what's *available*; the model decides which to do. On idle steps we don't call a model at all — that's how a public demo runs on hackathon credits." |

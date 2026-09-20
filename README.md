@@ -1,4 +1,4 @@
-# Geseo — an outreach agent that only comes back when it needs you
+# Nseo — an outreach agent that only comes back when it needs you
 
 **Nebius × NVIDIA Global AI Hackathon 2026 · Best Apps and Agents track**
 
@@ -104,7 +104,7 @@ so one deployment serves many people without a platform key paying for them.
 ## Run it yourself (from zero)
 
 ```bash
-git clone <this repo> && cd geseo
+git clone <this repo> && cd nseo
 npm install
 cp .env.example .env.local        # fill NEBIUS_API_KEY (tokenfactory.nebius.com → API keys); that's the only required key for the demo
 

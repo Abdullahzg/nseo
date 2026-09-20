@@ -50,7 +50,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-xl">
       <h1 className="serif text-3xl font-semibold tracking-tight">Settings</h1>
-      <p className="text-ink-2 mt-2">Geseo runs on your own accounts: your Nebius key pays for the models, your Gmail sends the email, your Tavily key finds publications. Nothing here is shared with other users.</p>
+      <p className="text-ink-2 mt-2">Nseo runs on your own accounts: your Nebius key pays for the models, your Gmail sends the email, your Tavily key finds publications. Nothing here is shared with other users.</p>
 
       <div className="card p-5 mt-6 space-y-4">
         <div className="flex items-center justify-between"><div className="label">Nebius Token Factory</div><span className={`chip shrink-0 whitespace-nowrap ${nebiusReady ? "chip-accent" : ""}`}>{cfg.hasNebiusKey ? `your key ${cfg.nebiusKeyHint ?? ""}` : cfg.platform_nebius ? "platform key" : "missing"}</span></div>

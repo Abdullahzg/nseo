@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1d1a16"/><path d="M18 40 L32 20 L46 40" fill="none" stroke="#f7f3ec" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="32" cy="46" r="4" fill="#1f6b46"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#1d1a16"/>
+  <!-- N: two uprights in paper, the diagonal in NVIDIA green -->
+  <path d="M19 46 V18" stroke="#f7f3ec" stroke-width="7" stroke-linecap="round"/>
+  <path d="M45 18 V46" stroke="#f7f3ec" stroke-width="7" stroke-linecap="round"/>
+  <path d="M19 18 L45 46" stroke="#76b900" stroke-width="7" stroke-linecap="round"/>
+</svg>
