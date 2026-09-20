@@ -1,7 +1,7 @@
 // Code-owned negotiation rules: the strong-cue escalations, and the three policy closings that
 // never call a model. Everything else in agent.ts requires Nebius and is covered by the ledger run.
 import { describe, it, expect } from "vitest";
-import { strongCue, draftNegotiationReply, sanitizeBody } from "@/lib/negotiation/agent";
+import { strongCue, draftNegotiationReply, sanitizeBody, greetingName, shapeEmail } from "@/lib/negotiation/agent";
 import { maxOfferFor } from "@/lib/negotiation/pricing";
 import { DEFAULT_NEGOTIATION_SETTINGS } from "@/lib/negotiation/settings";
 
@@ -15,6 +15,28 @@ describe("strongCue (deterministic escalations)", () => {
     ["see the attached rate card", "inbound_attachment"],
   ])("%s → %s", (text, type) => { expect(strongCue(text.toLowerCase())?.type).toBe(type); });
   it("a plain price counter trips no cue", () => { expect(strongCue("our rate is $280 for a feature")).toBeNull(); });
+  it("an attachment is a cue even when the model read the reply as a decline", () => {
+    expect(["legal_contract", "inbound_attachment"]).toContain(strongCue("agreement attached, please sign and return. our rate is $150.")?.type);
+  });
+  it("stating a link type is a price term, not a question for the owner", () => {
+    expect(strongCue("our rate is $140, which includes a do-follow link. shall i go ahead?")).toBeNull();
+    expect(strongCue("$280 for a permanent placement with a do-follow link.")).toBeNull();
+    expect(strongCue("are you expecting a do-follow link?")?.type).toBe("factual_question");
+    expect(strongCue("what kind of monthly traffic does your site get")?.type).toBe("factual_question");
+  });
+  it("shapes a model draft: code-owned greeting, sign-off on its own lines", () => {
+    expect(shapeEmail("Hi LetsEnhance, thanks for the number. $180 is high. Could we do $130? Best, Abdullah", "there")).toBe("Hi there,\n\nThanks for the number. $180 is high. Could we do $130?\n\nBest,\nAbdullah");
+    expect(shapeEmail("Hi there,\n\nSure thing.\n\nBest,\nAbdullah", "Sarah")).toBe("Hi Sarah,\n\nSure thing.\n\nBest,\nAbdullah");
+  });
+  it("greets a person, never a site name or a generic byline", () => {
+    expect(greetingName("Sarah Mitchell")).toBe("Sarah");
+    expect(greetingName("yahoo.com Editorial")).toBe("there");
+    expect(greetingName("Editorial Team")).toBe("there");
+    expect(greetingName(null)).toBe("there");
+    expect(greetingName("RestorePhotosApp", "restorephotosapp.com")).toBe("there");
+    expect(greetingName("Pixels Photo Art", "pixelsphotoart.com")).toBe("there");
+    expect(greetingName("Amy Lee", "everpresent.com")).toBe("Amy");
+  });
 });
 
 describe("policy closings (no model call)", () => {
@@ -25,6 +47,10 @@ describe("policy closings (no model call)", () => {
   });
   it("accept at an in-bounds price → agreed at THEIR number", async () => {
     const d = await draftNegotiationReply({ ...base, lastIntent: "accept", theirPrice: 120 });
+    expect(d.statusHint).toBe("agreed"); expect(d.suggestedOffer).toBe(120); expect(d.engine).toBe("policy");
+  });
+  it("a named price at or under auto_accept_below and the ceiling → agreed at THEIR number, no model call", async () => {
+    const d = await draftNegotiationReply({ ...base, lastIntent: "counter_offer", theirPrice: 120 });
     expect(d.statusHint).toBe("agreed"); expect(d.suggestedOffer).toBe(120); expect(d.engine).toBe("policy");
   });
   it("accept with no price on record → asks for the rate, stays negotiating", async () => {

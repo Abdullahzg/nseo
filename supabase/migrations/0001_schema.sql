@@ -177,7 +177,7 @@ create table outreach_emails (
   original_ask numeric(10,2),
   max_offer numeric(10,2),
   agreed_price numeric(10,2),
-  negotiation_status text,                    -- negotiating | agreed | declined | needs_human | stalled | handoff
+  negotiation_status text,                    -- negotiating | agreed | declined | needs_human | stalled | handoff | withdrawn (campaign finished)
   intervention_type text,
   intervention_ask text,
   intervention_reason text,

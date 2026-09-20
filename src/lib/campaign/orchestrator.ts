@@ -10,7 +10,7 @@ import { modelLabel } from "@/lib/ai/models";
 import { getCampaign, updateCampaign, setPhase, countProspectsByStatus, getDeals, listInterventions, listProspects, countUnansweredReplies, recordEvent } from "./queries";
 import { availableActions, nextPhase, nextTickDelayMs, type ActionKey, type PolicyInput, type AvailableAction } from "./policy";
 import { planDiscoveryQueries, discoverBatch, qualifyBatch, contactBatch } from "./tools";
-import { outreachBatch, processReplies, scheduleFollowups, listDueFollowups, checkCompletion } from "./outreach";
+import { outreachBatch, processReplies, scheduleFollowups, listDueFollowups, checkCompletion, windDownOpenThreads } from "./outreach";
 import { countDueDemoReplies } from "./demo";
 import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
@@ -100,6 +100,7 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
       if (t) { await setPhase(campaignId, t.phase, t.reason); await recordEvent({ campaign_id: campaignId, agent: "manager", action: "phase_changed", engine: "policy", human: phaseLine(t.phase, t.reason), detail: { from: before, to: t.phase, reason: t.reason } }); }
       const fresh = (await getCampaign(campaignId))!;
       const c = await checkCompletion(fresh);
+      if (t?.phase === "completed" && (t.reason === "goal_reached" || t.reason === "budget_exhausted")) await windDownOpenThreads(fresh, t.reason);
       const delay = nextTickDelayMs((await getCampaign(campaignId))!, !!t);
       await updateCampaign(campaignId, { next_tick_after: delay == null ? null : new Date(Date.now() + delay).toISOString() });
       await recordEvent({ campaign_id: campaignId, agent: "manager", action: "policy_noop", engine: "policy", human: `Nothing to do this step${t ? ` — moved to ${t.phase.replace("_", " ")}` : ""}`, detail: { via: opts.via, transition: t, completed: c.completed }, level: "info" });
@@ -165,6 +166,7 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
     if (t) { await setPhase(campaignId, t.phase, t.reason); await recordEvent({ campaign_id: campaignId, agent: "manager", action: "phase_changed", engine: "policy", human: phaseLine(t.phase, t.reason), detail: { from: before, to: t.phase, reason: t.reason } }); }
     const fresh = (await getCampaign(campaignId))!;
     const c = await checkCompletion(fresh);
+    if (t?.phase === "completed" && (t.reason === "goal_reached" || t.reason === "budget_exhausted")) await windDownOpenThreads(fresh, t.reason);
     const delay = nextTickDelayMs((await getCampaign(campaignId))!, true);
     await updateCampaign(campaignId, { next_tick_after: delay == null ? null : new Date(Date.now() + delay).toISOString() });
     return done({ ok: true, phase_before: before, phase_after: (await getCampaign(campaignId))!.phase, action: chosen.key, decided_by: decidedBy, model, summary, details: { ...details, transition: t, completed: c } });

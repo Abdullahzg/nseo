@@ -124,9 +124,14 @@ async function discoverFixtures(camp: Campaign): Promise<DiscoverResult> {
 
 // ─── Qualification ───────────────────────────────────────────────────────────
 
-interface RelevanceVerdict { relevance_0_100: number; why_fit: string; placement_angle: string; spam_risk: "low" | "medium" | "high"; is_editorial: boolean }
-const RELEVANCE_SCHEMA = { name: "relevance_verdict", schema: { type: "object", properties: { relevance_0_100: { type: "integer", minimum: 0, maximum: 100 }, why_fit: { type: "string" }, placement_angle: { type: "string" }, spam_risk: { type: "string", enum: ["low", "medium", "high"] }, is_editorial: { type: "boolean" } }, required: ["relevance_0_100", "why_fit", "placement_angle", "spam_risk", "is_editorial"], additionalProperties: false } };
-const isRelevance = (v: unknown): v is RelevanceVerdict => { const o = v as any; return !!o && Number.isFinite(o.relevance_0_100) && typeof o.why_fit === "string" && ["low", "medium", "high"].includes(o.spam_risk) && typeof o.is_editorial === "boolean"; };
+// What kind of page this is decides whether an editor could ever feature us there. A competitor's
+// product page or a vendor's feature page is on-topic and still worthless as a placement target.
+export const PAGE_TYPES = ["editorial_article", "news_or_press_coverage", "vendor_product_page", "competitor_product_page", "press_release", "directory_or_listing", "video_or_social", "other"] as const;
+export type PageType = (typeof PAGE_TYPES)[number];
+export const PLACEABLE_PAGE_TYPES: PageType[] = ["editorial_article", "news_or_press_coverage"];
+interface RelevanceVerdict { relevance_0_100: number; why_fit: string; placement_angle: string; spam_risk: "low" | "medium" | "high"; is_editorial: boolean; page_type: PageType }
+const RELEVANCE_SCHEMA = { name: "relevance_verdict", schema: { type: "object", properties: { relevance_0_100: { type: "integer", minimum: 0, maximum: 100 }, why_fit: { type: "string" }, placement_angle: { type: "string" }, spam_risk: { type: "string", enum: ["low", "medium", "high"] }, is_editorial: { type: "boolean" }, page_type: { type: "string", enum: [...PAGE_TYPES] } }, required: ["relevance_0_100", "why_fit", "placement_angle", "spam_risk", "is_editorial", "page_type"], additionalProperties: false } };
+const isRelevance = (v: unknown): v is RelevanceVerdict => { const o = v as any; return !!o && Number.isFinite(o.relevance_0_100) && typeof o.why_fit === "string" && ["low", "medium", "high"].includes(o.spam_risk) && typeof o.is_editorial === "boolean" && (PAGE_TYPES as readonly string[]).includes(o.page_type); };
 
 export interface EvaluateResult { prospect_id: string; qualified: boolean; score: number; score_basis: "full" | "relevance_only"; reason: string }
 
@@ -164,14 +169,14 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
   const r = await nebiusJson<RelevanceVerdict>({
     role: "fast", thinking: false, max_tokens: 600, schema: RELEVANCE_SCHEMA, validate: isRelevance,
     messages: [
-      { role: "system", content: "You evaluate whether a web article/publication is a good placement target for a product's SEO outreach. Judge editorial quality (real content vs link farm), topical fit, and realistic fit of the product. JSON only." },
+      { role: "system", content: "You evaluate whether a web page is a good placement target for a product's SEO outreach: a THIRD-PARTY publication (blog, magazine, news site, review site) whose editor could realistically add or feature the product. Classify page_type honestly: a company's own product or feature page is vendor_product_page; a rival tool's page is competitor_product_page; a wire/PR item is press_release; a roundup or how-to written by a publication is editorial_article. is_editorial means real written content, not a link farm. Judge topical fit and realistic fit of the product. JSON only." },
       { role: "user", content: `Product: ${camp.what_you_sell ?? camp.name} (${camp.website_url ?? ""})
 Target keywords: ${camp.keywords.join(", ")}
 Publication: ${p.domain_host}
 Article title: ${title || "(unknown)"}
 Article excerpt:
 """${(text || title).slice(0, 3000)}"""
-Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words), spam_risk, is_editorial.` },
+Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words), spam_risk, is_editorial, page_type.` },
     ],
   });
   const v = r.data;
@@ -181,7 +186,8 @@ Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words
   const drPass = dr == null ? null : dr >= camp.min_dr;
   const relevancePass = relevance >= 40;
   const editorialPass = v.is_editorial && v.spam_risk !== "high";
-  const qualified = drPass !== false && relevancePass && editorialPass;
+  const placeablePass = PLACEABLE_PAGE_TYPES.includes(v.page_type);
+  const qualified = drPass !== false && relevancePass && editorialPass && placeablePass;
   const score_basis: "full" | "relevance_only" = dr == null ? "relevance_only" : "full";
   const score = score_basis === "full" ? Math.round(0.45 * relevance + 0.55 * Math.min(100, dr!)) : relevance;
 
@@ -200,14 +206,15 @@ Return: relevance_0_100 (int), why_fit (<=25 words), placement_angle (<=15 words
     { label: `DR ≥ ${camp.min_dr}`, state: (drPass == null ? "unverified" : drPass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
     { label: "Topical fit", state: (relevancePass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
     { label: "Editorial (not a link farm)", state: (editorialPass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
+    { label: "Third-party publication", state: (placeablePass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
   ];
   const reason = qualified
     ? `${v.why_fit}${dr == null ? " (authority unverified — relevance only)" : ""}`
-    : drPass === false ? `DR ${dr}, below your floor of ${camp.min_dr}` : !relevancePass ? `relevance ${relevance}/100 — ${v.why_fit}` : `${v.spam_risk}-risk / non-editorial — ${v.why_fit}`;
+    : drPass === false ? `DR ${dr}, below your floor of ${camp.min_dr}` : !relevancePass ? `relevance ${relevance}/100 — ${v.why_fit}` : !placeablePass ? `${v.page_type.replace(/_/g, " ")}, not a publication that could feature us — ${v.why_fit}` : `${v.spam_risk}-risk / non-editorial — ${v.why_fit}`;
 
   await updateProspect(prospectId, {
     status: qualified ? "qualified" : "rejected", opportunity_score: score, score_basis, score_breakdown: breakdown, ceiling,
-    qualification: { checks, title, why_fit: v.why_fit, placement_angle: v.placement_angle, is_editorial: v.is_editorial, article_author: meta.author ?? null },
+    qualification: { checks, title, why_fit: v.why_fit, placement_angle: v.placement_angle, is_editorial: v.is_editorial, page_type: v.page_type, article_author: meta.author ?? null },
   });
   if (qualified) await ensureProspectAuthor({ ...p, qualification: { checks, article_author: meta.author ?? null } }).catch(() => {});
 

@@ -5,7 +5,7 @@
 // DEMO_RECIPIENT, nothing leaves the machine.
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
-import { sanitizeBody } from "@/lib/negotiation/agent";
+import { sanitizeBody, greetingName } from "@/lib/negotiation/agent";
 import { negotiateThread, type NegotiationResult } from "@/lib/negotiation/run";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
@@ -41,7 +41,7 @@ export function productName(camp: Campaign): string {
 
 export async function draftOutreachEmail(p: Prospect, camp: Campaign, signer: string): Promise<{ draft: OutreachDraft; meta: import("@/lib/ai/nebius").LLMMeta }> {
   const q = p.qualification ?? ({} as NonNullable<Prospect["qualification"]>);
-  const editorFirst = (p.contact_name ?? "").split(/\s+/)[0] || "there";
+  const editorFirst = greetingName(p.contact_name, p.domain_host);
   const r = await nebiusJson<OutreachDraft>({
     role: "fast", thinking: false, max_tokens: 500, temperature: 0.5, schema: DRAFT_SCHEMA, validate: isDraft,
     messages: [
@@ -84,7 +84,8 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     }
     const domain = p.contact_email.split("@")[1];
     const { count } = await supabaseAdmin.from("outreach_emails").select("id", { count: "exact", head: true }).like("to_email", `%@${domain}`).gte("created_at", new Date(Date.now() - 3600_000).toISOString());
-    if ((count ?? 0) >= 3) return { ok: false, reason: `rate limit: 3 emails/hour for @${domain}` };
+    const perDomain = Number(process.env.PER_DOMAIN_HOURLY_CAP ?? 3);
+    if ((count ?? 0) >= perDomain) return { ok: false, reason: `rate limit: ${perDomain} emails/hour for @${domain}` };
   }
 
   const senderCfg = camp.owner_email ? await getUserEmailConfig(camp.owner_email).catch(() => null) : null;
@@ -182,7 +183,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       sync_contact: [`${who} wants a call. The agent can't take one; it can tell them email works or pass on your availability.`, "Your availability, or a line to send instead (e.g. \"email is easier for us\")."],
       scheduling: [`${who} wants to schedule something. The agent has no calendar.`, "Your availability, or a line to send instead."],
       factual_question: [`${who} asked something only you know. The agent won't invent an answer.`, "The true answer, in a line."],
-      budget_exception: [`The agent wants to accept ${price ?? "their price"}, but that is above what it may approve alone.`, `Approve ${price ?? "it"}, or give a counter figure.`],
+      budget_exception: [r.interventionAsk?.includes("absolute maximum") ? `${who} asks ${price ?? "a price"}, above your absolute maximum. The agent will not counter that high on its own.` : `The agent wants to accept ${price ?? "their price"}, but that is above what it may approve alone.`, r.interventionAsk?.includes("absolute maximum") ? `A figure to counter with, a higher limit for this thread, or "decline".` : `Approve ${price ?? "it"}, or give a counter figure.`],
       asset_request: [`${who} wants a file the agent cannot attach.`, "A link to it, or what to say instead."],
       identity_verification: [`${who} wants proof of who you are.`, "A link (site, LinkedIn) the agent may share."],
       redirect: [`${who} pointed to a different contact.`, "Confirm the new contact, or let it go."],
@@ -261,7 +262,7 @@ export async function processReplies(camp: Campaign, limit: number): Promise<Rep
   for (const th of threads) {
     if (n >= limit) break;
     if (!th.replied_at || th.reply_kind === "auto") continue;
-    if (["agreed", "declined", "needs_human", "stalled"].includes(th.negotiation_status ?? "")) continue;
+    if (["agreed", "declined", "needs_human", "stalled", "handoff", "withdrawn"].includes(th.negotiation_status ?? "")) continue;
     const { data: last } = await supabaseAdmin.from("outreach_emails").select("sent_at").eq("parent_id", th.id).eq("kind", "negotiation").eq("status", "sent").order("sent_at", { ascending: false }).limit(1);
     const lastAnswer = (last as any[])?.[0]?.sent_at as string | undefined;
     if (lastAnswer && lastAnswer >= th.replied_at) continue; // already answered — never answer twice
@@ -314,12 +315,47 @@ export async function checkCompletion(camp: Campaign): Promise<{ completed: bool
   if (deals >= camp.desired_deals) {
     await setPhase(camp.id, "completed", "goal_reached");
     await recordEvent({ campaign_id: camp.id, agent: "manager", action: "campaign_completed", engine: "policy", human: `Done — ${deals} of ${camp.desired_deals} placements agreed. $${camp.budget_used} of $${camp.budget_total} committed.`, detail: { reason: "goal_reached", deals } });
+    await windDownOpenThreads(camp, "goal_reached");
     return { completed: true, reason: "goal_reached" };
   }
   if (camp.budget_total > 0 && camp.budget_total - camp.budget_used < 5) {
     await setPhase(camp.id, "completed", "budget_exhausted");
     await recordEvent({ campaign_id: camp.id, agent: "manager", action: "campaign_completed", engine: "policy", human: `Stopped — the budget is spent ($${camp.budget_used} of $${camp.budget_total}) with ${deals} deals.`, detail: { reason: "budget_exhausted", deals } });
+    await windDownOpenThreads(camp, "budget_exhausted");
     return { completed: true, reason: "budget_exhausted" };
   }
   return { completed: false };
+}
+
+/**
+ * A finished campaign does not leave editors hanging. Every thread still open — mid-negotiation or
+ * parked for the owner — gets one polite, fixed closing line (policy, no model call), and its
+ * Needs-you card is closed with the reason. Real mode queues the email for the scheduler's transport
+ * pass; demo records it as simulated.
+ */
+export async function windDownOpenThreads(camp: Campaign, reason: "goal_reached" | "budget_exhausted"): Promise<{ closed: number }> {
+  const { data: threads } = await supabaseAdmin.from("outreach_emails")
+    .select("id, workflow_id, author_id, prospect_id, subject, to_email, sender_email, sent_by_email, negotiation_status, replied_at, reply_kind, prospect:campaign_prospects(domain_host)")
+    .eq("campaign_id", camp.id).eq("kind", "initial").not("replied_at", "is", null);
+  const senderCfg = camp.owner_email ? await getUserEmailConfig(camp.owner_email).catch(() => null) : null;
+  const local = (camp.owner_email ?? "").split("@")[0].split(/[._+-]/)[0];
+  const signer = senderCfg?.from_name?.trim().split(/\s+/)[0] || (local ? local.charAt(0).toUpperCase() + local.slice(1) : "the team");
+  let closed = 0;
+  for (const t of (threads ?? []) as any[]) {
+    if (["agreed", "declined", "stalled", "handoff", "withdrawn"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
+    const why = reason === "goal_reached" ? "we have now filled the placements we were planning for this round" : "our budget for this round is now fully allocated";
+    const body = sanitizeBody(`Hi there,\n\nThank you for the conversation. I wanted to close the loop properly: ${why}, so I will not take this one further right now. I have kept your details and rate, and I will reach out again when the next round opens. Wishing you well.\n\nBest,\n${signer}`);
+    const subject = /^re:/i.test(t.subject ?? "") ? t.subject : `Re: ${t.subject ?? "(no subject)"}`;
+    const { data: row } = await supabaseAdmin.from("outreach_emails").insert({
+      workflow_id: t.workflow_id, campaign_id: camp.id, author_id: t.author_id, prospect_id: t.prospect_id, parent_id: t.id, kind: "negotiation",
+      subject, body, to_email: t.to_email, sender_email: camp.demo_mode ? null : t.sender_email, sent_by_email: camp.demo_mode ? null : t.sent_by_email, ai_managed: true, simulated: camp.demo_mode,
+      ...(camp.demo_mode ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` } : { status: "scheduled", scheduled_at: new Date().toISOString() }),
+    }).select("id").single();
+    await supabaseAdmin.from("outreach_emails").update({ negotiation_status: "withdrawn" }).eq("id", t.id);
+    await supabaseAdmin.from("interventions").update({ status: "dismissed", answer: `Closed automatically: ${reason.replace("_", " ")}`, resolved_by: "policy", resolved_at: new Date().toISOString() }).eq("anchor_email_id", t.id).eq("status", "open");
+    if (t.prospect_id) await updateProspect(t.prospect_id, { status: "lost" }).catch(() => {});
+    closed++;
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "thread_withdrawn", engine: "policy", thread_id: t.id, prospect_id: t.prospect_id, human: `Closed the open thread with ${t.prospect?.domain_host ?? t.to_email?.split("@")[1] ?? "the editor"} politely — ${reason === "goal_reached" ? "the goal is reached" : "the budget is spent"}${camp.demo_mode ? " (simulated)" : ""}`, detail: { reason, email_id: (row as any)?.id, body } });
+  }
+  return { closed };
 }

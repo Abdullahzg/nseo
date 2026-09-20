@@ -63,8 +63,27 @@ export function stripToText(raw: string, isHtml: boolean): string {
   if (isHtml || /<[a-z][\s\S]*>/i.test(t)) {
     t = t.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
   }
-  return t.replace(/\r/g, "").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
-    .replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 1500);
+  t = t.replace(/\r/g, "").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  return stripQuotedReply(t).replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 1500);
+}
+
+/**
+ * Only the editor's new words. Every mail client quotes the thread below the reply, and a quoted
+ * "On Sun Sep 20 2026, … wrote:" or our own "$280" would otherwise reach the classifier as if the
+ * editor had said it (a date once parsed as a $2,026 price).
+ */
+export function stripQuotedReply(t: string): string {
+  const lines = t.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    const l = line.trim();
+    if (/^>/.test(l)) break;
+    if (/^on .{3,120}wrote:?\s*$/i.test(l) || /^-{2,}\s*(original|forwarded) message\s*-{2,}$/i.test(l) || /^(from|de|von):\s.+/i.test(l) && out.length > 0 && /^(sent|to|date|subject):/i.test(lines[lines.indexOf(line) + 1]?.trim() ?? "")) break;
+    if (/^_{5,}$/.test(l)) break;
+    out.push(line);
+  }
+  const kept = out.join("\n").trim();
+  return kept || t;
 }
 
 // Walk imapflow's bodyStructure to the best text part (prefer text/plain, else text/html).
@@ -96,17 +115,25 @@ export async function fetchExcerpt(client: ImapFlow, uid: number, structure: any
 
 // Connect to one mailbox and return, per outstanding email that got an inbound match, the
 // classification + who it was from + subject + a readable excerpt.
-export async function detectReplies(user: string, pass: string, outstanding: OutstandingSent[], ownAddresses?: Set<string>): Promise<Map<string, MatchInfo>> {
+const headerValue = (hdrLower: string, name: string): string => {
+  const m = hdrLower.match(new RegExp(`^${name}:[ \\t]*(.+)$`, "m"));
+  return m ? m[1].trim() : "";
+};
+
+export async function detectReplies(user: string, pass: string, outstanding: OutstandingSent[], ownAddresses?: Set<string>, ownMessageIds?: Set<string>): Promise<Map<string, MatchInfo>> {
   const matches = new Map<string, MatchInfo>();
   if (outstanding.length === 0) return matches;
 
   // Never treat a message WE sent as an inbound reply. Our own threaded follow-up (subject
-  // "Re: ...", References: <the initial's message-id>) or a test send can land back in the
-  // scanned mailbox; without this it matches the initial and gets counted as if the prospect
-  // replied. A genuine reply is always FROM the prospect, never from one of our own addresses,
-  // so filtering these out cannot drop a real reply.
+  // "Re: ...", References: <the initial's message-id>) can land back in the scanned mailbox;
+  // it is recognised by its Message-ID, which we stored when we sent it. A message FROM one of
+  // our own addresses that we did not send is accepted only when it replies DIRECTLY to one of
+  // our sends (an owner testing the loop against their own inbox); the owner's manual reply to
+  // an editor replies to the editor's message and is skipped.
   const own = new Set<string>([user.toLowerCase()]);
   for (const a of ownAddresses ?? []) if (a) own.add(a.toLowerCase());
+  const ours = new Set<string>(ownMessageIds ?? []);
+  for (const o of outstanding) if (o.message_id) ours.add(normId(o.message_id));
 
   const byMsgId = new Map<string, string>();
   for (const o of outstanding) if (o.message_id) byMsgId.set(normId(o.message_id), o.id);
@@ -127,7 +154,7 @@ export async function detectReplies(user: string, pass: string, outstanding: Out
       const pending = new Map<string, { uid: number; kind: ReplyKind; from: string; subject: string; structure: any; date: string | null }>();
       for await (const msg of client.fetch(
         uids,
-        { uid: true, envelope: true, internalDate: true, bodyStructure: true, headers: ["in-reply-to", "references", "from", "auto-submitted", "x-autoreply", "x-autorespond", "x-auto-response-suppress", "precedence", "content-type", "x-failed-recipients", "action", "status"] },
+        { uid: true, envelope: true, internalDate: true, bodyStructure: true, headers: ["message-id", "in-reply-to", "references", "from", "auto-submitted", "x-autoreply", "x-autorespond", "x-auto-response-suppress", "precedence", "content-type", "x-failed-recipients", "action", "status"] },
         { uid: true },
       )) {
         const hdr = msg.headers?.toString() ?? "";
@@ -135,9 +162,14 @@ export async function detectReplies(user: string, pass: string, outstanding: Out
         const from = (msg.envelope?.from?.[0]?.address ?? "").toLowerCase();
         const subject = msg.envelope?.subject ?? "";
 
-        // Skip anything we sent ourselves (our own follow-up in the thread, a test send that
+        // Skip anything we sent ourselves (our own follow-up in the thread, a copy of a send that
         // came back to this inbox) — it is never a prospect reply.
-        if (from && own.has(from)) continue;
+        const selfId = normId(headerValue(hlow, "message-id") || msg.envelope?.messageId || "");
+        if (selfId && ours.has(selfId)) continue;
+        if (from && own.has(from)) {
+          const parent = normId(headerValue(hlow, "in-reply-to"));
+          if (!parent || !byMsgId.has(parent)) continue;
+        }
 
         // Which of our sends does this inbound message reference?
         let hitId: string | null = null;
@@ -186,6 +218,14 @@ async function shouldCheck(account: string, minMinutes: number): Promise<boolean
   return set === "OK"; // only the first caller within the window proceeds
 }
 
+/** Message-IDs of everything this mailbox sent recently — our own copies are never inbound replies. */
+async function ownMessageIdsFor(account: string, days: number): Promise<Set<string>> {
+  const { supabaseAdmin } = await import("@/lib/db/supabase");
+  const since = new Date(Date.now() - days * 86400_000).toISOString();
+  const { data } = await supabaseAdmin.from("outreach_emails").select("message_id").eq("sender_email", account).not("message_id", "is", null).gte("created_at", since).limit(5000);
+  return new Set(((data ?? []) as any[]).map((r) => normId(String(r.message_id))));
+}
+
 export interface ReplyDetectionResult { accountsChecked: number; repliesFound: number; bounces: number; autoReplies: number; discarded: number; errors: string[] }
 
 // Sweep every sender mailbox and classify inbound matches. Only genuine human replies set
@@ -217,7 +257,7 @@ export async function runReplyDetection(opts: { backfillDays?: number; minMinute
       result.accountsChecked++;
       const authorById = new Map(list.map((o: OutstandingSentRow) => [o.id, o.author_id]));
       const rowById = new Map(list.map((o: OutstandingSentRow) => [o.id, o]));
-      const matches = await detectReplies(account, pass, list, ownAddresses);
+      const matches = await detectReplies(account, pass, list, ownAddresses, await ownMessageIdsFor(account, backfillDays));
       for (const [id, m] of matches) {
         const meta = { reply_kind: m.kind, reply_from: m.from || null, reply_subject: m.subject || null, reply_excerpt: m.excerpt || null };
         if (m.kind === "reply") {

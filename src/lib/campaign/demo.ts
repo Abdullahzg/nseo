@@ -87,7 +87,7 @@ export async function countDueDemoReplies(campaignId: string): Promise<number> {
   const threads = await listCampaignThreads(campaignId);
   let n = 0;
   for (const th of threads) {
-    if (["agreed", "declined", "needs_human", "stalled", "handoff"].includes(th.negotiation_status ?? "")) continue;
+    if (["agreed", "declined", "needs_human", "stalled", "handoff", "withdrawn"].includes(th.negotiation_status ?? "")) continue;
     if (!th.prospect_id) continue;
     const p = await getProspect(th.prospect_id);
     const persona = (p?.demo_persona as DemoPersona) || null;
@@ -117,7 +117,7 @@ export async function injectDemoReplies(campaignId: string, product: string): Pr
   const threads = await listCampaignThreads(campaignId);
   let injected = 0;
   for (const th of threads) {
-    if (["agreed", "declined", "needs_human", "stalled"].includes(th.negotiation_status ?? "")) continue;
+    if (["agreed", "declined", "needs_human", "stalled", "handoff", "withdrawn"].includes(th.negotiation_status ?? "")) continue;
     if (!th.prospect_id) continue;
     const prospect = await getProspect(th.prospect_id);
     if (!prospect) continue;

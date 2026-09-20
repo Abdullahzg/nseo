@@ -139,7 +139,11 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   });
   if (draft.llm) llm.push(draft.llm);
   if (draft.needsHuman) return park(draft.interventionType ?? "other", draft.interventionAsk ?? "reply would need something the AI cannot provide");
-  const approvalThreshold = settings.human_approval_above ?? Infinity;
+  // The owner may already have approved a figure for THIS thread (a Needs-you budget card answered
+  // with a number raises the thread's max_offer). Accepting at or under it must not ask again.
+  let approvalThreshold = settings.human_approval_above ?? Infinity;
+  const { count: approvals } = await supabaseAdmin.from("interventions").select("id", { count: "exact", head: true }).eq("anchor_email_id", anchorId).eq("type", "budget_exception").eq("status", "resolved");
+  if ((approvals ?? 0) > 0 && (initial as any).max_offer != null) approvalThreshold = Math.max(approvalThreshold, Number((initial as any).max_offer));
   if (draft.statusHint === "agreed" && !assisting && (draft.suggestedOffer ?? theirPrice ?? 0) > approvalThreshold) {
     return park("budget_exception", `wants to accept ${settings.currency} ${draft.suggestedOffer ?? theirPrice}, above the ${settings.currency} ${approvalThreshold} it may approve alone`);
   }

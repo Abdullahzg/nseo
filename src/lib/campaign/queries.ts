@@ -194,7 +194,7 @@ export async function countUnansweredReplies(campaignId: string): Promise<number
   const threads = await listCampaignThreads(campaignId);
   let n = 0;
   for (const t of threads) {
-    if (!t.replied_at || ["agreed", "declined", "needs_human", "stalled"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
+    if (!t.replied_at || ["agreed", "declined", "needs_human", "stalled", "handoff", "withdrawn"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
     const { data } = await supabaseAdmin.from("outreach_emails").select("sent_at").eq("parent_id", t.id).eq("kind", "negotiation").eq("status", "sent").order("sent_at", { ascending: false }).limit(1);
     const last = (data as any[])?.[0]?.sent_at as string | undefined;
     if (!last || last < t.replied_at) n++;

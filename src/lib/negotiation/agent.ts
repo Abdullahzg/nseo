@@ -45,7 +45,7 @@ export interface ReplyClassification {
   interventionAsk?: string;
   assistable?: boolean;
   /** How the final label was reached — the model's answer, or a code rule that overrode it. */
-  decided_by: "model" | "policy:strong_cue" | "policy:price_demotion";
+  decided_by: "model" | "policy:strong_cue" | "policy:price_demotion" | "policy:price_contradiction";
   llm: LLMMeta;
 }
 
@@ -116,6 +116,13 @@ Reply:
       assistable: cue ? cue.assistable : j.assistable !== false,
     };
   }
+  if (j.intent === "hard_no" && (cue || j.priceMentioned != null)) {
+    // Policy: nobody declines by quoting a rate or attaching an agreement. A "no" that names a price
+    // is a counter; one that trips a capability cue is parked for the owner. Never suppress a domain
+    // on a contradictory read.
+    if (cue) return { ...base, intent: "needs_human", decided_by: "policy:strong_cue", interventionType: cue.type, interventionAsk: cue.ask, assistable: cue.assistable, reason: `hard_no contradicted by cue: ${cue.type}` };
+    return { ...base, intent: "counter_offer", decided_by: "policy:price_contradiction", reason: "hard_no contradicted by a named price" };
+  }
   if (cue && ["interested", "question", "counter_offer", "accept"].includes(j.intent)) {
     // Policy: an unambiguous "AI literally cannot do this" cue always parks the thread.
     return { ...base, intent: "needs_human", decided_by: "policy:strong_cue", interventionType: cue.type, interventionAsk: cue.ask, assistable: cue.assistable, reason: `strong cue: ${cue.type}` };
@@ -132,11 +139,43 @@ export function strongCue(t: string): { type: InterventionType; ask: string; ass
     [/\b(invoice|purchase order|\bpo\b|\bw-?9\b|tax (form|id)|bank (details|account)|iban|swift|billing (details|info))\b/i, "payment_details", "wants invoice / PO / bank / tax details", true],
     [/\b(submit (via|through|using|our)|fill (out|in) (this|the) form|vendor portal|create an account|submission (system|portal))\b/i, "process_portal", "wants submission via a form/portal", false],
     [/\b(attach(ed|ing)|see the (attached|doc)|find (attached|enclosed)|pfa)\b/i, "inbound_attachment", "sent a file for us to review", false],
-    [/\b(do-?follow|nofollow|permanent link|monthly traffic|how (much|many) (traffic|visitors|readers)|\bdau\b|\bmau\b|domain (rating|authority))\b/i, "factual_question", "asks a fact about your site the agent must not invent", true],
+    [/\b(how (much|many) (traffic|visitors|readers)|what('s| is) your (traffic|dr|domain (rating|authority))|monthly traffic\??|\bdau\b|\bmau\b)\b/i, "factual_question", "asks a fact about your site the agent must not invent", true],
     [/\b(retainer|long[- ]?term (deal|contract)|per month|monthly fee|exclusiv(e|ity))\b/i, "over_policy", "wants terms beyond a one-off placement", true],
   ];
   for (const [re, type, ask, assistable] of R) if (re.test(t)) return { type, ask, assistable };
+  // Link type and traffic are escalated only when they are ASKED about — an editor stating "includes
+  // a do-follow link" is a price term, not a question for the owner.
+  if (askedAboutOurFacts(t)) return { type: "factual_question", ask: "asks a fact about your site the agent must not invent", assistable: true };
   return null;
+}
+
+const FACT_WORDS = /\b(do-?follow|nofollow|traffic|visitors|readers|domain (rating|authority)|\bdr\b|audience size|how (established|big))\b/i;
+/** True when a sentence that mentions our stats is a question ("are you expecting a do-follow link?"). */
+export function askedAboutOurFacts(t: string): boolean {
+  for (const sentence of t.split(/(?<=[.?!])\s+|\n+/)) {
+    if (!FACT_WORDS.test(sentence)) continue;
+    if (/\?\s*$/.test(sentence.trim()) || /^(what|how|which|do you|does your|are you|is your|can you|could you)\b/i.test(sentence.trim())) return true;
+  }
+  return false;
+}
+
+/** Greeting on its own line, body, sign-off on its own lines — whatever shape the model wrote. */
+export function shapeEmail(raw: string, first: string): string {
+  let body = raw.trim().replace(/^\s*(hi|hello|hey|dear)\b[^,\n]*[,!]?\s*/i, "");
+  body = body.charAt(0).toUpperCase() + body.slice(1);
+  body = body.replace(/\s*\b(best regards|kind regards|best|regards|thanks|cheers),?\s+([A-Za-z][\w.-]*)\s*$/i, "\n\nBest,\n$2");
+  return `Hi ${first},\n\n${body}`.replace(/\n{3,}/g, "\n\n");
+}
+
+/** A first name to greet with, or "there" when all we have is a site name or a byline that is not a person. */
+export function greetingName(name: string | null | undefined, publicationHost?: string | null): string {
+  const first = (name || "").trim().split(/\s+/)[0] || "";
+  if (!first || first.length < 2 || /[.@\d]/.test(first) || /^(editorial|editor|team|staff|the|news|blog|media|press|admin|info|hello|hi)$/i.test(first)) return "there";
+  if (/[a-z][A-Z]/.test(first)) return "there"; // CamelCase brand ("RestorePhotosApp"), not a person
+  const label = (publicationHost || "").replace(/^www\./, "").split(".")[0].replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const whole = (name || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+  if (label && (first.replace(/[^a-z0-9]/gi, "").toLowerCase() === label || whole === label)) return "there"; // the site's own name as a byline
+  return first;
 }
 
 export interface ThreadMessage { from: "us" | "them"; body: string }
@@ -174,7 +213,7 @@ const FABRICATION_RE = /\b(attach(ed|ing|ment)?|enclosed|i(?:'ve| have|'ll| will
 
 export async function draftNegotiationReply(input: DraftInput): Promise<DraftResult> {
   const { settings, thread, authorName, publication, ceiling, floor, lastIntent } = input;
-  const first = (authorName || "there").trim().split(/\s+/)[0] || "there";
+  const first = greetingName(authorName, publication);
   const signer = input.senderName || "the team";
   const product = input.productName || "our product";
   const usCount = thread.filter((m) => m.from === "us").length;
@@ -185,15 +224,18 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
   if (lastIntent === "hard_no" || lastIntent === "unsubscribe") {
     return { body: sanitizeBody(`Hi ${first},\n\nTotally understand, thanks for letting me know and no worries at all. I will not follow up. Wishing you well.\n\nBest,\n${signer}`), suggestedOffer: null, shouldStop: true, statusHint: "declined", engine: "policy", llm: null };
   }
-  // Policy closing 2: they accepted a price inside our bounds. Confirm at THEIR number.
-  if (lastIntent === "accept" && theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling)) {
-    return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${theirPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`), suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
+  // Policy closing 2: a price inside our bounds — whether they accepted ours or named their own at or
+  // under auto_accept_below. Confirm at THEIR number; haggling under the line risks a deal for pennies.
+  const autoAccept = Math.min(settings.auto_accept_below ?? Infinity, ceiling ?? Infinity);
+  const inBounds = theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling);
+  if (theirPrice != null && inBounds && (lastIntent === "accept" || ((lastIntent === "counter_offer" || lastIntent === "interested" || lastIntent === "question") && theirPrice <= autoAccept))) {
+    return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${theirPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. ${first === "there" ? "Thanks, glad to be included." : `Thanks ${first}, glad to be included.`}\n\nBest,\n${signer}`), suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
   }
   if (lastIntent === "accept" && theirPrice == null) {
     let lastKnownPrice: number | null = null;
     for (let i = thread.length - 1; i >= 0; i--) { const m = thread[i].body.match(/\$\s?(\d[\d,]{1,6})/); if (m) { lastKnownPrice = Number(m[1].replace(/,/g, "")); break; } }
     if (lastKnownPrice != null && lastKnownPrice >= floor && (ceiling == null || lastKnownPrice <= ceiling)) {
-      return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${lastKnownPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`), suggestedOffer: lastKnownPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
+      return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${lastKnownPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. ${first === "there" ? "Thanks, glad to be included." : `Thanks ${first}, glad to be included.`}\n\nBest,\n${signer}`), suggestedOffer: lastKnownPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
     }
     return { body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works! Just to confirm, could you let me know your rate for this placement so I can get things moving on our end?\n\nBest,\n${signer}`), suggestedOffer: null, shouldStop: false, statusHint: "negotiating", engine: "policy", llm: null };
   }
@@ -216,11 +258,20 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
   const useUltra = theirPrice != null && (input.ultraCallsUsed ?? 0) < NEGOTIATION_ULTRA_CAP;
   const model = useUltra ? MODELS.negotiation : MODELS.negotiation_fallback;
 
-  const r = await nebiusText({
+  const overCeiling = (text: string): number[] => {
+    if (ceiling == null) return [];
+    const out: number[] = [];
+    for (const m of text.matchAll(/(?:\$|usd\s?)\s?(\d[\d,]{0,6})/gi)) { const n = Number(m[1].replace(/,/g, "")); if (n > ceiling && n !== theirPrice) out.push(n); }
+    return out;
+  };
+  let extraRule = "";
+  let r: Awaited<ReturnType<typeof nebiusText>> | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+  r = await nebiusText({
     role: "negotiation", model, thinking: true, max_tokens: 3000, temperature: 0.4, timeout_ms: 60_000,
     messages: [
       { role: "system", content: `You are negotiating on behalf of ${product} via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).` },
-      { role: "user", content: `NEGOTIATION BRIEF (obey): ${settings.handbook}
+      { role: "user", content: `NEGOTIATION BRIEF (obey): ${settings.handbook}${extraRule}
 TONE: ${settings.tone}
 PRICING: ${priceGuidance}
 ${assistBlock}
@@ -237,6 +288,13 @@ ${convo}
 After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none status=negotiating|agreed|declined|stalled>>` },
     ],
   });
+    const bad = overCeiling(r.text.replace(/<<META[\s\S]*$/i, ""));
+    if (bad.length === 0) break;
+    // The model wrote a number above the ceiling. One retry with the violation spelled out; then a human.
+    extraRule = `\nYOUR PREVIOUS DRAFT MENTIONED ${settings.currency} ${bad[0]}, WHICH IS ABOVE THE ${settings.currency} ${ceiling} CEILING. Do not write any amount above ${settings.currency} ${ceiling}.`;
+    if (attempt === 1) return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: `the draft kept naming ${settings.currency} ${bad[0]}, above the ${settings.currency} ${ceiling} ceiling`, engine: "model", llm: r.meta };
+  }
+  if (!r) throw new Error("no draft");
   let body = r.text;
   let suggestedOffer: number | null = null;
   let statusHint: DraftResult["statusHint"] = "negotiating";
@@ -252,6 +310,9 @@ After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none
   // The model may only declare "agreed" at a price inside bounds that the editor actually named.
   if (statusHint === "agreed" && !(theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling))) statusHint = "negotiating";
   body = sanitizeBody(body);
+  // Code owns the greeting and the shape: the model sometimes greets the publication ("Hi LetsEnhance,")
+  // or writes one long line. Greeting on its own line, body, sign-off on its own lines.
+  body = shapeEmail(body, first);
   if (!assist && FABRICATION_RE.test(body)) {
     return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: "reply would require an asset/call/link the AI cannot provide", engine: "model", llm: r.meta };
   }

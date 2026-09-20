@@ -56,7 +56,7 @@ export interface Prospect {
   opportunity_score: number | null;
   score_basis: ScoreBasis | null;
   score_breakdown: ScoreBreakdown | null;
-  qualification: { checks: { label: string; state: "pass" | "fail" | "unverified" }[]; title?: string; why_fit?: string; placement_angle?: string; is_editorial?: boolean; article_author?: string | null } | null;
+  qualification: { checks: { label: string; state: "pass" | "fail" | "unverified" }[]; title?: string; why_fit?: string; placement_angle?: string; is_editorial?: boolean; page_type?: string; article_author?: string | null } | null;
   ceiling: number | null;
   contact_email: string | null;
   contact_name: string | null;
