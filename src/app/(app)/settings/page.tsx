@@ -53,7 +53,7 @@ export default function SettingsPage() {
       <p className="text-ink-2 mt-2">Geseo runs on your own accounts: your Nebius key pays for the models, your Gmail sends the email, your Tavily key finds publications. Nothing here is shared with other users.</p>
 
       <div className="card p-5 mt-6 space-y-4">
-        <div className="flex items-center justify-between"><div className="label">Nebius Token Factory</div><span className={`chip ${nebiusReady ? "chip-accent" : ""}`}>{cfg.hasNebiusKey ? `your key ${cfg.nebiusKeyHint ?? ""}` : cfg.platform_nebius ? "platform key" : "missing"}</span></div>
+        <div className="flex items-center justify-between"><div className="label">Nebius Token Factory</div><span className={`chip shrink-0 whitespace-nowrap ${nebiusReady ? "chip-accent" : ""}`}>{cfg.hasNebiusKey ? `your key ${cfg.nebiusKeyHint ?? ""}` : cfg.platform_nebius ? "platform key" : "missing"}</span></div>
         <label className="block"><span className="label">API key</span>
           <input className="field mt-1.5" type="password" value={nebius} onChange={(e) => setNebius(e.target.value)} placeholder={cfg.hasNebiusKey ? "•••••••• (leave blank to keep)" : "v1.…"} autoComplete="off" />
           <span className="text-xs text-ink-3">tokenfactory.nebius.com → API keys. Every model decision in your campaigns is billed to this key.</span>
@@ -62,7 +62,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 mt-4 space-y-4">
-        <div className="flex items-center justify-between"><div className="label">Gmail (real campaigns send from here)</div><span className={`chip ${cfg.hasPassword ? "chip-accent" : ""}`}>{cfg.hasPassword ? "saved" : "missing"}</span></div>
+        <div className="flex items-center justify-between"><div className="label">Gmail (real campaigns send from here)</div><span className={`chip shrink-0 whitespace-nowrap ${cfg.hasPassword ? "chip-accent" : ""}`}>{cfg.hasPassword ? "saved" : "missing"}</span></div>
         <div><div className="label">Sending from</div><div className="mono mt-1">{cfg.user_email}</div></div>
         <label className="block"><span className="label">Your name (signs the emails)</span><input className="field mt-1.5" value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Jane Doe" /></label>
         <label className="block"><span className="label">Gmail app password</span>
@@ -73,7 +73,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 mt-4 space-y-4">
-        <div className="flex items-center justify-between"><div className="label">Tavily (web search, real mode)</div><span className={`chip ${tavilyReady ? "chip-accent" : ""}`}>{cfg.hasTavilyKey ? `your key ${cfg.tavilyKeyHint ?? ""}` : cfg.platform_tavily ? "platform key" : "optional"}</span></div>
+        <div className="flex items-center justify-between"><div className="label">Tavily (web search, real mode)</div><span className={`chip shrink-0 whitespace-nowrap ${tavilyReady ? "chip-accent" : ""}`}>{cfg.hasTavilyKey ? `your key ${cfg.tavilyKeyHint ?? ""}` : cfg.platform_tavily ? "platform key" : "optional"}</span></div>
         <label className="block"><span className="label">API key</span>
           <input className="field mt-1.5" type="password" value={tavily} onChange={(e) => setTavily(e.target.value)} placeholder={cfg.hasTavilyKey ? "•••••••• (leave blank to keep)" : "tvly-…"} autoComplete="off" />
           <span className="text-xs text-ink-3">app.tavily.com → API keys (1,000 free searches a month). Without it, real campaigns can still run on publications you list at Setup.</span>

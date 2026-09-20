@@ -279,7 +279,7 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
     if (result?.ok && result.email && (result.source === "provided" || (!isRoleEmail(result.email) && !isPlaceholderEmail(result.email)))) {
       await upsertContact({ author_id: authorId, type: "mailto", value: `mailto:${result.email}`, confidence: Math.min(1, (result.confidence ?? 60) / 100), source: result.source ?? "campaign" } as any).catch(() => {});
       await updateProspect(prospectId, { status: "ready", contact_email: result.email, contact_name: result.name ?? null, contact_source: result.source, contact_confidence: result.confidence ?? null });
-      await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_resolved", engine: camp.demo_mode ? "fixture" : "system", prospect_id: prospectId, human: `Found ${result.name ? `${result.name} ` : "an editor "}at ${p.domain_host}${camp.demo_mode ? " (simulated)" : ` via ${result.source}`}`, detail: { source: result.source, confidence: result.confidence, steps } });
+      await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_resolved", engine: camp.demo_mode ? "fixture" : "system", prospect_id: prospectId, human: `Found ${result.name ? `${result.name} ` : "an editor "}at ${p.domain_host}${camp.demo_mode ? " (simulated)" : result.source === "provided" ? " — the address you gave at setup" : ` via ${result.source}`}`, detail: { source: result.source, confidence: result.confidence, steps } });
       return result;
     }
     await updateProspect(prospectId, { status: "qualified", contact_attempts: (p.contact_attempts ?? 0) + 1 });

@@ -10,7 +10,7 @@ import { modelLabel } from "@/lib/ai/models";
 import { getCampaign, updateCampaign, setPhase, countProspectsByStatus, getDeals, listInterventions, listProspects, countUnansweredReplies, recordEvent } from "./queries";
 import { availableActions, nextPhase, nextTickDelayMs, type ActionKey, type PolicyInput, type AvailableAction } from "./policy";
 import { planDiscoveryQueries, discoverBatch, qualifyBatch, contactBatch } from "./tools";
-import { outreachBatch, processReplies, scheduleFollowups, checkCompletion } from "./outreach";
+import { outreachBatch, processReplies, scheduleFollowups, listDueFollowups, checkCompletion } from "./outreach";
 import { countDueDemoReplies } from "./demo";
 import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
@@ -44,12 +44,14 @@ async function policyInput(camp: Campaign): Promise<PolicyInput> {
     listProspects(camp.id, "qualified", 200),
   ]);
   const dueDemoReplies = camp.demo_mode ? await countDueDemoReplies(camp.id) : 0;
+  const dueFollowups = camp.demo_mode ? 0 : (await listDueFollowups(camp, 50)).length;
   return {
     camp, counts, deals: deals.filter((d) => d.status !== "cancelled").length, openInterventions: open.length, unansweredReplies,
     sendableReady: ready.filter((p) => !!p.contact_email).length,
     actionableQualified: qualified.filter((p) => (p.contact_attempts ?? 0) < 3).length,
     dueDemoReplies,
     canSearch: camp.demo_mode ? true : camp.search_web !== false && !!searchProvider(),
+    dueFollowups,
   };
 }
 
@@ -59,7 +61,7 @@ const TOOL_DESCRIPTIONS: Record<ActionKey, string> = {
   resolve_contacts: "Find a real editor's email at qualified publications.",
   send_outreach: "Draft and send personalised outreach emails to editors with a known address.",
   handle_replies: "Read new editor replies, classify them, and negotiate within the price ceiling. Parks anything needing a human.",
-  schedule_followups: "Check the inbox and schedule polite follow-ups for unanswered emails.",
+  schedule_followups: "Schedule polite follow-ups for unanswered emails that are old enough.",
 };
 
 /**
@@ -130,11 +132,11 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
         try { why = JSON.parse(call?.function?.arguments ?? "{}").why ?? ""; } catch { /* ignore */ }
         if (pick) { chosen = pick; decidedBy = "model"; }
         summary = why || r.content.slice(0, 200);
-        await recordEvent({ campaign_id: campaignId, agent: "manager", action: "decided", engine: pick ? "model" : "policy", llm: r.meta, human: pick ? `${modelLabel(r.meta.model)} chose: ${actionLine(chosen)}${why ? ` — ${why}` : ""}` : `Policy chose: ${actionLine(chosen)} (model gave no tool call)`, detail: { available: actions.map((a) => a.key), chosen: chosen.key, why, via: opts.via } });
+        await recordEvent({ campaign_id: campaignId, agent: "manager", action: "decided", engine: pick ? "model" : "policy", llm: r.meta, human: pick ? `${modelLabel(r.meta.model)} chose: ${actionLine(chosen, input)}${why ? ` — ${why}` : ""}` : `Policy chose: ${actionLine(chosen, input)} (model gave no tool call)`, detail: { available: actions.map((a) => a.key), chosen: chosen.key, why, via: opts.via } });
       } catch (e: any) {
         if (e instanceof NebiusError && (e.kind === "auth" || e.kind === "not_configured" || e.kind === "budget")) throw e;
         // Transient model failure on the DECISION only: policy picks; the work itself still needs the model and will surface its own errors.
-        await recordEvent({ campaign_id: campaignId, agent: "manager", action: "decision_error", engine: "system", level: "warn", human: `Manager model call failed (${e?.message ?? e}); policy chose ${actionLine(actions[0])}`, detail: { kind: e instanceof NebiusError ? e.kind : "unknown" } });
+        await recordEvent({ campaign_id: campaignId, agent: "manager", action: "decision_error", engine: "system", level: "warn", human: `Manager model call failed (${e?.message ?? e}); policy chose ${actionLine(actions[0], input)}`, detail: { kind: e instanceof NebiusError ? e.kind : "unknown" } });
       }
     }
 
@@ -177,14 +179,14 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
   }
 }
 
-function actionLine(a: AvailableAction): string {
+function actionLine(a: AvailableAction, i: PolicyInput): string {
   switch (a.key) {
-    case "run_discovery": return "search for more publications";
+    case "run_discovery": return i.camp.demo_mode ? "load the demo publications" : i.canSearch === false ? "load the publications you listed" : "search for more publications";
     case "qualify": return `evaluate ${a.size} publication${a.size === 1 ? "" : "s"}`;
     case "resolve_contacts": return `find editors at ${a.size} publication${a.size === 1 ? "" : "s"}`;
     case "send_outreach": return `email ${a.size} editor${a.size === 1 ? "" : "s"}`;
     case "handle_replies": return "read and answer editor replies";
-    case "schedule_followups": return "check the inbox and schedule follow-ups";
+    case "schedule_followups": return "schedule follow-ups for unanswered emails";
   }
 }
 

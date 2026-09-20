@@ -131,17 +131,29 @@ export async function outreachBatch(camp: Campaign, limit: number): Promise<{ se
 
 // ─── Follow-ups (real mode only; demo replies arrive on the next tick) ───────
 
-export async function scheduleFollowups(camp: Campaign, limit = 10): Promise<{ scheduled: number }> {
-  if (camp.demo_mode) return { scheduled: 0 };
-  const since = new Date(Date.now() - 3 * 86400_000).toISOString();
+export const FOLLOWUP_AFTER_MS = Number(process.env.FOLLOWUP_AFTER_DAYS ?? 3) * 86400_000;
+
+/** Initials sent long enough ago, unanswered, with no follow-up yet. Zero ⇒ the policy offers nothing, so an idle real campaign costs no model call. */
+export async function listDueFollowups(camp: Campaign, limit = 10): Promise<any[]> {
+  if (camp.demo_mode) return [];
+  const since = new Date(Date.now() - FOLLOWUP_AFTER_MS).toISOString();
   const { data } = await supabaseAdmin.from("outreach_emails").select("id, workflow_id, author_id, prospect_id, subject, to_email, sender_email, sent_by_email").eq("campaign_id", camp.id).eq("kind", "initial").eq("status", "sent").is("replied_at", null).eq("followup_skipped", false).lte("sent_at", since).limit(limit);
-  let scheduled = 0;
+  const due: any[] = [];
   for (const a of (data ?? []) as any[]) {
     const { data: kid } = await supabaseAdmin.from("outreach_emails").select("id").eq("parent_id", a.id).eq("kind", "followup").limit(1).maybeSingle();
-    if (kid) continue;
+    if (!kid) due.push(a);
+  }
+  return due;
+}
+
+export async function scheduleFollowups(camp: Campaign, limit = 10): Promise<{ scheduled: number }> {
+  if (camp.demo_mode) return { scheduled: 0 };
+  const data = await listDueFollowups(camp, limit);
+  let scheduled = 0;
+  for (const a of data) {
     await createFollowupRow({ workflow_id: a.workflow_id, author_id: a.author_id, parent_id: a.id, campaign_id: camp.id, to_email: a.to_email, subject: /^re:/i.test(a.subject ?? "") ? a.subject : `Re: ${a.subject}`, body: sanitizeBody(`Hi,\n\nJust circling back on my note below in case it got buried. Happy to answer any questions, and if it's not a fit, no worries at all.\n\nBest`), sender_email: a.sender_email, sent_by_email: a.sent_by_email, status: "scheduled", scheduled_at: new Date().toISOString() });
     scheduled++;
-    await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "followup_scheduled", engine: "policy", thread_id: a.id, prospect_id: a.prospect_id, human: `Scheduled a follow-up to ${a.to_email?.split("@")[1] ?? "the editor"} (no reply after 3 days)` });
+    await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "followup_scheduled", engine: "policy", thread_id: a.id, prospect_id: a.prospect_id, human: `Scheduled a follow-up to ${a.to_email?.split("@")[1] ?? "the editor"} (no reply after ${Math.round(FOLLOWUP_AFTER_MS / 86400_000)} days)` });
   }
   return { scheduled };
 }

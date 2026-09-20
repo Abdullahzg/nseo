@@ -23,8 +23,11 @@ describe("availableActions", () => {
     const a = availableActions(input({ counts: { discovered: 9 }, actionableQualified: 2 }, { phase: "qualifying" }));
     expect(a.map((x) => [x.key, x.size])).toEqual([["qualify", 4], ["resolve_contacts", 2]]);
   });
-  it("monitoring in real mode with nothing unanswered and nothing outreached offers nothing", () => {
+  it("monitoring in real mode offers nothing while emails are simply waiting for replies (no idle model calls)", () => {
     expect(availableActions(input({}, { phase: "monitoring", demo_mode: false }))).toEqual([]);
+    expect(availableActions(input({ counts: { outreached: 3 } }, { phase: "monitoring", demo_mode: false }))).toEqual([]);
+    expect(availableActions(input({ counts: { outreached: 3 }, dueFollowups: 2 }, { phase: "monitoring", demo_mode: false })).map((a) => a.key)).toEqual(["schedule_followups"]);
+    expect(availableActions(input({ counts: { outreached: 3 }, unansweredReplies: 1 }, { phase: "monitoring", demo_mode: false })).map((a) => a.key)).toEqual(["handle_replies"]);
   });
   it("monitoring in demo mode offers handle_replies only when a scripted reply is due (no idle model calls)", () => {
     expect(availableActions(input({}, { phase: "monitoring" }))).toEqual([]);

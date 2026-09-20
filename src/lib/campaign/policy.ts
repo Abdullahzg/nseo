@@ -14,6 +14,7 @@ export interface PolicyInput {
   actionableQualified: number;          // qualified prospects with < 3 contact attempts
   dueDemoReplies?: number;              // demo only: scripted editor replies waiting to arrive
   canSearch?: boolean;                  // real only: a search provider exists and the owner allowed searching (default true)
+  dueFollowups?: number;                // real only: unanswered initials old enough for a polite nudge
 }
 
 /** Demo fixtures and seed-only campaigns load their whole pool in one go; searching campaigns fill to a target. */
@@ -57,7 +58,7 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
     case "monitoring":
       if (i.unansweredReplies > 0) out.push({ key: "handle_replies", description: `Read and answer ${i.unansweredReplies} editor replies (negotiate within policy).`, size: Math.min(3, i.unansweredReplies) });
       if (camp.demo_mode && (i.dueDemoReplies ?? 0) > 0) out.push({ key: "handle_replies", description: `Check the inbox: ${i.dueDemoReplies} editor ${i.dueDemoReplies === 1 ? "reply is" : "replies are"} waiting.`, size: 3 });
-      else if (c("outreached") > 0) out.push({ key: "schedule_followups", description: `Check the inbox and schedule follow-ups for ${c("outreached")} unanswered emails.`, size: 5 });
+      else if ((i.dueFollowups ?? 0) > 0) out.push({ key: "schedule_followups", description: `Schedule polite follow-ups for ${i.dueFollowups} unanswered emails older than the follow-up delay.`, size: 5 });
       if (i.sendableReady > 0) out.push({ key: "send_outreach", description: `Write and send outreach to ${i.sendableReady} more editors.`, size: Math.min(4, i.sendableReady) });
       break;
   }
