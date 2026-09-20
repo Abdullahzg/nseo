@@ -7,6 +7,7 @@ import { ago, INTERVENTION_LABEL } from "@/lib/ui/format";
 export interface Intervention {
   id: string; campaign_id: string; type: string; editor_quote: string | null; agent_plan: string | null; agent_needs: string | null; assistable: boolean; status: string; created_at: string;
   campaign: { id: string; name: string; demo_mode: boolean };
+  prospect?: { contact_name: string | null; domain_host: string } | null;
 }
 
 export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id: string) => void }) {
@@ -14,6 +15,7 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
   const [busy, setBusy] = useState<"answer" | "dismiss" | "take_over" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
 
   async function send(kind: "answer" | "dismiss" | "take_over") {
     setBusy(kind); setError(null);
@@ -39,7 +41,7 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
         <span className="ml-auto mono">{ago(iv.created_at)}</span>
       </div>
       {iv.editor_quote && (
-        <blockquote className="mt-4 border-l-2 border-rule pl-4 serif text-[17px] leading-relaxed">“{iv.editor_quote}”<div className="text-xs text-ink-3 mt-1 font-sans">— the editor</div></blockquote>
+        <blockquote className="mt-4 border-l-2 border-rule pl-4 serif text-[17px] leading-relaxed">“{iv.editor_quote}”<div className="text-xs text-ink-3 mt-1 font-sans">— {iv.prospect?.contact_name ?? "the editor"}{iv.prospect?.domain_host ? `, ${iv.prospect.domain_host}` : ""}</div></blockquote>
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
         <div><div className="label mb-1">What the agent wants to do</div><p>{iv.agent_plan}</p></div>
@@ -54,7 +56,11 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="btn" disabled={!!busy || answer.trim().length < 2} onClick={() => send("answer")}>{busy === "answer" ? "Resuming…" : "Answer & resume"}</button>
             <button className="btn btn-ghost" disabled={!!busy} onClick={() => send("take_over")} title="The agent leaves this thread to you">{busy === "take_over" ? "…" : "Take over thread"}</button>
-            <button className="btn btn-ghost" disabled={!!busy} onClick={() => send("dismiss")}>{busy === "dismiss" ? "…" : "Dismiss"}</button>
+            {!confirmDismiss ? (
+              <button className="btn btn-ghost" disabled={!!busy} onClick={() => setConfirmDismiss(true)}>Dismiss</button>
+            ) : (
+              <span className="inline-flex items-center gap-2 text-sm"><span className="text-ink-2">Close this thread? The editor won't hear back.</span><button className="btn btn-sm" disabled={!!busy} onClick={() => send("dismiss")}>{busy === "dismiss" ? "…" : "Yes, close it"}</button><button className="btn btn-ghost btn-sm" onClick={() => setConfirmDismiss(false)}>Keep</button></span>
+            )}
           </div>
         </div>
       )}

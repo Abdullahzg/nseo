@@ -155,9 +155,26 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
   const quote = r.editorQuote ? `“${r.editorQuote.slice(0, 90)}${r.editorQuote.length > 90 ? "…" : ""}”` : "";
 
   if (r.persistedAs === "needs_human") {
-    const plan = r.interventionType === "budget_exception" ? `wants to accept ${price} but that is above what it may approve alone` : r.interventionType === "thread_limit" ? "wants to stop and hand this thread to you" : `cannot ${r.interventionAsk ?? "do what they asked"} by email`;
-    const needs = r.interventionType === "budget_exception" ? `Approve ${price}, or give a counter figure.` : r.interventionType === "sync_contact" || r.interventionType === "scheduling" ? "Your availability, or a line to send instead." : r.interventionType === "factual_question" ? "The true answer, in one line." : r.interventionType === "payment_details" ? "Invoice/PO details, or how to proceed." : "What should the agent say?";
-    await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: `The agent ${plan}.`, agent_needs: needs, assistable: r.classification?.assistable !== false });
+    const t = r.interventionType ?? "other";
+    const PLAN: Record<string, [string, string]> = {
+      sync_contact: [`${who} wants a call. The agent can't take one; it can tell them email works or pass on your availability.`, "Your availability, or a line to send instead (e.g. \"email is easier for us\")."],
+      scheduling: [`${who} wants to schedule something. The agent has no calendar.`, "Your availability, or a line to send instead."],
+      factual_question: [`${who} asked something only you know. The agent won't invent an answer.`, "The true answer, in a line."],
+      budget_exception: [`The agent wants to accept ${price ?? "their price"}, but that is above what it may approve alone.`, `Approve ${price ?? "it"}, or give a counter figure.`],
+      asset_request: [`${who} wants a file the agent cannot attach.`, "A link to it, or what to say instead."],
+      identity_verification: [`${who} wants proof of who you are.`, "A link (site, LinkedIn) the agent may share."],
+      redirect: [`${who} pointed to a different contact.`, "Confirm the new contact, or let it go."],
+      process_portal: [`${who} wants a submission via a form or portal — outside email.`, "Do it yourself, or tell the agent to pass."],
+      legal_contract: [`${who} wants a contract or NDA handled.`, "How to proceed."],
+      payment_details: [`${who} wants invoice / PO / bank details.`, "The details to send, or how to proceed."],
+      over_policy: [`${who} wants terms beyond a one-off placement (retainer, exclusivity).`, "Yes with limits, or no."],
+      other_channel: [`${who} wants to move to WhatsApp / phone.`, "A line to send, or take over."],
+      inbound_attachment: [`${who} sent a file the agent cannot read.`, "What it says, in a line."],
+      thread_limit: ["The thread has gone several rounds without closing; the agent stopped rather than nag.", "A final line to send, or take over."],
+      other: ["The agent hit something it should not decide alone.", "What should it say?"],
+    };
+    const [plan, needs] = PLAN[t] ?? PLAN.other;
+    await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: plan, agent_needs: needs, assistable: r.classification?.assistable !== false });
     if (prospect) await updateProspect(prospect.id, { status: "escalated" });
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "intervention_created", engine: r.classification?.decided_by === "model" ? "model" : "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Needs you: ${who} at ${host} ${quote} — ${r.interventionReason ?? "a person is needed"}`, detail: { type: r.interventionType, ask: r.interventionAsk, intent: r.intent, decided_by: r.classification?.decided_by } });
     return r;

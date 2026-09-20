@@ -32,7 +32,7 @@ function Row({ e }: { e: FeedEvent }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
           <span>{AGENT_LABEL[e.agent] ?? e.agent}</span>
           <EngineChip e={e} />
-          {e.engine === "model" && e.tokens_in != null && <span className="mono">{(e.tokens_in ?? 0) + (e.tokens_out ?? 0)} tok · {((e.latency_ms ?? 0) / 1000).toFixed(1)} s{e.cost_usd != null ? ` · $${e.cost_usd.toFixed(4)}` : ""}</span>}
+          {e.engine === "model" && e.tokens_in != null && <span className="mono">{(e.tokens_in ?? 0) + (e.tokens_out ?? 0)} tok · {((e.latency_ms ?? 0) / 1000).toFixed(1)} s{cost(e.cost_usd)}</span>}
           {expandable && <span className="ml-auto">{open ? "hide" : e.engine === "model" ? "why?" : "details"}</span>}
         </div>
       </button>
@@ -59,12 +59,46 @@ function Row({ e }: { e: FeedEvent }) {
   );
 }
 
+/** Runs of repetitive data rows (12 "Found …" fixtures, 8 "Found an editor …") collapse into one
+ *  line so the model's decisions stay visible. Any row can be opened to see the members. */
+const GROUPABLE = new Set(["prospect_found", "contact_resolved"]);
+type Item = { kind: "row"; e: FeedEvent } | { kind: "group"; key: string; action: string; agent: string; members: FeedEvent[] };
+function groupRuns(events: FeedEvent[]): Item[] {
+  const out: Item[] = [];
+  for (const e of events) {
+    const last = out[out.length - 1];
+    if (GROUPABLE.has(e.action) && last && last.kind === "group" && last.action === e.action) { last.members.push(e); continue; }
+    if (GROUPABLE.has(e.action) && last && last.kind === "row" && last.e.action === e.action) { out[out.length - 1] = { kind: "group", key: `g${e.id}`, action: e.action, agent: e.agent, members: [last.e, e] }; continue; }
+    out.push({ kind: "row", e });
+  }
+  return out;
+}
+
+function GroupRow({ g }: { g: Extract<Item, { kind: "group" }> }) {
+  const [open, setOpen] = useState(false);
+  const n = g.members.length;
+  const line = g.action === "prospect_found" ? `Found ${n} publications` : `Found editors at ${n} publications`;
+  const sub = g.members.slice(0, 3).map((m) => m.human.replace(/^Found (an editor |)?/, "").split(" — ")[0].replace(/ at /, " · ")).join(", ");
+  return (
+    <li className="border-l-2 border-l-rule pl-4 py-3">
+      <button type="button" className="w-full text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <div className="flex items-start gap-3"><p className="flex-1 leading-snug">{line} <span className="text-ink-3">— {sub}{n > 3 ? "…" : ""}</span></p><span className="shrink-0 text-xs text-ink-3 mono pt-0.5">{ago(g.members[0].created_at)}</span></div>
+        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-3"><span>{AGENT_LABEL[g.agent] ?? g.agent}</span><EngineChip e={g.members[0]} /><span className="ml-auto">{open ? "hide" : `show ${n}`}</span></div>
+      </button>
+      {open && <ul className="mt-2 pl-3 border-l border-rule space-y-1.5 text-sm text-ink-2">{g.members.map((m) => <li key={m.id}>{m.human}</li>)}</ul>}
+    </li>
+  );
+}
+
+const cost = (c: number | null) => (c == null ? "" : c < 0.0001 ? " · <$0.0001" : ` · $${c.toFixed(4)}`);
+
 export function ActivityFeed({ events, loading, onMore, hasMore }: { events: FeedEvent[]; loading: boolean; onMore: () => void; hasMore: boolean }) {
   if (loading && events.length === 0) return <div className="space-y-3" aria-busy="true"><div className="skeleton h-12" /><div className="skeleton h-12" /><div className="skeleton h-12" /></div>;
   if (events.length === 0) return <div className="card p-6 text-sm text-ink-2">Nothing has happened yet. Press <b>Run next step</b> (demo) or wait for the scheduler.</div>;
+  const items = groupRuns(events);
   return (
     <div>
-      <ul className="divide-y divide-rule">{events.map((e) => <Row key={e.id} e={e} />)}</ul>
+      <ul className="divide-y divide-rule">{items.map((it) => (it.kind === "row" ? <Row key={it.e.id} e={it.e} /> : <GroupRow key={it.key} g={it} />))}</ul>
       {hasMore && <button className="btn btn-ghost btn-sm mt-4" onClick={onMore}>Earlier activity</button>}
     </div>
   );

@@ -189,7 +189,9 @@ export async function text(opts: Omit<ChatOptions, "json_schema" | "tools" | "to
   } catch (e) {
     // A thinking model can spend its whole budget reasoning. Retry ONCE with double the budget (capped).
     if (e instanceof NebiusError && e.kind === "truncated" && opts.thinking) {
-      r = await chat({ ...opts, max_tokens: Math.min(6000, (opts.max_tokens ?? 1500) * 2) });
+      // Ultra occasionally runs away; the draft then comes from Super (same provider, visible in the feed).
+      const fallback = opts.role === "negotiation" ? MODELS.negotiation_fallback : opts.model;
+      r = await chat({ ...opts, model: fallback, max_tokens: Math.min(6000, (opts.max_tokens ?? 1500) * 2) });
     } else throw e;
   }
   const out = r.content.trim();

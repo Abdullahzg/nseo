@@ -12,6 +12,7 @@ export interface PolicyInput {
   unansweredReplies: number;
   sendableReady: number;                // ready prospects with a contact email
   actionableQualified: number;          // qualified prospects with < 3 contact attempts
+  dueDemoReplies?: number;              // demo only: scripted editor replies waiting to arrive
 }
 
 export interface AvailableAction { key: ActionKey; description: string; size: number }
@@ -31,7 +32,8 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
   switch (camp.phase) {
     case "planning":
     case "discovering":
-      if (pool < poolTarget(camp)) out.push({ key: "run_discovery", description: `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
+      // Demo fixtures load in one go; real campaigns keep searching until the pool target is met.
+      if (camp.demo_mode ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? "Load the demo publications." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
       if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
       break;
     case "qualifying":
@@ -44,11 +46,11 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
       break;
     case "outreaching":
       if (i.sendableReady > 0) out.push({ key: "send_outreach", description: `Write and send outreach to ${i.sendableReady} editors whose address is known.`, size: Math.min(4, i.sendableReady) });
-      if (i.unansweredReplies > 0) out.push({ key: "handle_replies", description: `Read and answer ${i.unansweredReplies} editor replies (negotiate within policy).`, size: Math.min(3, i.unansweredReplies) });
+      if (i.unansweredReplies > 0 || (camp.demo_mode && (i.dueDemoReplies ?? 0) > 0)) out.push({ key: "handle_replies", description: `Read and answer ${i.unansweredReplies} editor replies (negotiate within policy).`, size: Math.min(3, i.unansweredReplies) });
       break;
     case "monitoring":
       if (i.unansweredReplies > 0) out.push({ key: "handle_replies", description: `Read and answer ${i.unansweredReplies} editor replies (negotiate within policy).`, size: Math.min(3, i.unansweredReplies) });
-      if (camp.demo_mode) out.push({ key: "handle_replies", description: "Check for new editor replies and answer them.", size: 3 });
+      if (camp.demo_mode && (i.dueDemoReplies ?? 0) > 0) out.push({ key: "handle_replies", description: `Check the inbox: ${i.dueDemoReplies} editor ${i.dueDemoReplies === 1 ? "reply is" : "replies are"} waiting.`, size: 3 });
       else if (c("outreached") > 0) out.push({ key: "schedule_followups", description: `Check the inbox and schedule follow-ups for ${c("outreached")} unanswered emails.`, size: 5 });
       if (i.sendableReady > 0) out.push({ key: "send_outreach", description: `Write and send outreach to ${i.sendableReady} more editors.`, size: Math.min(4, i.sendableReady) });
       break;
@@ -85,7 +87,7 @@ export function nextPhase(i: PolicyInput): { phase: CampaignPhase; reason: strin
       return null;
     case "monitoring":
       if (i.deals >= camp.desired_deals) return { phase: "completed", reason: "goal_reached" };
-      if (inFlight === 0 && i.sendableReady === 0 && i.actionableQualified === 0 && c("discovered") === 0) return { phase: "completed", reason: "prospects_exhausted" };
+      if (inFlight === 0 && i.sendableReady === 0 && i.actionableQualified === 0 && c("discovered") === 0 && (i.dueDemoReplies ?? 0) === 0) return { phase: "completed", reason: "prospects_exhausted" };
       return null;
   }
   return null;

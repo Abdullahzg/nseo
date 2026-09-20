@@ -2,61 +2,859 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.137.1:3000
 - Environments: .env.local
-✓ Ready in 4.4s
-- Experiments (use with caution):
-  · serverActions
+✓ Ready in 1112ms
 
- GET /api/health?deep=1 200 in 1716ms (next.js: 823ms, proxy.ts: 469ms, application-code: 424ms)
- POST /api/campaigns?preview=1 200 in 2.1s (next.js: 674ms, proxy.ts: 10ms, application-code: 1412ms)
- POST /api/campaigns 201 in 51ms (next.js: 6ms, proxy.ts: 7ms, application-code: 39ms)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 7.2s (next.js: 3.3s, proxy.ts: 6ms, application-code: 3.9s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 9.1s (next.js: 15ms, proxy.ts: 7ms, application-code: 9.0s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 3.7s (next.js: 13ms, proxy.ts: 5ms, application-code: 3.7s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 5.5s (next.js: 14ms, proxy.ts: 5ms, application-code: 5.5s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 1991ms (next.js: 15ms, proxy.ts: 5ms, application-code: 1971ms)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 8.2s (next.js: 149ms, proxy.ts: 74ms, application-code: 8.0s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 2.8s (next.js: 149ms, proxy.ts: 71ms, application-code: 2.5s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 7.8s (next.js: 14ms, proxy.ts: 5ms, application-code: 7.8s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 6.6s (next.js: 163ms, proxy.ts: 88ms, application-code: 6.4s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 5.2s (next.js: 17ms, proxy.ts: 6ms, application-code: 5.1s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 8.9s (next.js: 164ms, proxy.ts: 75ms, application-code: 8.6s)
- POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 2.5s (next.js: 14ms, proxy.ts: 5ms, application-code: 2.5s)
-○ Compiling / ...
- GET / 307 in 6.4s (next.js: 5.8s, proxy.ts: 232ms, application-code: 302ms)
- GET /campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069 200 in 5.6s (next.js: 5.5s, proxy.ts: 6ms, application-code: 152ms)
- GET /setup 200 in 526ms (next.js: 459ms, proxy.ts: 6ms, application-code: 61ms)
- GET /campaigns 200 in 764ms (next.js: 570ms, proxy.ts: 5ms, application-code: 188ms)
- GET /needs-you 200 in 571ms (next.js: 507ms, proxy.ts: 11ms, application-code: 53ms)
- GET /deals 200 in 423ms (next.js: 363ms, proxy.ts: 5ms, application-code: 54ms)
- GET /settings 200 in 390ms (next.js: 338ms, proxy.ts: 4ms, application-code: 48ms)
- GET /login 200 in 373ms (next.js: 308ms, proxy.ts: 4ms, application-code: 61ms)
- GET /campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069 200 in 83ms (next.js: 18ms, proxy.ts: 6ms, application-code: 59ms)
- GET /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/feed?all=1 200 in 1708ms (next.js: 1624ms, proxy.ts: 8ms, application-code: 77ms)
- POST /api/campaigns 201 in 355ms (next.js: 204ms, proxy.ts: 71ms, application-code: 80ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 3.0s (next.js: 335ms, proxy.ts: 5ms, application-code: 2.7s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 2.4s (next.js: 13ms, proxy.ts: 5ms, application-code: 2.4s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 5.2s (next.js: 12ms, proxy.ts: 4ms, application-code: 5.2s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 9.6s (next.js: 11ms, proxy.ts: 5ms, application-code: 9.6s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 7.4s (next.js: 16ms, proxy.ts: 5ms, application-code: 7.4s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 3.0s (next.js: 12ms, proxy.ts: 5ms, application-code: 3.0s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1595ms (next.js: 14ms, proxy.ts: 6ms, application-code: 1576ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1606ms (next.js: 14ms, proxy.ts: 5ms, application-code: 1587ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 5.9s (next.js: 188ms, proxy.ts: 68ms, application-code: 5.7s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 6.0s (next.js: 15ms, proxy.ts: 6ms, application-code: 6.0s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 6.4s (next.js: 20ms, proxy.ts: 4ms, application-code: 6.4s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 12.0s (next.js: 225ms, proxy.ts: 62ms, application-code: 11.8s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 9.3s (next.js: 14ms, proxy.ts: 5ms, application-code: 9.3s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 8.1s (next.js: 219ms, proxy.ts: 74ms, application-code: 7.8s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 5.8s (next.js: 16ms, proxy.ts: 5ms, application-code: 5.8s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1530ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1514ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1777ms (next.js: 207ms, proxy.ts: 73ms, application-code: 1497ms)
- GET /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/feed?all=1 200 in 116ms (next.js: 73ms, proxy.ts: 8ms, application-code: 35ms)
- GET /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521 200 in 1258ms (next.js: 1217ms, proxy.ts: 4ms, application-code: 36ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1745ms (next.js: 11ms, proxy.ts: 5ms, application-code: 1729ms)
- GET /api/interventions?status=open 200 in 315ms (next.js: 292ms, proxy.ts: 5ms, application-code: 18ms)
- POST /api/interventions 200 in 5.4s (next.js: 4ms, proxy.ts: 4ms, application-code: 5.4s)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1729ms (next.js: 11ms, proxy.ts: 4ms, application-code: 1714ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1546ms (next.js: 13ms, proxy.ts: 5ms, application-code: 1528ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 2.1s (next.js: 172ms, proxy.ts: 68ms, application-code: 1823ms)
- POST /api/campaigns/778d1ea0-c46a-4172-85eb-392fc2950521/tick 200 in 1554ms (next.js: 14ms, proxy.ts: 5ms, application-code: 1535ms)
-[?25h
+ GET /setup 200 in 2.6s (next.js: 2.2s, proxy.ts: 161ms, application-code: 226ms)
+ GET /api/me 200 in 691ms (next.js: 619ms, proxy.ts: 8ms, application-code: 64ms)
+ GET /setup 200 in 85ms (next.js: 9ms, proxy.ts: 9ms, application-code: 67ms)
+ GET /api/me 200 in 62ms (next.js: 9ms, proxy.ts: 11ms, application-code: 42ms)
+ GET /api/me 200 in 49ms (next.js: 7ms, proxy.ts: 9ms, application-code: 34ms)
+ GET /api/interventions?status=open 200 in 722ms (next.js: 563ms, proxy.ts: 11ms, application-code: 148ms)
+ POST /api/campaigns?preview=1 200 in 1821ms (next.js: 378ms, proxy.ts: 12ms, application-code: 1431ms)
+ POST /api/campaigns 201 in 65ms (next.js: 5ms, proxy.ts: 6ms, application-code: 55ms)
+ GET /campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154?fresh=1 200 in 1170ms (next.js: 1098ms, proxy.ts: 6ms, application-code: 65ms)
+ GET /api/me 200 in 95ms (next.js: 23ms, proxy.ts: 31ms, application-code: 40ms)
+ GET /api/interventions?status=open 200 in 101ms (next.js: 32ms, proxy.ts: 30ms, application-code: 39ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed 200 in 1486ms (next.js: 1420ms, proxy.ts: 25ms, application-code: 41ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed 200 in 1498ms (next.js: 1426ms, proxy.ts: 27ms, application-code: 45ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 1595ms (next.js: 1492ms, proxy.ts: 29ms, application-code: 74ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 1600ms (next.js: 1487ms, proxy.ts: 27ms, application-code: 86ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/tick 200 in 6.0s (next.js: 1754ms, proxy.ts: 6ms, application-code: 4.3s)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 44ms (next.js: 16ms, proxy.ts: 5ms, application-code: 22ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=160 200 in 43ms (next.js: 14ms, proxy.ts: 7ms, application-code: 22ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=176 200 in 84ms (next.js: 33ms, proxy.ts: 9ms, application-code: 41ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 91ms (next.js: 17ms, proxy.ts: 9ms, application-code: 65ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 28ms (next.js: 6ms, proxy.ts: 6ms, application-code: 16ms)
+ GET /api/interventions?status=open 200 in 32ms (next.js: 13ms, proxy.ts: 6ms, application-code: 14ms)
+ POST /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/tick 200 in 10.0s (next.js: 21ms, proxy.ts: 4ms, application-code: 9.9s)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 44ms (next.js: 14ms, proxy.ts: 5ms, application-code: 25ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 87ms (next.js: 16ms, proxy.ts: 10ms, application-code: 61ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=176 200 in 89ms (next.js: 34ms, proxy.ts: 10ms, application-code: 46ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=176 200 in 88ms (next.js: 53ms, proxy.ts: 8ms, application-code: 28ms)
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=182 200 in 74ms (next.js: 28ms, proxy.ts: 8ms, application-code: 39ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 81ms (next.js: 14ms, proxy.ts: 8ms, application-code: 59ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 36ms (next.js: 6ms, proxy.ts: 11ms, application-code: 19ms)
+ GET /api/interventions?status=open 200 in 41ms (next.js: 14ms, proxy.ts: 11ms, application-code: 16ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=182 200 in 59ms (next.js: 29ms, proxy.ts: 6ms, application-code: 24ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 66ms (next.js: 15ms, proxy.ts: 7ms, application-code: 44ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/tick 200 in 11.1s (next.js: 13ms, proxy.ts: 5ms, application-code: 11.0s)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 50ms (next.js: 13ms, proxy.ts: 7ms, application-code: 29ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=185 200 in 75ms (next.js: 25ms, proxy.ts: 6ms, application-code: 45ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=187 200 in 61ms (next.js: 28ms, proxy.ts: 5ms, application-code: 28ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 68ms (next.js: 14ms, proxy.ts: 5ms, application-code: 49ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 41ms (next.js: 10ms, proxy.ts: 9ms, application-code: 22ms)
+ GET /api/interventions?status=open 200 in 48ms (next.js: 17ms, proxy.ts: 10ms, application-code: 21ms)
+ POST /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/tick 200 in 7.4s (next.js: 21ms, proxy.ts: 7ms, application-code: 7.3s)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 38ms (next.js: 12ms, proxy.ts: 4ms, application-code: 22ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=187 200 in 38ms (next.js: 13ms, proxy.ts: 4ms, application-code: 20ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154/feed?after_id=193 200 in 75ms (next.js: 35ms, proxy.ts: 6ms, application-code: 33ms)
+ GET /api/campaigns/ef670891-b606-4f6b-a6aa-2a5734ba4154 200 in 82ms (next.js: 16ms, proxy.ts: 6ms, application-code: 61ms)
+[browser] Encountered two children with the same key, `182`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `181`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `180`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `179`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `178`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `177`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `160`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /setup 200 in 94ms (next.js: 9ms, proxy.ts: 5ms, application-code: 80ms)
+ GET /api/me 200 in 50ms (next.js: 8ms, proxy.ts: 9ms, application-code: 32ms)
+ GET /api/interventions?status=open 200 in 52ms (next.js: 19ms, proxy.ts: 9ms, application-code: 24ms)
+ GET /api/me 200 in 30ms (next.js: 5ms, proxy.ts: 8ms, application-code: 17ms)
+ GET /settings 200 in 570ms (next.js: 447ms, proxy.ts: 5ms, application-code: 117ms)
+ GET /api/me 200 in 74ms (next.js: 11ms, proxy.ts: 15ms, application-code: 47ms)
+ GET /api/interventions?status=open 200 in 82ms (next.js: 30ms, proxy.ts: 16ms, application-code: 36ms)
+ GET /api/settings 200 in 649ms (next.js: 614ms, proxy.ts: 17ms, application-code: 18ms)
+ GET /setup 200 in 326ms (next.js: 111ms, proxy.ts: 73ms, application-code: 143ms)
+ GET /api/me 200 in 275ms (next.js: 98ms, proxy.ts: 7ms, application-code: 170ms)
+ GET /api/interventions?status=open 200 in 277ms (next.js: 164ms, proxy.ts: 8ms, application-code: 104ms)
+ GET /api/me 200 in 34ms (next.js: 5ms, proxy.ts: 6ms, application-code: 24ms)
+ POST /api/campaigns?preview=1 200 in 1569ms (next.js: 43ms, proxy.ts: 10ms, application-code: 1517ms)
+ POST /api/campaigns 201 in 58ms (next.js: 5ms, proxy.ts: 5ms, application-code: 48ms)
+ GET /campaigns/905149d2-ee74-461b-99f4-26a58db2344c?fresh=1 200 in 179ms (next.js: 132ms, proxy.ts: 4ms, application-code: 43ms)
+ GET /api/interventions?status=open 200 in 79ms (next.js: 29ms, proxy.ts: 26ms, application-code: 24ms)
+ GET /api/me 200 in 83ms (next.js: 18ms, proxy.ts: 25ms, application-code: 40ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed 200 in 247ms (next.js: 146ms, proxy.ts: 21ms, application-code: 80ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 257ms (next.js: 98ms, proxy.ts: 22ms, application-code: 137ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 256ms (next.js: 166ms, proxy.ts: 20ms, application-code: 69ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed 200 in 253ms (next.js: 184ms, proxy.ts: 18ms, application-code: 51ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 2.4s (next.js: 52ms, proxy.ts: 6ms, application-code: 2.3s)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 44ms (next.js: 15ms, proxy.ts: 6ms, application-code: 23ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=194 200 in 37ms (next.js: 13ms, proxy.ts: 5ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 185ms (next.js: 80ms, proxy.ts: 27ms, application-code: 78ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=210 200 in 185ms (next.js: 42ms, proxy.ts: 26ms, application-code: 118ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 5.3s (next.js: 13ms, proxy.ts: 4ms, application-code: 5.3s)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 37ms (next.js: 12ms, proxy.ts: 4ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=210 200 in 32ms (next.js: 12ms, proxy.ts: 4ms, application-code: 16ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 57ms (next.js: 9ms, proxy.ts: 12ms, application-code: 36ms)
+ GET /api/interventions?status=open 200 in 69ms (next.js: 15ms, proxy.ts: 10ms, application-code: 45ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=216 200 in 82ms (next.js: 50ms, proxy.ts: 9ms, application-code: 22ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 95ms (next.js: 34ms, proxy.ts: 11ms, application-code: 50ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=216 200 in 112ms (next.js: 57ms, proxy.ts: 12ms, application-code: 42ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 121ms (next.js: 31ms, proxy.ts: 12ms, application-code: 79ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 6.0s (next.js: 13ms, proxy.ts: 6ms, application-code: 6.0s)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 36ms (next.js: 12ms, proxy.ts: 4ms, application-code: 20ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=220 200 in 35ms (next.js: 13ms, proxy.ts: 4ms, application-code: 18ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 37ms (next.js: 5ms, proxy.ts: 6ms, application-code: 26ms)
+ GET /api/interventions?status=open 200 in 40ms (next.js: 14ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=221 200 in 66ms (next.js: 30ms, proxy.ts: 13ms, application-code: 22ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 72ms (next.js: 16ms, proxy.ts: 12ms, application-code: 44ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 5.7s (next.js: 15ms, proxy.ts: 4ms, application-code: 5.7s)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 38ms (next.js: 13ms, proxy.ts: 5ms, application-code: 20ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=221 200 in 35ms (next.js: 15ms, proxy.ts: 4ms, application-code: 16ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=227 200 in 119ms (next.js: 57ms, proxy.ts: 14ms, application-code: 48ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 128ms (next.js: 32ms, proxy.ts: 14ms, application-code: 83ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 1517ms (next.js: 13ms, proxy.ts: 5ms, application-code: 1499ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 43ms (next.js: 13ms, proxy.ts: 4ms, application-code: 26ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=227 200 in 34ms (next.js: 13ms, proxy.ts: 4ms, application-code: 18ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 44ms (next.js: 10ms, proxy.ts: 10ms, application-code: 24ms)
+ GET /api/interventions?status=open 200 in 47ms (next.js: 17ms, proxy.ts: 11ms, application-code: 19ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 107ms (next.js: 43ms, proxy.ts: 9ms, application-code: 55ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=232 200 in 106ms (next.js: 49ms, proxy.ts: 16ms, application-code: 41ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/tick 200 in 2.0s (next.js: 12ms, proxy.ts: 6ms, application-code: 2.0s)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 35ms (next.js: 12ms, proxy.ts: 4ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=232 200 in 31ms (next.js: 12ms, proxy.ts: 4ms, application-code: 15ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c/feed?after_id=238 200 in 118ms (next.js: 36ms, proxy.ts: 16ms, application-code: 67ms)
+ GET /api/campaigns/905149d2-ee74-461b-99f4-26a58db2344c 200 in 135ms (next.js: 74ms, proxy.ts: 15ms, application-code: 45ms)
+[browser] Encountered two children with the same key, `194`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 24ms (next.js: 4ms, proxy.ts: 6ms, application-code: 14ms)
+ GET /setup 200 in 91ms (next.js: 7ms, proxy.ts: 5ms, application-code: 80ms)
+ GET /api/interventions?status=open 200 in 249ms (next.js: 33ms, proxy.ts: 200ms, application-code: 16ms)
+ GET /api/me 200 in 252ms (next.js: 20ms, proxy.ts: 198ms, application-code: 34ms)
+ GET /settings 200 in 333ms (next.js: 35ms, proxy.ts: 7ms, application-code: 291ms)
+ GET /api/me 200 in 45ms (next.js: 13ms, proxy.ts: 10ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 47ms (next.js: 21ms, proxy.ts: 12ms, application-code: 14ms)
+ GET /api/settings 200 in 89ms (next.js: 48ms, proxy.ts: 28ms, application-code: 13ms)
+ GET /setup 200 in 333ms (next.js: 105ms, proxy.ts: 69ms, application-code: 160ms)
+ GET /api/me 200 in 198ms (next.js: 87ms, proxy.ts: 11ms, application-code: 100ms)
+ GET /api/interventions?status=open 200 in 199ms (next.js: 151ms, proxy.ts: 12ms, application-code: 36ms)
+ GET /api/me 200 in 33ms (next.js: 5ms, proxy.ts: 5ms, application-code: 23ms)
+ POST /api/campaigns?preview=1 200 in 1333ms (next.js: 31ms, proxy.ts: 5ms, application-code: 1297ms)
+ POST /api/campaigns 201 in 58ms (next.js: 5ms, proxy.ts: 7ms, application-code: 47ms)
+ GET /campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7?fresh=1 200 in 168ms (next.js: 125ms, proxy.ts: 4ms, application-code: 39ms)
+ GET /api/me 200 in 74ms (next.js: 16ms, proxy.ts: 23ms, application-code: 36ms)
+ GET /api/interventions?status=open 200 in 200ms (next.js: 23ms, proxy.ts: 24ms, application-code: 152ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed 200 in 224ms (next.js: 130ms, proxy.ts: 21ms, application-code: 73ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 236ms (next.js: 84ms, proxy.ts: 23ms, application-code: 129ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed 200 in 236ms (next.js: 158ms, proxy.ts: 20ms, application-code: 58ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 244ms (next.js: 140ms, proxy.ts: 20ms, application-code: 83ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 2.9s (next.js: 145ms, proxy.ts: 5ms, application-code: 2.7s)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 38ms (next.js: 12ms, proxy.ts: 5ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=239 200 in 41ms (next.js: 15ms, proxy.ts: 5ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 59ms (next.js: 14ms, proxy.ts: 8ms, application-code: 37ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=255 200 in 61ms (next.js: 28ms, proxy.ts: 8ms, application-code: 25ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 5.2s (next.js: 16ms, proxy.ts: 5ms, application-code: 5.2s)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 37ms (next.js: 12ms, proxy.ts: 4ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=257 200 in 35ms (next.js: 12ms, proxy.ts: 4ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 5.4s (next.js: 35ms, proxy.ts: 7ms, application-code: 5.3s)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 36ms (next.js: 12ms, proxy.ts: 4ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=261 200 in 37ms (next.js: 13ms, proxy.ts: 4ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/me 200 in 41ms (next.js: 10ms, proxy.ts: 12ms, application-code: 19ms)
+ GET /api/interventions?status=open 200 in 39ms (next.js: 14ms, proxy.ts: 11ms, application-code: 13ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=266 200 in 69ms (next.js: 40ms, proxy.ts: 10ms, application-code: 18ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 77ms (next.js: 34ms, proxy.ts: 12ms, application-code: 31ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 6.7s (next.js: 16ms, proxy.ts: 6ms, application-code: 6.7s)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 39ms (next.js: 13ms, proxy.ts: 4ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=266 200 in 37ms (next.js: 13ms, proxy.ts: 4ms, application-code: 21ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=272 200 in 58ms (next.js: 30ms, proxy.ts: 6ms, application-code: 23ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 62ms (next.js: 14ms, proxy.ts: 6ms, application-code: 42ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 1600ms (next.js: 13ms, proxy.ts: 5ms, application-code: 1583ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 37ms (next.js: 14ms, proxy.ts: 4ms, application-code: 19ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=272 200 in 39ms (next.js: 18ms, proxy.ts: 4ms, application-code: 17ms)
+[browser] Encountered two children with the same key, `239`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+✓ Compiled in 79ms
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed 200 in 528ms (next.js: 471ms, proxy.ts: 8ms, application-code: 49ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 534ms (next.js: 410ms, proxy.ts: 9ms, application-code: 115ms)
+ GET /campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7?fresh=1 200 in 670ms (next.js: 171ms, proxy.ts: 77ms, application-code: 422ms)
+ GET /campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7?fresh=1 200 in 343ms (next.js: 35ms, proxy.ts: 259ms, application-code: 49ms)
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 174ms (next.js: 135ms, proxy.ts: 11ms, application-code: 28ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 109ms (next.js: 29ms, proxy.ts: 8ms, application-code: 72ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=277 200 in 79ms (next.js: 13ms, proxy.ts: 10ms, application-code: 57ms)
+ GET /api/me 200 in 102ms (next.js: 32ms, proxy.ts: 12ms, application-code: 58ms)
+ GET /api/interventions?status=open 200 in 107ms (next.js: 75ms, proxy.ts: 8ms, application-code: 25ms)
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 1719ms (next.js: 14ms, proxy.ts: 5ms, application-code: 1700ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 36ms (next.js: 12ms, proxy.ts: 4ms, application-code: 21ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=277 200 in 31ms (next.js: 12ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/feed?after_id=283 200 in 39ms (next.js: 15ms, proxy.ts: 6ms, application-code: 19ms)
+ GET /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7 200 in 42ms (next.js: 8ms, proxy.ts: 5ms, application-code: 29ms)
+ POST /api/campaigns/b9f89b34-d142-4fe3-b68a-10c8429bdeb7/tick 200 in 2.7s (next.js: 15ms, proxy.ts: 7ms, application-code: 2.7s)
+ GET /needs-you 200 in 567ms (next.js: 374ms, proxy.ts: 4ms, application-code: 189ms)
+ GET /api/me 200 in 38ms (next.js: 8ms, proxy.ts: 11ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 42ms (next.js: 17ms, proxy.ts: 11ms, application-code: 14ms)
+ GET /api/interventions?status=open 200 in 51ms (next.js: 21ms, proxy.ts: 16ms, application-code: 15ms)
+ GET /deals 200 in 331ms (next.js: 276ms, proxy.ts: 4ms, application-code: 51ms)
+ GET /api/me 200 in 36ms (next.js: 8ms, proxy.ts: 7ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 38ms (next.js: 16ms, proxy.ts: 7ms, application-code: 14ms)
+ GET /api/deals 200 in 288ms (next.js: 245ms, proxy.ts: 24ms, application-code: 19ms)
+ GET /settings 200 in 66ms (next.js: 17ms, proxy.ts: 4ms, application-code: 45ms)
+ GET /api/me 200 in 33ms (next.js: 8ms, proxy.ts: 7ms, application-code: 18ms)
+ GET /api/interventions?status=open 200 in 35ms (next.js: 15ms, proxy.ts: 8ms, application-code: 12ms)
+ GET /api/settings 200 in 75ms (next.js: 43ms, proxy.ts: 21ms, application-code: 11ms)
+ GET /campaigns 200 in 961ms (next.js: 685ms, proxy.ts: 4ms, application-code: 273ms)
+ GET /api/me 200 in 46ms (next.js: 5ms, proxy.ts: 11ms, application-code: 30ms)
+ GET /api/interventions?status=open 200 in 56ms (next.js: 16ms, proxy.ts: 10ms, application-code: 31ms)
+ GET /setup 200 in 253ms (next.js: 111ms, proxy.ts: 4ms, application-code: 138ms)
+ GET /api/me 200 in 32ms (next.js: 5ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 35ms (next.js: 15ms, proxy.ts: 6ms, application-code: 13ms)
+ GET /api/me 200 in 62ms (next.js: 44ms, proxy.ts: 7ms, application-code: 12ms)
+ POST /api/campaigns?preview=1 200 in 1336ms (next.js: 32ms, proxy.ts: 11ms, application-code: 1293ms)
+ GET /setup 200 in 71ms (next.js: 9ms, proxy.ts: 5ms, application-code: 58ms)
+ GET /api/me 200 in 42ms (next.js: 6ms, proxy.ts: 8ms, application-code: 28ms)
+ GET /api/interventions?status=open 200 in 46ms (next.js: 15ms, proxy.ts: 8ms, application-code: 22ms)
+ GET /api/me 200 in 32ms (next.js: 4ms, proxy.ts: 18ms, application-code: 10ms)
+ POST /api/campaigns?preview=1 200 in 1245ms (next.js: 12ms, proxy.ts: 9ms, application-code: 1224ms)
+ GET /api/me 200 in 35ms (next.js: 5ms, proxy.ts: 7ms, application-code: 24ms)
+ GET /api/interventions?status=open 200 in 48ms (next.js: 12ms, proxy.ts: 7ms, application-code: 29ms)
+ GET /setup 200 in 62ms (next.js: 6ms, proxy.ts: 5ms, application-code: 50ms)
+ GET /api/me 200 in 37ms (next.js: 5ms, proxy.ts: 7ms, application-code: 25ms)
+ GET /api/interventions?status=open 200 in 38ms (next.js: 15ms, proxy.ts: 7ms, application-code: 17ms)
+ GET /api/me 200 in 30ms (next.js: 4ms, proxy.ts: 16ms, application-code: 11ms)
+ POST /api/campaigns?preview=1 200 in 1444ms (next.js: 12ms, proxy.ts: 5ms, application-code: 1427ms)
+✓ Compiled in 117ms
+ GET /setup 200 in 411ms (next.js: 165ms, proxy.ts: 80ms, application-code: 167ms)
+ GET /api/me 200 in 484ms (next.js: 114ms, proxy.ts: 8ms, application-code: 361ms)
+ GET /api/interventions?status=open 200 in 488ms (next.js: 292ms, proxy.ts: 9ms, application-code: 187ms)
+ GET /api/me 200 in 27ms (next.js: 5ms, proxy.ts: 5ms, application-code: 17ms)
+ POST /api/campaigns?preview=1 200 in 1314ms (next.js: 132ms, proxy.ts: 7ms, application-code: 1174ms)
+ POST /api/campaigns 201 in 36ms (next.js: 4ms, proxy.ts: 4ms, application-code: 27ms)
+ GET /campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29?fresh=1 200 in 175ms (next.js: 133ms, proxy.ts: 4ms, application-code: 37ms)
+ GET /api/me 200 in 72ms (next.js: 16ms, proxy.ts: 24ms, application-code: 31ms)
+ GET /api/interventions?status=open 200 in 81ms (next.js: 27ms, proxy.ts: 25ms, application-code: 29ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 490ms (next.js: 356ms, proxy.ts: 21ms, application-code: 113ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 500ms (next.js: 178ms, proxy.ts: 25ms, application-code: 296ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed 200 in 503ms (next.js: 333ms, proxy.ts: 23ms, application-code: 147ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed 200 in 497ms (next.js: 386ms, proxy.ts: 18ms, application-code: 94ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 2.5s (next.js: 138ms, proxy.ts: 4ms, application-code: 2.4s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 59ms (next.js: 18ms, proxy.ts: 7ms, application-code: 34ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=1 200 in 39ms (next.js: 13ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29?fresh=1 200 in 233ms (next.js: 116ms, proxy.ts: 69ms, application-code: 48ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=17 200 in 240ms (next.js: 171ms, proxy.ts: 5ms, application-code: 64ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 251ms (next.js: 100ms, proxy.ts: 6ms, application-code: 145ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 5.8s (next.js: 15ms, proxy.ts: 5ms, application-code: 5.8s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 43ms (next.js: 16ms, proxy.ts: 5ms, application-code: 22ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=17 200 in 46ms (next.js: 16ms, proxy.ts: 8ms, application-code: 22ms)
+ GET /api/me 200 in 104ms (next.js: 45ms, proxy.ts: 10ms, application-code: 49ms)
+ GET /api/interventions?status=open 200 in 138ms (next.js: 82ms, proxy.ts: 11ms, application-code: 45ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 165ms (next.js: 106ms, proxy.ts: 10ms, application-code: 49ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=21 200 in 166ms (next.js: 117ms, proxy.ts: 11ms, application-code: 37ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 9.1s (next.js: 48ms, proxy.ts: 4ms, application-code: 9.1s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 44ms (next.js: 15ms, proxy.ts: 5ms, application-code: 25ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=25 200 in 33ms (next.js: 12ms, proxy.ts: 4ms, application-code: 16ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1771ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1754ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 37ms (next.js: 12ms, proxy.ts: 4ms, application-code: 20ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=26 200 in 33ms (next.js: 12ms, proxy.ts: 5ms, application-code: 16ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=31 200 in 69ms (next.js: 28ms, proxy.ts: 6ms, application-code: 35ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 78ms (next.js: 14ms, proxy.ts: 6ms, application-code: 58ms)
+ GET /api/me 200 in 46ms (next.js: 11ms, proxy.ts: 14ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 65ms (next.js: 16ms, proxy.ts: 14ms, application-code: 35ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=31 200 in 99ms (next.js: 64ms, proxy.ts: 14ms, application-code: 22ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 104ms (next.js: 44ms, proxy.ts: 14ms, application-code: 46ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 13.2s (next.js: 13ms, proxy.ts: 5ms, application-code: 13.2s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 34ms (next.js: 11ms, proxy.ts: 4ms, application-code: 19ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=34 200 in 33ms (next.js: 13ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 72ms (next.js: 21ms, proxy.ts: 8ms, application-code: 43ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=36 200 in 73ms (next.js: 40ms, proxy.ts: 8ms, application-code: 24ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 5.3s (next.js: 14ms, proxy.ts: 4ms, application-code: 5.3s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 40ms (next.js: 14ms, proxy.ts: 4ms, application-code: 22ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=38 200 in 30ms (next.js: 11ms, proxy.ts: 4ms, application-code: 15ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1594ms (next.js: 13ms, proxy.ts: 4ms, application-code: 1576ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 58ms (next.js: 13ms, proxy.ts: 5ms, application-code: 40ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=42 200 in 35ms (next.js: 14ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 43ms (next.js: 10ms, proxy.ts: 12ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 42ms (next.js: 19ms, proxy.ts: 10ms, application-code: 13ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=47 200 in 84ms (next.js: 42ms, proxy.ts: 10ms, application-code: 31ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 88ms (next.js: 54ms, proxy.ts: 10ms, application-code: 24ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 6.4s (next.js: 13ms, proxy.ts: 5ms, application-code: 6.4s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 34ms (next.js: 12ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=47 200 in 37ms (next.js: 16ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=52 200 in 53ms (next.js: 29ms, proxy.ts: 5ms, application-code: 19ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 57ms (next.js: 13ms, proxy.ts: 5ms, application-code: 38ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 5.5s (next.js: 13ms, proxy.ts: 4ms, application-code: 5.5s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 33ms (next.js: 11ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=52 200 in 32ms (next.js: 12ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/me 200 in 38ms (next.js: 9ms, proxy.ts: 7ms, application-code: 22ms)
+ GET /api/interventions?status=open 200 in 39ms (next.js: 16ms, proxy.ts: 7ms, application-code: 16ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=57 200 in 77ms (next.js: 31ms, proxy.ts: 22ms, application-code: 24ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 83ms (next.js: 18ms, proxy.ts: 22ms, application-code: 43ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 6.8s (next.js: 13ms, proxy.ts: 4ms, application-code: 6.8s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 56ms (next.js: 13ms, proxy.ts: 5ms, application-code: 39ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=57 200 in 38ms (next.js: 12ms, proxy.ts: 4ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=62 200 in 55ms (next.js: 29ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 73ms (next.js: 14ms, proxy.ts: 6ms, application-code: 53ms)
+ GET /api/me 200 in 74ms (next.js: 12ms, proxy.ts: 10ms, application-code: 52ms)
+ GET /api/interventions?status=open 200 in 75ms (next.js: 22ms, proxy.ts: 10ms, application-code: 43ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=64 200 in 87ms (next.js: 54ms, proxy.ts: 10ms, application-code: 24ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 114ms (next.js: 40ms, proxy.ts: 10ms, application-code: 64ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=64 200 in 54ms (next.js: 26ms, proxy.ts: 6ms, application-code: 22ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 68ms (next.js: 14ms, proxy.ts: 6ms, application-code: 49ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 32.7s (next.js: 11ms, proxy.ts: 4ms, application-code: 32.7s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 53ms (next.js: 13ms, proxy.ts: 5ms, application-code: 35ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=66 200 in 28ms (next.js: 6ms, proxy.ts: 4ms, application-code: 18ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 10.4s (next.js: 12ms, proxy.ts: 4ms, application-code: 10.4s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 47ms (next.js: 13ms, proxy.ts: 4ms, application-code: 29ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=67 200 in 37ms (next.js: 13ms, proxy.ts: 6ms, application-code: 18ms)
+ GET /api/me 200 in 39ms (next.js: 9ms, proxy.ts: 12ms, application-code: 18ms)
+ GET /api/interventions?status=open 200 in 37ms (next.js: 16ms, proxy.ts: 10ms, application-code: 11ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=71 200 in 82ms (next.js: 52ms, proxy.ts: 9ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 91ms (next.js: 39ms, proxy.ts: 10ms, application-code: 43ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=71 200 in 63ms (next.js: 28ms, proxy.ts: 8ms, application-code: 27ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 72ms (next.js: 14ms, proxy.ts: 8ms, application-code: 50ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 27.0s (next.js: 14ms, proxy.ts: 5ms, application-code: 27.0s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 43ms (next.js: 13ms, proxy.ts: 4ms, application-code: 27ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=72 200 in 33ms (next.js: 12ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 36ms (next.js: 10ms, proxy.ts: 8ms, application-code: 18ms)
+ GET /api/interventions?status=open 200 in 37ms (next.js: 17ms, proxy.ts: 8ms, application-code: 12ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=73 200 in 83ms (next.js: 39ms, proxy.ts: 23ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 91ms (next.js: 26ms, proxy.ts: 22ms, application-code: 42ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 7.7s (next.js: 12ms, proxy.ts: 5ms, application-code: 7.6s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 49ms (next.js: 16ms, proxy.ts: 4ms, application-code: 29ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=73 200 in 35ms (next.js: 12ms, proxy.ts: 5ms, application-code: 18ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=75 200 in 44ms (next.js: 15ms, proxy.ts: 6ms, application-code: 23ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 54ms (next.js: 8ms, proxy.ts: 6ms, application-code: 40ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 3.9s (next.js: 13ms, proxy.ts: 4ms, application-code: 3.9s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 41ms (next.js: 12ms, proxy.ts: 4ms, application-code: 25ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=75 200 in 33ms (next.js: 13ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 36ms (next.js: 7ms, proxy.ts: 6ms, application-code: 22ms)
+ GET /api/interventions?status=open 200 in 39ms (next.js: 14ms, proxy.ts: 7ms, application-code: 18ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=76 200 in 64ms (next.js: 27ms, proxy.ts: 13ms, application-code: 23ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 76ms (next.js: 14ms, proxy.ts: 13ms, application-code: 49ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1869ms (next.js: 13ms, proxy.ts: 4ms, application-code: 1852ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 41ms (next.js: 11ms, proxy.ts: 4ms, application-code: 26ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=76 200 in 30ms (next.js: 11ms, proxy.ts: 4ms, application-code: 15ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1704ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1688ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 43ms (next.js: 11ms, proxy.ts: 4ms, application-code: 28ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=77 200 in 35ms (next.js: 13ms, proxy.ts: 5ms, application-code: 17ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=78 200 in 41ms (next.js: 15ms, proxy.ts: 7ms, application-code: 18ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 48ms (next.js: 10ms, proxy.ts: 5ms, application-code: 33ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 3.6s (next.js: 12ms, proxy.ts: 6ms, application-code: 3.6s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 57ms (next.js: 12ms, proxy.ts: 4ms, application-code: 41ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=78 200 in 66ms (next.js: 15ms, proxy.ts: 5ms, application-code: 46ms)
+ GET /api/me 200 in 33ms (next.js: 9ms, proxy.ts: 8ms, application-code: 16ms)
+ GET /api/interventions?status=open 200 in 35ms (next.js: 15ms, proxy.ts: 8ms, application-code: 12ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=79 200 in 80ms (next.js: 36ms, proxy.ts: 23ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 88ms (next.js: 19ms, proxy.ts: 21ms, application-code: 47ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1691ms (next.js: 14ms, proxy.ts: 6ms, application-code: 1672ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 39ms (next.js: 11ms, proxy.ts: 4ms, application-code: 24ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=79 200 in 33ms (next.js: 12ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=80 200 in 58ms (next.js: 28ms, proxy.ts: 6ms, application-code: 24ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 71ms (next.js: 16ms, proxy.ts: 6ms, application-code: 50ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1620ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1604ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 40ms (next.js: 12ms, proxy.ts: 3ms, application-code: 25ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=80 200 in 33ms (next.js: 12ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 37ms (next.js: 5ms, proxy.ts: 6ms, application-code: 26ms)
+ GET /api/interventions?status=open 200 in 42ms (next.js: 13ms, proxy.ts: 5ms, application-code: 23ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=81 200 in 107ms (next.js: 38ms, proxy.ts: 16ms, application-code: 54ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 122ms (next.js: 19ms, proxy.ts: 17ms, application-code: 87ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 2.8s (next.js: 12ms, proxy.ts: 4ms, application-code: 2.8s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 65ms (next.js: 14ms, proxy.ts: 5ms, application-code: 45ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=81 200 in 55ms (next.js: 24ms, proxy.ts: 7ms, application-code: 24ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1524ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1508ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 46ms (next.js: 12ms, proxy.ts: 4ms, application-code: 30ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=82 200 in 34ms (next.js: 11ms, proxy.ts: 5ms, application-code: 17ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=83 200 in 48ms (next.js: 22ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 61ms (next.js: 14ms, proxy.ts: 5ms, application-code: 42ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1984ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1968ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 46ms (next.js: 17ms, proxy.ts: 4ms, application-code: 25ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=83 200 in 35ms (next.js: 14ms, proxy.ts: 5ms, application-code: 17ms)
+ GET /api/me 200 in 40ms (next.js: 9ms, proxy.ts: 12ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 39ms (next.js: 16ms, proxy.ts: 10ms, application-code: 13ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=84 200 in 91ms (next.js: 45ms, proxy.ts: 11ms, application-code: 36ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 109ms (next.js: 60ms, proxy.ts: 10ms, application-code: 39ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 2.5s (next.js: 12ms, proxy.ts: 4ms, application-code: 2.5s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 43ms (next.js: 16ms, proxy.ts: 4ms, application-code: 24ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=84 200 in 31ms (next.js: 12ms, proxy.ts: 3ms, application-code: 16ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=85 200 in 55ms (next.js: 27ms, proxy.ts: 6ms, application-code: 22ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 69ms (next.js: 14ms, proxy.ts: 6ms, application-code: 49ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 3.6s (next.js: 12ms, proxy.ts: 4ms, application-code: 3.5s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 49ms (next.js: 12ms, proxy.ts: 4ms, application-code: 34ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=85 200 in 34ms (next.js: 13ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/me 200 in 43ms (next.js: 9ms, proxy.ts: 12ms, application-code: 23ms)
+ GET /api/interventions?status=open 200 in 58ms (next.js: 16ms, proxy.ts: 10ms, application-code: 32ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=86 200 in 88ms (next.js: 57ms, proxy.ts: 10ms, application-code: 21ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 101ms (next.js: 41ms, proxy.ts: 11ms, application-code: 50ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 2.5s (next.js: 12ms, proxy.ts: 4ms, application-code: 2.4s)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 40ms (next.js: 11ms, proxy.ts: 4ms, application-code: 25ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=86 200 in 36ms (next.js: 12ms, proxy.ts: 4ms, application-code: 20ms)
+ POST /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/tick 200 in 1648ms (next.js: 13ms, proxy.ts: 4ms, application-code: 1631ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 42ms (next.js: 11ms, proxy.ts: 4ms, application-code: 27ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=87 200 in 33ms (next.js: 13ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?after_id=88 200 in 43ms (next.js: 17ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29 200 in 54ms (next.js: 9ms, proxy.ts: 7ms, application-code: 38ms)
+ GET /needs-you 200 in 320ms (next.js: 119ms, proxy.ts: 3ms, application-code: 198ms)
+ GET /api/me 200 in 40ms (next.js: 8ms, proxy.ts: 10ms, application-code: 22ms)
+ GET /api/interventions?status=open 200 in 43ms (next.js: 17ms, proxy.ts: 9ms, application-code: 16ms)
+ GET /api/interventions?status=open 200 in 50ms (next.js: 8ms, proxy.ts: 29ms, application-code: 12ms)
+ GET /deals 200 in 258ms (next.js: 117ms, proxy.ts: 5ms, application-code: 136ms)
+ GET /api/me 200 in 39ms (next.js: 8ms, proxy.ts: 11ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 40ms (next.js: 16ms, proxy.ts: 11ms, application-code: 13ms)
+ GET /api/deals 200 in 178ms (next.js: 131ms, proxy.ts: 23ms, application-code: 24ms)
+ GET /setup 200 in 83ms (next.js: 21ms, proxy.ts: 5ms, application-code: 56ms)
+ GET /api/me 200 in 32ms (next.js: 6ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 35ms (next.js: 14ms, proxy.ts: 6ms, application-code: 15ms)
+ GET /api/me 200 in 68ms (next.js: 50ms, proxy.ts: 8ms, application-code: 10ms)
+ POST /api/campaigns?preview=1 200 in 1831ms (next.js: 40ms, proxy.ts: 11ms, application-code: 1781ms)
+ POST /api/campaigns 201 in 28ms (next.js: 3ms, proxy.ts: 4ms, application-code: 21ms)
+ GET /campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85?fresh=1 200 in 50ms (next.js: 14ms, proxy.ts: 4ms, application-code: 32ms)
+ GET /api/me 200 in 52ms (next.js: 13ms, proxy.ts: 20ms, application-code: 19ms)
+ GET /api/interventions?status=open 200 in 53ms (next.js: 18ms, proxy.ts: 21ms, application-code: 14ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 150ms (next.js: 44ms, proxy.ts: 19ms, application-code: 88ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed 200 in 149ms (next.js: 58ms, proxy.ts: 17ms, application-code: 74ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 148ms (next.js: 66ms, proxy.ts: 14ms, application-code: 68ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed 200 in 149ms (next.js: 75ms, proxy.ts: 13ms, application-code: 60ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 8.7s (next.js: 12ms, proxy.ts: 5ms, application-code: 8.7s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 40ms (next.js: 13ms, proxy.ts: 5ms, application-code: 22ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=89 200 in 41ms (next.js: 16ms, proxy.ts: 6ms, application-code: 19ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 2.3s (next.js: 11ms, proxy.ts: 5ms, application-code: 2.3s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 42ms (next.js: 15ms, proxy.ts: 5ms, application-code: 22ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=105 200 in 42ms (next.js: 15ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=109 200 in 40ms (next.js: 18ms, proxy.ts: 6ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 45ms (next.js: 12ms, proxy.ts: 7ms, application-code: 26ms)
+ GET /api/campaigns/b3ec0f39-8a46-4610-af98-f9848e992b29/feed?all=1 200 in 39ms (next.js: 13ms, proxy.ts: 4ms, application-code: 22ms)
+ GET /api/me 200 in 45ms (next.js: 12ms, proxy.ts: 12ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 65ms (next.js: 19ms, proxy.ts: 13ms, application-code: 34ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=109 200 in 117ms (next.js: 83ms, proxy.ts: 13ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 123ms (next.js: 46ms, proxy.ts: 12ms, application-code: 65ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 6.7s (next.js: 11ms, proxy.ts: 4ms, application-code: 6.6s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 38ms (next.js: 9ms, proxy.ts: 6ms, application-code: 23ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=113 200 in 26ms (next.js: 6ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=114 200 in 59ms (next.js: 27ms, proxy.ts: 6ms, application-code: 26ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 63ms (next.js: 14ms, proxy.ts: 6ms, application-code: 44ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 11.6s (next.js: 12ms, proxy.ts: 4ms, application-code: 11.5s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 40ms (next.js: 12ms, proxy.ts: 4ms, application-code: 24ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=116 200 in 37ms (next.js: 12ms, proxy.ts: 6ms, application-code: 18ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 5.7s (next.js: 11ms, proxy.ts: 4ms, application-code: 5.7s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 33ms (next.js: 11ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=119 200 in 32ms (next.js: 11ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/me 200 in 38ms (next.js: 8ms, proxy.ts: 9ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 77ms (next.js: 14ms, proxy.ts: 9ms, application-code: 53ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 95ms (next.js: 37ms, proxy.ts: 10ms, application-code: 48ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=125 200 in 101ms (next.js: 52ms, proxy.ts: 10ms, application-code: 40ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 1497ms (next.js: 17ms, proxy.ts: 7ms, application-code: 1472ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 34ms (next.js: 12ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=125 200 in 33ms (next.js: 13ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85?fresh=1 200 in 344ms (next.js: 164ms, proxy.ts: 66ms, application-code: 113ms)
+ GET /campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85?fresh=1 200 in 79ms (next.js: 11ms, proxy.ts: 8ms, application-code: 60ms)
+ GET /campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85?fresh=1 200 in 122ms (next.js: 12ms, proxy.ts: 9ms, application-code: 100ms)
+ GET /campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85?fresh=1 200 in 62ms (next.js: 16ms, proxy.ts: 8ms, application-code: 38ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 1822ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1805ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 161ms (next.js: 120ms, proxy.ts: 4ms, application-code: 36ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=130 200 in 82ms (next.js: 48ms, proxy.ts: 5ms, application-code: 30ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=135 200 in 65ms (next.js: 25ms, proxy.ts: 9ms, application-code: 30ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 69ms (next.js: 14ms, proxy.ts: 8ms, application-code: 47ms)
+ GET /api/me 200 in 186ms (next.js: 34ms, proxy.ts: 11ms, application-code: 141ms)
+ GET /api/interventions?status=open 200 in 195ms (next.js: 151ms, proxy.ts: 11ms, application-code: 33ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=135 200 in 308ms (next.js: 223ms, proxy.ts: 11ms, application-code: 74ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 313ms (next.js: 203ms, proxy.ts: 11ms, application-code: 99ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 200 in 6.7s (next.js: 137ms, proxy.ts: 6ms, application-code: 6.6s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 200 in 29ms (next.js: 5ms, proxy.ts: 4ms, application-code: 19ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=139 200 in 25ms (next.js: 6ms, proxy.ts: 4ms, application-code: 15ms)
+[budget] add_tokens failed: 
+[events] insert failed: 
+[events] insert failed: 
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 500 in 5.4s (next.js: 17ms, proxy.ts: 4ms, application-code: 5.3s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 2.5s (next.js: 15ms, proxy.ts: 5ms, application-code: 2.5s)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 51ms (next.js: 12ms, proxy.ts: 5ms, application-code: 33ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 67ms (next.js: 31ms, proxy.ts: 7ms, application-code: 29ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 71ms (next.js: 17ms, proxy.ts: 7ms, application-code: 47ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 43ms (next.js: 12ms, proxy.ts: 4ms, application-code: 27ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 27ms (next.js: 11ms, proxy.ts: 3ms, application-code: 13ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 27ms (next.js: 12ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/me 200 in 54ms (next.js: 14ms, proxy.ts: 13ms, application-code: 27ms)
+ GET /api/interventions?status=open 200 in 54ms (next.js: 21ms, proxy.ts: 13ms, application-code: 20ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 99ms (next.js: 51ms, proxy.ts: 14ms, application-code: 34ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 103ms (next.js: 72ms, proxy.ts: 14ms, application-code: 16ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 45ms (next.js: 18ms, proxy.ts: 7ms, application-code: 19ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 33ms (next.js: 11ms, proxy.ts: 7ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 35ms (next.js: 13ms, proxy.ts: 7ms, application-code: 15ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 72ms (next.js: 20ms, proxy.ts: 8ms, application-code: 45ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 44ms (next.js: 21ms, proxy.ts: 7ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 38ms (next.js: 17ms, proxy.ts: 6ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 47ms (next.js: 13ms, proxy.ts: 6ms, application-code: 28ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 50ms (next.js: 27ms, proxy.ts: 5ms, application-code: 18ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 35ms (next.js: 14ms, proxy.ts: 6ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 32ms (next.js: 13ms, proxy.ts: 4ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 34ms (next.js: 14ms, proxy.ts: 8ms, application-code: 12ms)
+ GET /setup 200 in 161ms (next.js: 18ms, proxy.ts: 5ms, application-code: 138ms)
+ GET /api/me 200 in 37ms (next.js: 6ms, proxy.ts: 7ms, application-code: 23ms)
+ GET /api/interventions?status=open 200 in 170ms (next.js: 15ms, proxy.ts: 7ms, application-code: 148ms)
+ GET /api/me 200 in 134ms (next.js: 115ms, proxy.ts: 6ms, application-code: 12ms)
+ POST /api/campaigns?preview=1 200 in 2000ms (next.js: 102ms, proxy.ts: 9ms, application-code: 1888ms)
+ GET /api/me 200 in 42ms (next.js: 15ms, proxy.ts: 10ms, application-code: 16ms)
+ GET /api/interventions?status=open 200 in 44ms (next.js: 21ms, proxy.ts: 10ms, application-code: 13ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 77ms (next.js: 44ms, proxy.ts: 10ms, application-code: 22ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 79ms (next.js: 53ms, proxy.ts: 15ms, application-code: 11ms)
+ POST /api/campaigns 201 in 40ms (next.js: 4ms, proxy.ts: 6ms, application-code: 30ms)
+ GET /campaigns/73338713-0e7d-4c62-a341-09121bb00ed8?fresh=1 200 in 55ms (next.js: 15ms, proxy.ts: 4ms, application-code: 36ms)
+ GET /api/me 200 in 71ms (next.js: 19ms, proxy.ts: 24ms, application-code: 27ms)
+ GET /api/interventions?status=open 200 in 78ms (next.js: 31ms, proxy.ts: 23ms, application-code: 24ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed 200 in 175ms (next.js: 55ms, proxy.ts: 23ms, application-code: 97ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed 200 in 172ms (next.js: 85ms, proxy.ts: 19ms, application-code: 69ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 206ms (next.js: 71ms, proxy.ts: 25ms, application-code: 110ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 202ms (next.js: 76ms, proxy.ts: 23ms, application-code: 104ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 2.4s (next.js: 12ms, proxy.ts: 5ms, application-code: 2.4s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 35ms (next.js: 12ms, proxy.ts: 5ms, application-code: 19ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=1 200 in 34ms (next.js: 13ms, proxy.ts: 4ms, application-code: 18ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 31ms (next.js: 14ms, proxy.ts: 5ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 29ms (next.js: 13ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 29ms (next.js: 12ms, proxy.ts: 6ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 46ms (next.js: 15ms, proxy.ts: 7ms, application-code: 24ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 47ms (next.js: 29ms, proxy.ts: 7ms, application-code: 11ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 2.4s (next.js: 15ms, proxy.ts: 5ms, application-code: 2.4s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 33ms (next.js: 7ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=17 200 in 28ms (next.js: 7ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 55ms (next.js: 14ms, proxy.ts: 7ms, application-code: 34ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=21 200 in 56ms (next.js: 27ms, proxy.ts: 7ms, application-code: 22ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 13ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 25ms (next.js: 11ms, proxy.ts: 3ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 13ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/me 200 in 30ms (next.js: 5ms, proxy.ts: 6ms, application-code: 19ms)
+ GET /api/interventions?status=open 200 in 36ms (next.js: 12ms, proxy.ts: 5ms, application-code: 18ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 51ms (next.js: 16ms, proxy.ts: 11ms, application-code: 23ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 51ms (next.js: 30ms, proxy.ts: 9ms, application-code: 12ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 29ms (next.js: 12ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 21ms (next.js: 5ms, proxy.ts: 5ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 22ms (next.js: 7ms, proxy.ts: 5ms, application-code: 11ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 5.5s (next.js: 12ms, proxy.ts: 4ms, application-code: 5.5s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 31ms (next.js: 6ms, proxy.ts: 4ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=21 200 in 30ms (next.js: 9ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 42ms (next.js: 10ms, proxy.ts: 7ms, application-code: 26ms)
+ GET /api/interventions?status=open 200 in 47ms (next.js: 20ms, proxy.ts: 8ms, application-code: 19ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=26 200 in 70ms (next.js: 17ms, proxy.ts: 26ms, application-code: 27ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 86ms (next.js: 12ms, proxy.ts: 33ms, application-code: 41ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 29ms (next.js: 12ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 24ms (next.js: 11ms, proxy.ts: 3ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 12ms, proxy.ts: 5ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 39ms (next.js: 13ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 41ms (next.js: 26ms, proxy.ts: 5ms, application-code: 11ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=26 200 in 54ms (next.js: 27ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 60ms (next.js: 14ms, proxy.ts: 6ms, application-code: 40ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 14.0s (next.js: 13ms, proxy.ts: 4ms, application-code: 14.0s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 33ms (next.js: 11ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=27 200 in 30ms (next.js: 11ms, proxy.ts: 4ms, application-code: 15ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 26ms (next.js: 11ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 28ms (next.js: 12ms, proxy.ts: 4ms, application-code: 13ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 12ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/me 200 in 46ms (next.js: 9ms, proxy.ts: 10ms, application-code: 27ms)
+ GET /api/interventions?status=open 200 in 68ms (next.js: 16ms, proxy.ts: 9ms, application-code: 43ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 91ms (next.js: 52ms, proxy.ts: 9ms, application-code: 30ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 93ms (next.js: 72ms, proxy.ts: 9ms, application-code: 11ms)
+ GET /api/me 200 in 34ms (next.js: 7ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 42ms (next.js: 16ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=31 200 in 64ms (next.js: 24ms, proxy.ts: 15ms, application-code: 25ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 73ms (next.js: 9ms, proxy.ts: 18ms, application-code: 46ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 13ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 28ms (next.js: 12ms, proxy.ts: 6ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 26ms (next.js: 12ms, proxy.ts: 4ms, application-code: 10ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 6.2s (next.js: 11ms, proxy.ts: 4ms, application-code: 6.2s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 34ms (next.js: 11ms, proxy.ts: 4ms, application-code: 20ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=31 200 in 37ms (next.js: 13ms, proxy.ts: 4ms, application-code: 19ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 1544ms (next.js: 12ms, proxy.ts: 4ms, application-code: 1528ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 35ms (next.js: 13ms, proxy.ts: 4ms, application-code: 19ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=37 200 in 30ms (next.js: 12ms, proxy.ts: 3ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 30ms (next.js: 8ms, proxy.ts: 6ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 32ms (next.js: 16ms, proxy.ts: 5ms, application-code: 11ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=42 200 in 71ms (next.js: 34ms, proxy.ts: 6ms, application-code: 31ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 75ms (next.js: 17ms, proxy.ts: 6ms, application-code: 52ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 12ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 24ms (next.js: 11ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 26ms (next.js: 11ms, proxy.ts: 3ms, application-code: 11ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 1587ms (next.js: 11ms, proxy.ts: 4ms, application-code: 1572ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 41ms (next.js: 13ms, proxy.ts: 8ms, application-code: 19ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=42 200 in 32ms (next.js: 12ms, proxy.ts: 5ms, application-code: 16ms)
+ GET /api/me 200 in 36ms (next.js: 8ms, proxy.ts: 10ms, application-code: 17ms)
+ GET /api/interventions?status=open 200 in 36ms (next.js: 15ms, proxy.ts: 10ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 68ms (next.js: 37ms, proxy.ts: 10ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 70ms (next.js: 49ms, proxy.ts: 9ms, application-code: 11ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 35ms (next.js: 13ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 20ms (next.js: 6ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 20ms (next.js: 6ms, proxy.ts: 5ms, application-code: 10ms)
+ GET /api/me 200 in 36ms (next.js: 6ms, proxy.ts: 6ms, application-code: 23ms)
+ GET /api/interventions?status=open 200 in 40ms (next.js: 15ms, proxy.ts: 6ms, application-code: 19ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=48 200 in 77ms (next.js: 36ms, proxy.ts: 13ms, application-code: 29ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 84ms (next.js: 19ms, proxy.ts: 13ms, application-code: 53ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 12ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 26ms (next.js: 12ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 12ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 40ms (next.js: 14ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 42ms (next.js: 26ms, proxy.ts: 6ms, application-code: 10ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=48 200 in 54ms (next.js: 28ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 59ms (next.js: 14ms, proxy.ts: 5ms, application-code: 39ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 9.9s (next.js: 12ms, proxy.ts: 4ms, application-code: 9.9s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 39ms (next.js: 17ms, proxy.ts: 4ms, application-code: 18ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=52 200 in 37ms (next.js: 13ms, proxy.ts: 4ms, application-code: 20ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 30ms (next.js: 15ms, proxy.ts: 5ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 24ms (next.js: 11ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 26ms (next.js: 12ms, proxy.ts: 4ms, application-code: 10ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 6.3s (next.js: 17ms, proxy.ts: 5ms, application-code: 6.2s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 42ms (next.js: 17ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=53 200 in 37ms (next.js: 17ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /api/me 200 in 51ms (next.js: 12ms, proxy.ts: 15ms, application-code: 24ms)
+ GET /api/interventions?status=open 200 in 70ms (next.js: 18ms, proxy.ts: 12ms, application-code: 39ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 93ms (next.js: 52ms, proxy.ts: 12ms, application-code: 29ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 95ms (next.js: 71ms, proxy.ts: 12ms, application-code: 12ms)
+ GET /api/me 200 in 54ms (next.js: 12ms, proxy.ts: 18ms, application-code: 23ms)
+ GET /api/interventions?status=open 200 in 53ms (next.js: 20ms, proxy.ts: 16ms, application-code: 17ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=59 200 in 91ms (next.js: 52ms, proxy.ts: 14ms, application-code: 26ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 99ms (next.js: 43ms, proxy.ts: 16ms, application-code: 40ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 12ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 25ms (next.js: 11ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 13ms, proxy.ts: 4ms, application-code: 12ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 6.7s (next.js: 13ms, proxy.ts: 4ms, application-code: 6.7s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 52ms (next.js: 11ms, proxy.ts: 4ms, application-code: 37ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=59 200 in 32ms (next.js: 13ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 40ms (next.js: 14ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 43ms (next.js: 27ms, proxy.ts: 5ms, application-code: 11ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=64 200 in 61ms (next.js: 32ms, proxy.ts: 8ms, application-code: 22ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 93ms (next.js: 19ms, proxy.ts: 8ms, application-code: 67ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 27ms (next.js: 12ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 25ms (next.js: 11ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 28ms (next.js: 12ms, proxy.ts: 5ms, application-code: 11ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 15.7s (next.js: 11ms, proxy.ts: 7ms, application-code: 15.6s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 60ms (next.js: 15ms, proxy.ts: 6ms, application-code: 39ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=66 200 in 39ms (next.js: 13ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /api/me 200 in 34ms (next.js: 8ms, proxy.ts: 10ms, application-code: 16ms)
+ GET /api/interventions?status=open 200 in 34ms (next.js: 14ms, proxy.ts: 10ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 66ms (next.js: 35ms, proxy.ts: 10ms, application-code: 21ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 67ms (next.js: 47ms, proxy.ts: 10ms, application-code: 11ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 29ms (next.js: 11ms, proxy.ts: 4ms, application-code: 14ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 20ms (next.js: 6ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 21ms (next.js: 6ms, proxy.ts: 3ms, application-code: 12ms)
+ GET /api/me 200 in 45ms (next.js: 12ms, proxy.ts: 13ms, application-code: 21ms)
+ GET /api/interventions?status=open 200 in 41ms (next.js: 17ms, proxy.ts: 12ms, application-code: 13ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=69 200 in 88ms (next.js: 55ms, proxy.ts: 12ms, application-code: 21ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 112ms (next.js: 41ms, proxy.ts: 12ms, application-code: 59ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 25ms (next.js: 11ms, proxy.ts: 4ms, application-code: 10ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 26ms (next.js: 11ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 29ms (next.js: 12ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 49ms (next.js: 15ms, proxy.ts: 9ms, application-code: 25ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 51ms (next.js: 28ms, proxy.ts: 9ms, application-code: 15ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=69 200 in 85ms (next.js: 36ms, proxy.ts: 11ms, application-code: 38ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 111ms (next.js: 18ms, proxy.ts: 10ms, application-code: 83ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 34ms (next.js: 15ms, proxy.ts: 5ms, application-code: 14ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 35ms (next.js: 15ms, proxy.ts: 5ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 58ms (next.js: 24ms, proxy.ts: 4ms, application-code: 30ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 17.8s (next.js: 12ms, proxy.ts: 4ms, application-code: 17.8s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 74ms (next.js: 12ms, proxy.ts: 10ms, application-code: 52ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=72 200 in 38ms (next.js: 9ms, proxy.ts: 8ms, application-code: 21ms)
+ GET /api/me 200 in 72ms (next.js: 20ms, proxy.ts: 21ms, application-code: 31ms)
+ GET /api/interventions?status=open 200 in 118ms (next.js: 30ms, proxy.ts: 18ms, application-code: 70ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 123ms (next.js: 63ms, proxy.ts: 17ms, application-code: 42ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 127ms (next.js: 84ms, proxy.ts: 18ms, application-code: 25ms)
+ GET /api/me 200 in 61ms (next.js: 16ms, proxy.ts: 17ms, application-code: 27ms)
+ GET /api/interventions?status=open 200 in 64ms (next.js: 27ms, proxy.ts: 17ms, application-code: 20ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=73 200 in 91ms (next.js: 32ms, proxy.ts: 37ms, application-code: 22ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 114ms (next.js: 23ms, proxy.ts: 37ms, application-code: 54ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 184ms (next.js: 71ms, proxy.ts: 37ms, application-code: 75ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 148ms (next.js: 90ms, proxy.ts: 15ms, application-code: 42ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 128ms (next.js: 69ms, proxy.ts: 24ms, application-code: 34ms)
+ POST /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/tick 200 in 5.8s (next.js: 19ms, proxy.ts: 6ms, application-code: 5.7s)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 117ms (next.js: 28ms, proxy.ts: 9ms, application-code: 80ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?after_id=73 200 in 58ms (next.js: 13ms, proxy.ts: 18ms, application-code: 27ms)
+ GET /needs-you 200 in 99ms (next.js: 23ms, proxy.ts: 4ms, application-code: 72ms)
+ GET /api/me 200 in 42ms (next.js: 9ms, proxy.ts: 11ms, application-code: 22ms)
+ GET /api/interventions?status=open 200 in 43ms (next.js: 17ms, proxy.ts: 10ms, application-code: 17ms)
+ GET /api/interventions?status=open 200 in 53ms (next.js: 13ms, proxy.ts: 27ms, application-code: 14ms)
+ GET /deals 200 in 110ms (next.js: 28ms, proxy.ts: 6ms, application-code: 76ms)
+ GET /api/me 200 in 45ms (next.js: 12ms, proxy.ts: 14ms, application-code: 19ms)
+ GET /api/interventions?status=open 200 in 98ms (next.js: 21ms, proxy.ts: 15ms, application-code: 62ms)
+ GET /api/deals 200 in 94ms (next.js: 51ms, proxy.ts: 19ms, application-code: 24ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 54ms (next.js: 15ms, proxy.ts: 7ms, application-code: 32ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 55ms (next.js: 31ms, proxy.ts: 7ms, application-code: 18ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 33ms (next.js: 13ms, proxy.ts: 5ms, application-code: 15ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 29ms (next.js: 12ms, proxy.ts: 4ms, application-code: 13ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 33ms (next.js: 15ms, proxy.ts: 5ms, application-code: 13ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8 200 in 93ms (next.js: 26ms, proxy.ts: 7ms, application-code: 60ms)
+ GET /api/campaigns/73338713-0e7d-4c62-a341-09121bb00ed8/feed?all=1 200 in 51ms (next.js: 19ms, proxy.ts: 6ms, application-code: 26ms)
+ GET /api/me 200 in 68ms (next.js: 11ms, proxy.ts: 15ms, application-code: 42ms)
+ GET /api/interventions?status=open 200 in 85ms (next.js: 19ms, proxy.ts: 16ms, application-code: 50ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 89ms (next.js: 59ms, proxy.ts: 16ms, application-code: 14ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 94ms (next.js: 42ms, proxy.ts: 15ms, application-code: 37ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 37ms (next.js: 13ms, proxy.ts: 5ms, application-code: 19ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 33ms (next.js: 12ms, proxy.ts: 7ms, application-code: 13ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 32ms (next.js: 10ms, proxy.ts: 7ms, application-code: 15ms)
+ GET /setup 200 in 92ms (next.js: 8ms, proxy.ts: 7ms, application-code: 77ms)
+ GET /api/me 200 in 84ms (next.js: 20ms, proxy.ts: 20ms, application-code: 45ms)
+ GET /api/interventions?status=open 200 in 84ms (next.js: 38ms, proxy.ts: 21ms, application-code: 25ms)
+ GET /api/me 200 in 40ms (next.js: 5ms, proxy.ts: 22ms, application-code: 13ms)
+ POST /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/tick 404 in 31ms (next.js: 14ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 34ms (next.js: 15ms, proxy.ts: 4ms, application-code: 14ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 32ms (next.js: 14ms, proxy.ts: 6ms, application-code: 13ms)
+ POST /api/campaigns?preview=1 200 in 1770ms (next.js: 11ms, proxy.ts: 16ms, application-code: 1742ms)
+ GET /setup 200 in 71ms (next.js: 7ms, proxy.ts: 6ms, application-code: 58ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85 404 in 65ms (next.js: 21ms, proxy.ts: 11ms, application-code: 32ms)
+ GET /api/campaigns/04b3e1d9-4259-43e9-a6ec-536862b32d85/feed?after_id=140 404 in 70ms (next.js: 41ms, proxy.ts: 11ms, application-code: 18ms)
+ GET /needs-you 200 in 63ms (next.js: 6ms, proxy.ts: 4ms, application-code: 52ms)
+ GET /api/me 200 in 41ms (next.js: 12ms, proxy.ts: 9ms, application-code: 20ms)
+ GET /api/interventions?status=open 200 in 54ms (next.js: 20ms, proxy.ts: 10ms, application-code: 25ms)
+ GET /api/interventions?status=open 200 in 49ms (next.js: 8ms, proxy.ts: 27ms, application-code: 14ms)
+ GET /deals 200 in 72ms (next.js: 7ms, proxy.ts: 4ms, application-code: 60ms)
+ GET /api/me 200 in 49ms (next.js: 9ms, proxy.ts: 8ms, application-code: 32ms)
+ GET /api/interventions?status=open 200 in 53ms (next.js: 21ms, proxy.ts: 9ms, application-code: 23ms)
+ GET /api/deals 200 in 67ms (next.js: 15ms, proxy.ts: 34ms, application-code: 18ms)
+ GET /setup 200 in 82ms (next.js: 7ms, proxy.ts: 5ms, application-code: 69ms)
+ GET /api/me 200 in 71ms (next.js: 7ms, proxy.ts: 8ms, application-code: 56ms)
+ GET /api/interventions?status=open 200 in 76ms (next.js: 16ms, proxy.ts: 8ms, application-code: 52ms)
+ GET /api/me 200 in 34ms (next.js: 5ms, proxy.ts: 4ms, application-code: 25ms)
+ POST /api/campaigns?preview=1 200 in 1441ms (next.js: 5ms, proxy.ts: 5ms, application-code: 1431ms)
+ GET /setup 200 in 81ms (next.js: 7ms, proxy.ts: 5ms, application-code: 68ms)
+ GET /api/me 200 in 59ms (next.js: 9ms, proxy.ts: 7ms, application-code: 43ms)
+ GET /api/interventions?status=open 200 in 60ms (next.js: 21ms, proxy.ts: 6ms, application-code: 33ms)
+ GET /api/me 200 in 36ms (next.js: 4ms, proxy.ts: 5ms, application-code: 26ms)
+ POST /api/campaigns?preview=1 200 in 1601ms (next.js: 4ms, proxy.ts: 19ms, application-code: 1578ms)

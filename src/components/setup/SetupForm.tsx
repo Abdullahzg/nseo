@@ -9,7 +9,7 @@ const DEMO_DEFAULTS = {
   website_url: "https://restoria.app",
   what_you_sell: "an AI photo restoration tool that repairs old and damaged photos",
   keywords: ["AI photo editor", "photo restoration", "restore old photos"],
-  desired_deals: 2,
+  desired_deals: 3,
   budget_total: 800,
   max_per_deal: 250,
 };
@@ -29,17 +29,30 @@ export function SetupForm() {
 
   useEffect(() => { fetch("/api/me").then((r) => r.json()).then(setMe).catch(() => setMe({ kind: "none" })); }, []);
 
+  // The demo is pre-filled, so the plan is generated on arrival: a visitor reads it and launches with
+  // one click. Cached per browser session so reloads don't spend a model call.
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem("geseo.plan.default");
+      if (cached) { setPlan(JSON.parse(cached)); return; }
+    } catch { /* no storage */ }
+    preview(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const body = { ...f, demo_mode: demo };
   const addKw = () => { const k = kw.trim(); if (k && !f.keywords.includes(k) && f.keywords.length < 5) setF({ ...f, keywords: [...f.keywords, k] }); setKw(""); };
   const set = (k: keyof typeof f, v: any) => { setF({ ...f, [k]: v }); setPlan(null); };
 
-  async function preview() {
+  async function preview(isDefault = false) {
     setError(null); setPreviewing(true);
     try {
-      const r = await fetch("/api/campaigns?preview=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch("/api/campaigns?preview=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isDefault ? { ...DEMO_DEFAULTS, demo_mode: true } : body) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not build the plan.");
-      setPlan({ text: d.plan, model: d.model, tokens: d.tokens, latency_ms: d.latency_ms });
+      const p = { text: d.plan, model: d.model, tokens: d.tokens, latency_ms: d.latency_ms };
+      setPlan(p);
+      if (isDefault) { try { sessionStorage.setItem("geseo.plan.default", JSON.stringify(p)); } catch { /* ignore */ } }
     } catch (e: any) { setError(e.message); } finally { setPreviewing(false); }
   }
 
@@ -102,14 +115,14 @@ export function SetupForm() {
           ) : (
             <>
               <button type="submit" className="btn" disabled={launching}>{launching ? "Launching…" : demo ? "Launch demo" : "Launch — sends real email"}</button>
-              <button type="button" className="btn btn-ghost" onClick={preview} disabled={previewing}>{previewing ? "Re-planning…" : "Re-plan"}</button>
+              <button type="button" className="btn btn-ghost" onClick={() => preview()} disabled={previewing}>{previewing ? "Re-planning…" : "Re-plan"}</button>
             </>
           )}
           <span className="text-xs text-ink-3">{demo ? "About 3 minutes, simulated publishers, real decisions." : "Runs over days. You will only be pulled back when it needs you."}</span>
         </div>
       </form>
 
-      <aside className="lg:sticky lg:top-20 self-start">
+      <aside className="order-first lg:order-none lg:sticky lg:top-20 self-start">
         <PlanPreview plan={plan} previewing={previewing} demo={demo} />
       </aside>
     </div>

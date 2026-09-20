@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { caller, camp, ok } = await canSee(req, id);
   if (!camp || !ok) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (caller?.kind !== "cron" && !camp.demo_mode) return NextResponse.json({ error: "Real campaigns are stepped by the scheduler, not the browser." }, { status: 403 });
-  if (caller?.kind !== "cron" && camp.last_tick_at && Date.now() - new Date(camp.last_tick_at).getTime() < 15_000) {
+  if (caller?.kind !== "cron" && camp.last_tick_at && Date.now() - new Date(camp.last_tick_at).getTime() < 10_000) {
     return NextResponse.json({ ok: true, campaign_id: id, action: "rate_limited", phase_before: camp.phase, phase_after: camp.phase, decided_by: null, duration_ms: 0 });
   }
   const r = await tick(id, { via: caller?.kind ?? "unknown" });

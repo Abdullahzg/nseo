@@ -144,7 +144,7 @@ export async function resolveIntervention(id: string, answer: string, resolvedBy
 }
 
 export async function listInterventions(scope: { campaign_id?: string | null; owner_email?: string | null; guest_id?: string | null; status?: "open" | "resolved" | "dismissed" | "taken_over" }): Promise<any[]> {
-  let q = supabaseAdmin.from("interventions").select("*, campaign:campaigns!inner(id, name, owner_email, guest_id, demo_mode)").order("created_at", { ascending: false }).limit(200);
+  let q = supabaseAdmin.from("interventions").select("*, campaign:campaigns!inner(id, name, owner_email, guest_id, demo_mode), prospect:campaign_prospects(contact_name, domain_host)").order("created_at", { ascending: false }).limit(200);
   if (scope.campaign_id) q = q.eq("campaign_id", scope.campaign_id);
   if (scope.guest_id) q = q.eq("campaign.guest_id", scope.guest_id);
   else if (scope.owner_email) q = q.eq("campaign.owner_email", scope.owner_email).is("campaign.guest_id", null);

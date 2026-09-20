@@ -11,6 +11,7 @@ import { getCampaign, updateCampaign, setPhase, countProspectsByStatus, getDeals
 import { availableActions, nextPhase, nextTickDelayMs, type ActionKey, type PolicyInput, type AvailableAction } from "./policy";
 import { planDiscoveryQueries, discoverBatch, qualifyBatch, contactBatch } from "./tools";
 import { outreachBatch, processReplies, scheduleFollowups, checkCompletion } from "./outreach";
+import { countDueDemoReplies } from "./demo";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
 import type { Campaign } from "./types";
 
@@ -39,10 +40,12 @@ async function policyInput(camp: Campaign): Promise<PolicyInput> {
     listProspects(camp.id, "ready", 200),
     listProspects(camp.id, "qualified", 200),
   ]);
+  const dueDemoReplies = camp.demo_mode ? await countDueDemoReplies(camp.id) : 0;
   return {
     camp, counts, deals: deals.filter((d) => d.status !== "cancelled").length, openInterventions: open.length, unansweredReplies,
     sendableReady: ready.filter((p) => !!p.contact_email).length,
     actionableQualified: qualified.filter((p) => (p.contact_attempts ?? 0) < 3).length,
+    dueDemoReplies,
   };
 }
 
@@ -128,8 +131,9 @@ export async function tick(campaignId: string, opts: { via?: string } = {}): Pro
     const details: Record<string, unknown> = { chosen: chosen.key, decided_by: decidedBy };
     switch (chosen.key) {
       case "run_discovery": {
-        const plan = await planDiscoveryQueries(camp);
-        details.discovery = await discoverBatch(camp, plan.queries, 8);
+        // Demo mode loads fixtures; planning search queries there would be a model call with no purpose.
+        const queries = camp.demo_mode ? [] : (await planDiscoveryQueries(camp)).queries;
+        details.discovery = await discoverBatch(camp, queries, 8);
         break;
       }
       case "qualify": details.qualify = await qualifyBatch(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 6000)))); break;

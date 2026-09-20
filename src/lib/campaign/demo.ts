@@ -34,7 +34,7 @@ export function demoContactFor(host: string): { name: string; email: string } {
 }
 
 export type DemoPersona = "high_anchor" | "meeting_request" | "quick_deal" | "decliner" | "autoresponder" | "factual_question";
-const PERSONAS: DemoPersona[] = ["high_anchor", "meeting_request", "quick_deal", "decliner", "high_anchor", "factual_question", "autoresponder", "quick_deal"];
+const PERSONAS: DemoPersona[] = ["high_anchor", "meeting_request", "quick_deal", "decliner", "high_anchor", "factual_question", "autoresponder", "high_anchor"];
 
 const REPLY_DELAY_MS = Number(process.env.DEMO_REPLY_DELAY_MS ?? 0);
 
@@ -65,6 +65,40 @@ function nextPersonaMessage(persona: DemoPersona, theirMsgCount: number, product
   }
 }
 
+/**
+ * Where a thread is in its script. `theirs` = how many scripted messages the editor has already
+ * sent = how many replies of ours went out (each of ours answers one of theirs; the initial counts
+ * as answering nothing). `ourSentAfter` = our latest send that is newer than their latest reply.
+ */
+export async function demoStage(anchorId: string): Promise<{ theirs: number; ourSentAfter: string | undefined } | null> {
+  const { data: rows } = await supabaseAdmin.from("outreach_emails").select("kind, status, replied_at, sent_at").or(`id.eq.${anchorId},parent_id.eq.${anchorId}`).order("created_at", { ascending: true });
+  const rowsT = (rows ?? []) as any[];
+  const anchor = rowsT.find((r) => r.kind === "initial");
+  if (!anchor?.sent_at) return null;
+  const ourReplies = rowsT.filter((r) => r.kind === "negotiation" && r.status === "sent" && r.sent_at);
+  const theirs = ourReplies.length;
+  const theirLast = anchor.replied_at as string | null;
+  const ourSentAfter = [anchor, ...ourReplies].filter((r) => r.sent_at && (!theirLast || r.sent_at > theirLast)).map((r) => r.sent_at as string).sort().pop();
+  return { theirs, ourSentAfter };
+}
+
+/** How many threads would receive a scripted reply on the next injection (no writes). */
+export async function countDueDemoReplies(campaignId: string): Promise<number> {
+  const threads = await listCampaignThreads(campaignId);
+  let n = 0;
+  for (const th of threads) {
+    if (["agreed", "declined", "needs_human", "stalled", "handoff"].includes(th.negotiation_status ?? "")) continue;
+    if (!th.prospect_id) continue;
+    const p = await getProspect(th.prospect_id);
+    const persona = (p?.demo_persona as DemoPersona) || null;
+    if (!persona) { n++; continue; } // unassigned = first reply still due
+    const st = await demoStage(th.id);
+    if (!st || !st.ourSentAfter) continue;
+    if (nextPersonaMessage(persona, st.theirs, "")) n++;
+  }
+  return n;
+}
+
 export async function assignDemoPersona(prospectId: string): Promise<DemoPersona> {
   const p = await getProspect(prospectId);
   if (p?.demo_persona && PERSONAS.includes(p.demo_persona as DemoPersona)) return p.demo_persona as DemoPersona;
@@ -88,13 +122,11 @@ export async function injectDemoReplies(campaignId: string, product: string): Pr
     const prospect = await getProspect(th.prospect_id);
     if (!prospect) continue;
     const persona = (prospect.demo_persona as DemoPersona) || (await assignDemoPersona(prospect.id));
-    const { data: rows } = await supabaseAdmin.from("outreach_emails").select("kind, status, replied_at, sent_at").or(`id.eq.${th.id},parent_id.eq.${th.id}`).order("created_at", { ascending: true });
-    const rowsT = (rows ?? []) as any[];
-    const theirs = rowsT.filter((r) => r.replied_at).length;
-    const msg = nextPersonaMessage(persona, theirs, product);
+    const stage = await demoStage(th.id);
+    if (!stage) continue;
+    const msg = nextPersonaMessage(persona, stage.theirs, product);
     if (!msg) continue;
-    const theirLast = rowsT.map((r) => r.replied_at).filter(Boolean).sort().pop() as string | undefined;
-    const ourSentAfter = rowsT.filter((r) => r.status === "sent" && r.sent_at && (!theirLast || r.sent_at > theirLast)).map((r) => r.sent_at).sort().pop() as string | undefined;
+    const ourSentAfter = stage.ourSentAfter;
     if (!ourSentAfter) continue; // wait until we've answered
     if (REPLY_DELAY_MS && Date.now() - new Date(ourSentAfter).getTime() < REPLY_DELAY_MS) continue;
     const editor = demoContactFor(prospect.domain_host);

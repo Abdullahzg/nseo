@@ -26,8 +26,9 @@ describe("availableActions", () => {
   it("monitoring in real mode with nothing unanswered and nothing outreached offers nothing", () => {
     expect(availableActions(input({}, { phase: "monitoring", demo_mode: false }))).toEqual([]);
   });
-  it("monitoring in demo mode always offers handle_replies so injected replies get answered", () => {
-    expect(availableActions(input({}, { phase: "monitoring" })).map((x) => x.key)).toContain("handle_replies");
+  it("monitoring in demo mode offers handle_replies only when a scripted reply is due (no idle model calls)", () => {
+    expect(availableActions(input({}, { phase: "monitoring" }))).toEqual([]);
+    expect(availableActions(input({ dueDemoReplies: 2 }, { phase: "monitoring" })).map((x) => x.key)).toContain("handle_replies");
   });
   it("terminal phases offer nothing", () => {
     for (const phase of ["completed", "stopped", "failed", "draft"] as const) expect(availableActions(input({ counts: { discovered: 5 } }, { phase }))).toEqual([]);

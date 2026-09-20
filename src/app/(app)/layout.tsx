@@ -8,7 +8,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 pt-8 pb-24">{children}</div>
       </main>
       <footer className="border-t border-rule">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 h-12 flex items-center justify-between text-xs text-ink-3">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-ink-3">
           <span>Geseo</span>
           <span>Decisions by NVIDIA Nemotron 3 on Nebius Token Factory</span>
         </div>
