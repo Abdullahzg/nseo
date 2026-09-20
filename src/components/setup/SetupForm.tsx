@@ -74,7 +74,11 @@ export function SetupForm() {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
       <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); plan ? launch() : preview(); }}>
-        <ModeToggle demo={demo} onChange={(v) => { setDemo(v); setPlan(null); }} realAllowed={realAllowed} me={me} />
+        <ModeToggle demo={demo} onChange={(v) => {
+          setDemo(v); setPlan(null);
+          // Back to the untouched demo: the plan already written for it comes back without a model call.
+          if (v && JSON.stringify(f) === JSON.stringify(DEMO_DEFAULTS)) { try { const c = sessionStorage.getItem("nseo.plan.default"); if (c) setPlan(JSON.parse(c)); } catch { /* ignore */ } }
+        }} realAllowed={realAllowed} me={me} />
 
         <div className="grid gap-5 sm:grid-cols-2">
           <label className="block sm:col-span-2">

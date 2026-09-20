@@ -13,6 +13,7 @@ describe("strongCue (deterministic escalations)", () => {
     ["what's your monthly traffic and is the link do-follow?", "factual_question"],
     ["we only do retainer deals, $500 per month", "over_policy"],
     ["see the attached rate card", "inbound_attachment"],
+    ["we could include you for $220 if you send two before/after examples we can publish", "asset_request"],
   ])("%s → %s", (text, type) => { expect(strongCue(text.toLowerCase())?.type).toBe(type); });
   it("a plain price counter trips no cue", () => { expect(strongCue("our rate is $280 for a feature")).toBeNull(); });
   it("an attachment is a cue even when the model read the reply as a decline", () => {

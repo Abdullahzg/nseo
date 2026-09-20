@@ -194,7 +194,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       other_channel: [`${who} wants to move to WhatsApp / phone.`, "A line to send, or take over."],
       inbound_attachment: [`${who} sent a file the agent cannot read.`, "What it says, in a line."],
       thread_limit: ["The thread has gone several rounds without closing; the agent stopped rather than nag.", "A final line to send, or take over."],
-      other: ["The agent hit something it should not decide alone.", "What should it say?"],
+      other: [r.interventionAsk ? `The agent stopped itself: ${r.interventionAsk}.` : "The agent hit something it should not decide alone.", "What should it say? (Your line goes into its next reply.)"],
     };
     const [plan, needs] = PLAN[t] ?? PLAN.other;
     await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: plan, agent_needs: needs, assistable: r.classification?.assistable !== false });
@@ -259,8 +259,12 @@ export async function processReplies(camp: Campaign, limit: number): Promise<Rep
   }
   const threads = await listCampaignThreads(camp.id);
   let n = 0;
+  let dealsSoFar = (await getDeals(camp.id)).filter((d) => d.status !== "cancelled").length;
   for (const th of threads) {
     if (n >= limit) break;
+    // The goal is a count: once it is met mid-batch, the remaining replies wait for the wind-down
+    // instead of agreeing a fourth deal the owner never asked for.
+    if (dealsSoFar >= camp.desired_deals) break;
     if (!th.replied_at || th.reply_kind === "auto") continue;
     if (["agreed", "declined", "needs_human", "stalled", "handoff", "withdrawn"].includes(th.negotiation_status ?? "")) continue;
     const { data: last } = await supabaseAdmin.from("outreach_emails").select("sent_at").eq("parent_id", th.id).eq("kind", "negotiation").eq("status", "sent").order("sent_at", { ascending: false }).limit(1);
@@ -270,6 +274,7 @@ export async function processReplies(camp: Campaign, limit: number): Promise<Rep
     try {
       const r = await handleThread(camp, th.id);
       out.handled++;
+      if (r.statusHint === "agreed") dealsSoFar++;
       if (r.persistedAs === "needs_human") out.needs_human++;
       if (r.statusHint === "agreed") out.deals++;
     } catch (e: any) {

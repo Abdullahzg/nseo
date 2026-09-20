@@ -139,6 +139,7 @@ export function strongCue(t: string): { type: InterventionType; ask: string; ass
     [/\b(invoice|purchase order|\bpo\b|\bw-?9\b|tax (form|id)|bank (details|account)|iban|swift|billing (details|info))\b/i, "payment_details", "wants invoice / PO / bank / tax details", true],
     [/\b(submit (via|through|using|our)|fill (out|in) (this|the) form|vendor portal|create an account|submission (system|portal))\b/i, "process_portal", "wants submission via a form/portal", false],
     [/\b(attach(ed|ing)|see the (attached|doc)|find (attached|enclosed)|pfa)\b/i, "inbound_attachment", "sent a file for us to review", false],
+    [/\b(send( us| over| me| through)?|share|provide) (two |some |a few |your |the |a |us )?(examples?|samples?|screenshots?|images?|photos?|logo|assets|media kit|press kit|before\/after)/i, "asset_request", "wants files or examples the agent cannot attach", true],
     [/\b(how (much|many) (traffic|visitors|readers)|what('s| is) your (traffic|dr|domain (rating|authority))|monthly traffic\??|\bdau\b|\bmau\b)\b/i, "factual_question", "asks a fact about your site the agent must not invent", true],
     [/\b(retainer|long[- ]?term (deal|contract)|per month|monthly fee|exclusiv(e|ity))\b/i, "over_policy", "wants terms beyond a one-off placement", true],
   ];
@@ -209,7 +210,7 @@ export interface DraftResult {
   llm: LLMMeta | null;
 }
 
-const FABRICATION_RE = /\b(attach(ed|ing|ment)?|enclosed|i(?:'ve| have|'ll| will) (attached|enclosed|sent|share[d]?|include[d]?)|one[- ]?pager|media[- ]?kit|deck|slide[- ]?deck|pitch deck|hop on|jump on|(schedule|set ?up|arrange) a (call|meeting|zoom)|calendar|calendly|cal\.com|linkedin|our (portfolio|case stud))/i;
+const FABRICATION_RE = /\b(attach(ed|ing|ment)?|enclosed|i(?:'ve| have|'ll| will|'d) (attached|enclosed|send (you|over|the|them|those|a|an|some)|share (the|a|our|some) (deck|kit|file|examples|samples|images|photos|screenshots))|one[- ]?pager|media[- ]?kit|deck|slide[- ]?deck|pitch deck|hop on|jump on|(schedule|set ?up|arrange) a (call|meeting|zoom)|calendar|calendly|cal\.com|linkedin|our (portfolio|case stud))/i;
 
 export async function draftNegotiationReply(input: DraftInput): Promise<DraftResult> {
   const { settings, thread, authorName, publication, ceiling, floor, lastIntent } = input;
@@ -313,8 +314,9 @@ After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none
   // Code owns the greeting and the shape: the model sometimes greets the publication ("Hi LetsEnhance,")
   // or writes one long line. Greeting on its own line, body, sign-off on its own lines.
   body = shapeEmail(body, first);
-  if (!assist && FABRICATION_RE.test(body)) {
-    return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: "reply would require an asset/call/link the AI cannot provide", engine: "model", llm: r.meta };
+  const fabricated = !assist ? body.match(FABRICATION_RE)?.[0] : null;
+  if (fabricated) {
+    return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: `the draft promised something the agent cannot deliver ("${fabricated}") — a file, a call or a link`, engine: "model", llm: r.meta };
   }
   return { body, suggestedOffer, shouldStop: statusHint !== "negotiating", statusHint, engine: "model", llm: r.meta };
 }

@@ -101,12 +101,12 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
                       <textarea className="field !h-auto min-h-20 py-2" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Reply as ${t.editor ?? "the editor"} — say anything; the agent has to handle it.`} />
                       <div className="flex items-center gap-3 flex-wrap">
                         <button type="button" className="btn" onClick={() => send(t.id)} disabled={busy || !text.trim()}>{busy ? "The agent is reading it…" : "Send as the editor"}</button>
-                        {result && <span className={`text-sm ${result.ok ? "text-accent" : "text-danger"}`}>{result.text}</span>}
                       </div>
                     </div>
                   ) : (
                     <div className="text-sm text-ink-3">{t.status === "needs_human" ? "Parked on the Needs-you screen: answer it there and the agent resumes this thread." : "This thread is closed."}</div>
                   )}
+                  {result && <div className={`text-sm ${result.ok ? "text-accent" : "text-danger"}`}>{result.text}</div>}
                 </div>
               )}
             </div>
