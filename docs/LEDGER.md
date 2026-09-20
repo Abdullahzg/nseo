@@ -3,6 +3,17 @@
 Two demo campaigns run end-to-end on **2026-09-20** against live Nebius Token Factory, read back from
 `agent_events` (the append-only feed every decision writes to). Numbers are the database's, not estimates.
 
+## Run C — clean database, browser-driven, after the review fixes
+Goal 3 placements, budget $800, max $250/placement. **Completed on tick 13 in ~3 minutes — goal reached.**
+
+| | |
+|---|---|
+| Events | 60 · **model 38** · policy 9 · fixture 13 · **0 idle model calls** (no `policy_noop` needed) |
+| Model calls | Super 11 (one decision per busy step) · Nano 24 · Ultra 3 (one Ultra runaway retried on Super, visible in the feed) |
+| Deals | restorereview.invalid $120 · creativetech.invalid **$280 → $180** · designdigest.creative.invalid **$280 → $180** — saved $200 |
+| Parked for a human | sync_contact (call request) · factual_question (traffic / do-follow) |
+| Status sentence at the end | "Goal reached. 3 deals agreed, $480 of $800 committed." |
+
 ## Run A — first arc after the rebuild (`52959f9a`)
 Goal 2 placements, budget $800, max $250/placement. **Completed on tick 12 — goal reached.**
 

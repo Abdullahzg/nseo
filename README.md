@@ -12,8 +12,9 @@ Every decision is made by **NVIDIA Nemotron 3** models served on **Nebius Token 
 one of them is visible in the product: tap any line of the activity feed to see which model decided
 it, the tokens it used, how long it took, and its reasoning.
 
-**Live demo:** _(URL in the Devpost submission)_ — open it, press **See the plan**, press **Launch demo**,
-watch a campaign run to a deal in about three minutes. No account needed. Nothing is sent anywhere.
+**Live demo:** _(URL in the Devpost submission)_ — open it, read the plan the agent wrote for the
+pre-filled example, press **Launch demo**, and watch a campaign run to three deals in about three
+minutes. No account needed. Nothing is sent anywhere.
 
 ---
 
@@ -105,7 +106,7 @@ npx supabase link --project-ref <ref> && npx supabase db push
 npm run dev                        # http://localhost:3000 — you are the owner locally (no Google needed)
 ```
 
-Then open **Setup**, press **See the plan**, press **Launch demo**. `npm test` runs the unit and
+Then open **Setup** and press **Launch demo** (the plan is already written for the pre-filled example). `npm test` runs the unit and
 database-wall tests (`DATABASE_URL` in `.env.local` enables the latter); `npm run e2e` drives the
 deployed demo (`E2E_BASE_URL`).
 
