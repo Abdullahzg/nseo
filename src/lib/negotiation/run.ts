@@ -113,14 +113,11 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
     return { ...withCls, ok: true, statusHint: "skipped", persistedAs: "skipped" };
   }
   if (theirPrice != null && !assisting) {
-    const approvalThreshold = settings.human_approval_above ?? 0;
-    const absoluteMax = settings.absolute_max_price ?? ceiling ?? Infinity;
+    const absoluteMax = settings.absolute_max_price ?? Infinity;
     if (theirPrice > absoluteMax) {
       return park("budget_exception", `asks ${settings.currency} ${theirPrice}, above the absolute maximum of ${settings.currency} ${absoluteMax}`);
     }
-    if (theirPrice > approvalThreshold && (ceiling == null || theirPrice > ceiling)) {
-      return park("budget_exception", `asks ${settings.currency} ${theirPrice}; the agent may only approve up to ${settings.currency} ${Math.min(approvalThreshold, ceiling ?? approvalThreshold)} on its own`);
-    }
+    // Above the ceiling but under the absolute max: negotiate DOWN (Ultra). Never accept above the ceiling — code enforces that in the draft.
   }
 
   // Sign as the person whose inbox this goes out from.
@@ -140,6 +137,10 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   });
   if (draft.llm) llm.push(draft.llm);
   if (draft.needsHuman) return park(draft.interventionType ?? "other", draft.interventionAsk ?? "reply would need something the AI cannot provide");
+  const approvalThreshold = settings.human_approval_above ?? Infinity;
+  if (draft.statusHint === "agreed" && !assisting && (draft.suggestedOffer ?? theirPrice ?? 0) > approvalThreshold) {
+    return park("budget_exception", `wants to accept ${settings.currency} ${draft.suggestedOffer ?? theirPrice}, above the ${settings.currency} ${approvalThreshold} it may approve alone`);
+  }
 
   // Hard no / unsubscribe → suppress the domain so no campaign ever emails them again.
   if (cls.intent === "hard_no" || cls.intent === "unsubscribe") {

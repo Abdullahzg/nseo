@@ -1,0 +1,34 @@
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.137.1:3000
+- Environments: .env.local
+✓ Ready in 4.4s
+- Experiments (use with caution):
+  · serverActions
+
+ GET /api/health?deep=1 200 in 1716ms (next.js: 823ms, proxy.ts: 469ms, application-code: 424ms)
+ POST /api/campaigns?preview=1 200 in 2.1s (next.js: 674ms, proxy.ts: 10ms, application-code: 1412ms)
+ POST /api/campaigns 201 in 51ms (next.js: 6ms, proxy.ts: 7ms, application-code: 39ms)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 7.2s (next.js: 3.3s, proxy.ts: 6ms, application-code: 3.9s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 9.1s (next.js: 15ms, proxy.ts: 7ms, application-code: 9.0s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 3.7s (next.js: 13ms, proxy.ts: 5ms, application-code: 3.7s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 5.5s (next.js: 14ms, proxy.ts: 5ms, application-code: 5.5s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 1991ms (next.js: 15ms, proxy.ts: 5ms, application-code: 1971ms)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 8.2s (next.js: 149ms, proxy.ts: 74ms, application-code: 8.0s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 2.8s (next.js: 149ms, proxy.ts: 71ms, application-code: 2.5s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 7.8s (next.js: 14ms, proxy.ts: 5ms, application-code: 7.8s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 6.6s (next.js: 163ms, proxy.ts: 88ms, application-code: 6.4s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 5.2s (next.js: 17ms, proxy.ts: 6ms, application-code: 5.1s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 8.9s (next.js: 164ms, proxy.ts: 75ms, application-code: 8.6s)
+ POST /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/tick 200 in 2.5s (next.js: 14ms, proxy.ts: 5ms, application-code: 2.5s)
+○ Compiling / ...
+ GET / 307 in 6.4s (next.js: 5.8s, proxy.ts: 232ms, application-code: 302ms)
+ GET /campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069 200 in 5.6s (next.js: 5.5s, proxy.ts: 6ms, application-code: 152ms)
+ GET /setup 200 in 526ms (next.js: 459ms, proxy.ts: 6ms, application-code: 61ms)
+ GET /campaigns 200 in 764ms (next.js: 570ms, proxy.ts: 5ms, application-code: 188ms)
+ GET /needs-you 200 in 571ms (next.js: 507ms, proxy.ts: 11ms, application-code: 53ms)
+ GET /deals 200 in 423ms (next.js: 363ms, proxy.ts: 5ms, application-code: 54ms)
+ GET /settings 200 in 390ms (next.js: 338ms, proxy.ts: 4ms, application-code: 48ms)
+ GET /login 200 in 373ms (next.js: 308ms, proxy.ts: 4ms, application-code: 61ms)
+ GET /campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069 200 in 83ms (next.js: 18ms, proxy.ts: 6ms, application-code: 59ms)
+ GET /api/campaigns/52959f9a-fded-4ae3-a3ec-6684eea84069/feed?all=1 200 in 1708ms (next.js: 1624ms, proxy.ts: 8ms, application-code: 77ms)

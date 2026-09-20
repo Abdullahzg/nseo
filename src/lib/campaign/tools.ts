@@ -140,7 +140,7 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
 
   // 3) MODEL: relevance. Throws on failure — there is no keyword fallback.
   const r = await nebiusJson<RelevanceVerdict>({
-    role: "fast", thinking: false, max_tokens: 350, schema: RELEVANCE_SCHEMA, validate: isRelevance,
+    role: "fast", thinking: false, max_tokens: 600, schema: RELEVANCE_SCHEMA, validate: isRelevance,
     messages: [
       { role: "system", content: "You evaluate whether a web article/publication is a good placement target for a product's SEO outreach. Judge editorial quality (real content vs link farm), topical fit, and realistic fit of the product. JSON only." },
       { role: "user", content: `Product: ${camp.what_you_sell ?? camp.name} (${camp.website_url ?? ""})
