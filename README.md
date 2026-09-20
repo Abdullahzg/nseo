@@ -30,7 +30,11 @@ Four screens. Nothing else.
 | **Deals** | Publication, what they asked, what you pay, what you saved. |
 
 Real mode is the same product with real email: it runs for days from a scheduler, and the **Needs you**
-badge is how you find out it wants you.
+badge is how you find out it wants you. It is multi-user and bring-your-own-keys: sign in with any
+Google account, save your own Nebius Token Factory key, Gmail app password and (optionally) Tavily key
+in **Settings**, and your campaigns run on your accounts. Real-mode Setup also takes **publications
+you already know** (a URL each, the editor's address if you have it); with web search switched off,
+only those are contacted.
 
 ## Which Nemotron model makes which decision, and why
 
@@ -63,8 +67,9 @@ rules, zero heuristics, $0.005.
 
 Real-mode discovery searches the web with Tavily (`POST https://api.tavily.com/search`, Bearer auth)
 in [`src/lib/search/webSearch.ts`](src/lib/search/webSearch.ts), called from
-[`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with queries Nano planned.
-Demo mode uses fixture publications instead so a public demo cannot burn search credits.
+[`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with queries Nano planned,
+under the owner's own Tavily key. Publications the owner listed at Setup load first and cost no
+credit; demo mode uses fixture publications so a public demo cannot burn search credits.
 
 ## Architecture
 
@@ -73,9 +78,10 @@ Browser ── Next.js 16 (Vercel Hobby) ──┬── /api/campaigns/:id/tick
                                        │       └─ policy.ts: what is available?  none → no model call
                                        │       └─ Nemotron 3 Super picks ONE action (tool call)
                                        │       └─ tools.ts / outreach.ts execute it, writing the feed
-                                       ├── /api/cron/tick  ← GitHub Actions every 5 min (real campaigns)
+                                       ├── /api/cron/tick  ← GitHub Actions every 5 min: tick every due
+                                       │                      real campaign, then IMAP reply sweep + SMTP send
                                        ├── /api/interventions  ← Needs-you answers resume threads
-                                       └── /api/emails/process  ← owner-only real SMTP + IMAP sweep
+                                       └── /api/settings  ← per-owner keys (Nebius, Gmail, Tavily), encrypted at rest
 Supabase Postgres: campaigns · campaign_prospects · outreach_emails · deals · interventions · agent_events
 Nebius Token Factory: Nemotron 3 Nano / Super / Ultra (+ 3.5 Lightning)   Tavily: web search (real mode)
 ```
@@ -89,6 +95,11 @@ is simulated.
 `CHECK` constraint forbids a guest campaign from being real, and a trigger forbids scheduling real
 email on any demo or guest campaign. Caps: 2 concurrent / 5 per day per guest, 20 per day globally,
 60 steps per demo, and a global daily Nebius token budget that pauses everything with a banner.
+
+**Owners** are any Google account (or an allow-list, if the deployment sets one). Every model and
+search call in an owner's campaign runs under that owner's own keys — a per-request key context
+([`src/lib/ai/context.ts`](src/lib/ai/context.ts)) wraps each tick, plan preview and Needs-you answer,
+so one deployment serves many people without a platform key paying for them.
 
 ## Run it yourself (from zero)
 
@@ -110,8 +121,10 @@ Then open **Setup** and press **Launch demo** (the plan is already written for t
 database-wall tests (`DATABASE_URL` in `.env.local` enables the latter); `npm run e2e` drives the
 deployed demo (`E2E_BASE_URL`).
 
-Real mode additionally needs: Google OAuth (`GOOGLE_CLIENT_ID/SECRET`, `OWNER_EMAILS`), a Gmail app
-password entered in Settings, `TAVILY_API_KEY`, and the scheduler (see [`DEPLOY.md`](DEPLOY.md)).
+Real mode additionally needs: Google OAuth (`GOOGLE_CLIENT_ID/SECRET`; `OWNER_EMAILS` only if you
+want a private deployment), each owner's own keys entered in Settings (Nebius, Gmail app password,
+Tavily), and the scheduler (see [`DEPLOY.md`](DEPLOY.md)). Locally, `DEV_OWNER_EMAIL` makes you the
+owner without Google.
 
 ## Repository map
 
@@ -125,6 +138,8 @@ src/lib/campaign/outreach.ts  draft (Nano), send/queue, replies → negotiation 
 src/lib/negotiation/agent.ts  classify (Nano) · strong-cue escalations · counter-offers (Ultra) · policy closings
 src/lib/negotiation/run.ts    one negotiation step with persistence
 src/lib/campaign/guard.ts     tick lock, daily caps, global token budget
+src/lib/ai/context.ts         per-request key context: an owner's own Nebius/Tavily keys, or the platform key for guest demos
+src/lib/email/processor.ts    real-mode transport: IMAP reply sweep, then SMTP send from the owner's Gmail (run by the scheduler)
 supabase/migrations/0001_schema.sql   the whole schema, including the guest walls
 src/app/(app)/{setup,campaigns/[id],needs-you,deals,settings}   the screens
 docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.md · FEEDBACK.md
@@ -134,6 +149,8 @@ docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.m
 
 - Domain Rating comes from Ahrefs in real mode. Without a key it is stored and shown as **unverified**,
   and the score is marked *relevance only* in the data model. Demo fixtures carry labelled DR values.
+- Real mode was run end-to-end on 2026-09-20 with the author's own Gmail as both sender and "editor"
+  (docs/LEDGER.md, Run D) — no stranger has received a test email from this project.
 - The activity feed hides nothing: model errors, truncations, refusals and retries are lines in it.
 - Runtime logs on Vercel Hobby last an hour; `agent_events` is the durable record.
 - Hobby is non-commercial. This deployment is a hackathon demo.

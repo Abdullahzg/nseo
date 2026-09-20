@@ -1,7 +1,26 @@
 # LEDGER.md — every decision a campaign made, and who made it
 
-Two demo campaigns run end-to-end on **2026-09-20** against live Nebius Token Factory, read back from
-`agent_events` (the append-only feed every decision writes to). Numbers are the database's, not estimates.
+Three demo campaigns and one real-mode campaign run on **2026-09-20** against live Nebius Token Factory,
+read back from `agent_events` (the append-only feed every decision writes to). Numbers are the
+database's, not estimates.
+
+## Run D — REAL mode, seed-only, sending to the author's own address (2026-09-20)
+Goal 1 placement, budget $300, max $150. Owner `ab.ghouri03@gmail.com` (Gmail app password, own Nebius
+and Tavily keys saved in Settings). One publication listed at Setup — a real article,
+`restorephotosapp.com/best-photo-restoration-apps` — with the "editor" address set to the author's
+other mailbox, `abdullahzubair@chrio.site`. Web search off. Driven by `POST /api/cron/tick` exactly as
+the GitHub Actions scheduler calls it (with `next_tick_after` advanced by hand between rounds instead
+of waiting 5 minutes each).
+
+| | |
+|---|---|
+| Steps to first send | 4 ticks: load the listed publication → evaluate → resolve contact → draft + queue; the scheduler's transport pass sent it in the same round |
+| Model calls | Super 5 (one per busy step; one of them an idle-monitoring call since removed) · Nano 2 (relevance on the fetched page: **92/100, DR unverified, score basis relevance-only**; the outreach draft) |
+| Tokens / cost | 4,204 in / 638 out · **$0.0014** |
+| Tavily calls | **0** (seed-only) |
+| Transport | SMTP through the owner's Gmail, `Message-ID <a7a25384-…@gmail.com>`, received in the chrio.site inbox; the IMAP sweep logs into the sender mailbox every round (`accountsChecked: 1`) |
+| What it fixed | the scheduler had never sent queued mail; an outreach draft named the product after the publication; idle real campaigns spent a Super call every 20 minutes; black-on-black active nav label |
+| Reply leg | _pending — waiting for a reply from the "editor" mailbox; recorded below when it lands_ |
 
 ## Run C — clean database, browser-driven, after the review fixes
 Goal 3 placements, budget $800, max $250/placement. **Completed on tick 13 in ~3 minutes — goal reached.**

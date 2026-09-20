@@ -15,7 +15,9 @@ Zero spend.
 1. Import the public repo (Hobby cannot connect to organisation repos).
 2. Environment variables (Production): everything in `.env.example` under Database, Nebius and
    Secrets, plus `APP_URL`/`NEXT_PUBLIC_BASE_URL` = the deployment URL, `PLAYWRIGHT_ENABLED=false`.
-   Real mode adds Google OAuth, `OWNER_EMAILS`, `TAVILY_API_KEY`.
+   Real mode adds Google OAuth (and `OWNER_EMAILS` only for a private deployment; by default any Google
+   account is an owner who brings their own keys). `TAVILY_API_KEY`/`NEBIUS_API_KEY` on the server are
+   platform defaults; set `PLATFORM_KEY_FOR_OWNERS=false` to make owners use their own Nebius key.
 3. Function duration: routes declare `maxDuration` ≤ 60 s except `/api/cron/tick` (300 s). With Fluid
    compute on (default for new projects) Hobby allows 300 s; a tick is bounded to 45 s regardless.
 4. Cron: Hobby allows once-a-day crons only; the daily health ping is the only Vercel cron.
@@ -23,7 +25,9 @@ Zero spend.
 ## 3. GitHub Actions (the scheduler)
 Repository secrets: `APP_URL`, `CRON_SECRET` (same value as on Vercel).
 - `tick.yml` — every 5 minutes → `POST /api/cron/tick`. Steps every due real campaign (demo campaigns
-  are stepped by the page while it is open, and also picked up here if left running).
+  are stepped by the page while it is open, and also picked up here if left running), then runs the
+  real-mode transport: reads replies over IMAP from each owner's Gmail and sends every due email.
+  Idle campaigns cost no model call; the sweep is an IMAP login per owner with outstanding mail.
 - `keepalive.yml` — daily deep health check; a non-200 fails the job and emails you.
 - **GitHub disables scheduled workflows after 60 days with no repository activity.** Oct 30 → Dec 15
   is 46 days. Add a calendar reminder: **push a trivial commit around Nov 20** (or open the Actions
@@ -45,5 +49,6 @@ under a dollar.
 
 ## 6. Owner sign-in (real mode)
 Google Cloud → OAuth client (Web) → redirect URI `https://<app>/api/auth/callback/google`. Set
-`GOOGLE_CLIENT_ID/SECRET`, `OWNER_EMAILS=you@example.com`, `AUTH_TRUST_HOST=true`. Sign in, open
-Settings, save a Gmail app password, press **Test login**. Real mode then appears on Setup.
+`GOOGLE_CLIENT_ID/SECRET`, `AUTH_TRUST_HOST=true` (and `OWNER_EMAILS` only if the deployment should
+be private). Each owner signs in, opens Settings, saves their Nebius key, Gmail app password and
+Tavily key, and presses the three **Test** buttons. Real mode then appears on Setup.

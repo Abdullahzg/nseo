@@ -18,7 +18,7 @@ dated and unsquashed.
 | Browser auto-ticked every 15 s; no lock; no caps | Tick lock in Postgres, per-campaign daily cap, per-demo step cap, global daily token budget, phase-aware intervals, scheduler in GitHub Actions. |
 | Scores blended a constant `reachProxy=50`; fixture DR labelled "measured"; static query list labelled "gemini" | `score_basis = relevance_only` when authority is unverified; every event carries `engine` (model / policy / fixture / system) and the model id. |
 | Google-domain login or no auth at all | Owners via Google; everyone else a guest who can run demos only — enforced by a database CHECK and a trigger. |
-| 195 tests of pure functions and the heuristic paths | 44 tests: the Nebius adapter (both reasoning field names, thinking-off wire format, tool round-trip, json_schema validation, failure kinds), the policy, negotiation rules, and the database walls under concurrency. |
+| 195 tests of pure functions and the heuristic paths | 50 tests: the Nebius adapter (both reasoning field names, thinking-off wire format, tool round-trip, json_schema validation, failure kinds), the policy, negotiation rules, per-owner key isolation, and the database walls under concurrency. |
 
 ## Dated log
 
@@ -34,6 +34,15 @@ dated and unsquashed.
   call request, Super drafts the resumed reply); two full demo arcs on live Nebius (docs/LEDGER.md).
 - **2026-09-20** — Tests, GitHub Actions scheduler/keepalive/CI, dependency prune (421 packages
   removed), docs.
+- **2026-09-20** — Product, not a personal tool: any Google account is an owner; each owner's Nebius,
+  Gmail and Tavily credentials live encrypted in Settings and every call in their campaigns runs
+  under their keys (`src/lib/ai/context.ts`). Real-mode Setup takes publications you already know,
+  with web search optional.
+- **2026-09-20** — First real-mode run since the rebuild, sending to the author's own addresses
+  (docs/LEDGER.md, Run D). It found that the scheduler never sent queued mail — the transport lived
+  only behind a route nothing called. `/api/cron/tick` now ticks, sweeps IMAP and sends. Also fixed
+  from that run: an outreach draft that called the product by the publication's name; a black-on-black
+  active nav label; idle real campaigns spending a Super call every 20 minutes.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before
