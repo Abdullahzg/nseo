@@ -26,16 +26,16 @@ function nextPersonaMessage(persona: DemoPersona, theirMsgCount: number): Person
     case "high_anchor":
       // Sequence of THEIR messages across the negotiation.
       if (theirMsgCount === 0)
-        return { body: "Hi, thanks for reaching out! We could include your tool in an upcoming roundup. Our rate for a feature is \$350." };
-      if (theirMsgCount === 1) return { body: "Appreciate the offer, but $275 is where we can land, and that is already below our usual rate." };
-      if (theirMsgCount === 2) return { body: "Final offer: $230 and we can publish this week." };
+        return { body: "Hi, thanks for reaching out! We could include your tool in an upcoming roundup. Our rate for a feature is $280." };
+      if (theirMsgCount === 1) return { body: "Appreciate the offer, but $220 is where we can land, and that is already below our usual rate." };
+      if (theirMsgCount === 2) return { body: "Final offer: $180 and we can publish this week." };
       return null;
     case "quick_deal":
-      if (theirMsgCount === 0) return { body: "This fits our column nicely. We charge $120 for an inclusion, payable by invoice." };
+      if (theirMsgCount === 0) return { body: "This fits our column nicely. We charge $120 for an inclusion — just send over the details and we will get it published." };
       return null;
     case "meeting_request":
       if (theirMsgCount === 0)
-        return { body: "Interesting! Before we go further, can you jump on a quick call Wednesday at 2pm to walk me through it?" };
+        return { body: "Interesting — can you tell me more about your tool? We usually like to learn about the product before including it." };
       return null;
     case "decliner":
       if (theirMsgCount === 0) return { body: "Thanks for thinking of us, but we don't accept placements like this. Best of luck elsewhere!" };

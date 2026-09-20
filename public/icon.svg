@@ -1,4 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#000"/>
-  <text x="16" y="23" text-anchor="middle" font-family="Poppins,sans-serif" font-weight="700" font-size="22" fill="#fff">G</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Geseo">
+  <style>
+    .mark { fill: #000000; }
+    @media (prefers-color-scheme: dark) {
+      .mark { fill: #ffffff; }
+    }
+  </style>
+  <rect x="4" y="4" width="56" height="56" rx="14" class="mark" opacity="0.08"/>
+  <text x="32" y="44" text-anchor="middle" font-family="Poppins, Inter, system-ui, sans-serif" font-size="32" font-weight="700" letter-spacing="-1" class="mark">G</text>
 </svg>

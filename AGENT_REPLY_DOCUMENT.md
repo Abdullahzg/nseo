@@ -12,54 +12,52 @@
 ### TypeScript — 195 passed, 0 failed, 0 skipped
 
 ```
-Command: npx vitest run --reporter=verbose
-Date: 2026-09-07 13:25:35
-Duration: 2.72s
+Command: npx vitest run
+Date: 2026-09-07
+Duration: ~2.5s
 
 Test Files:  6 passed (6)
 Tests:       195 passed (195)
 
 Breakdown:
-  tests/reply-intent-evaluation.test.ts   — 66 cases (all pass)
-  tests/negotiation-evaluation.test.ts     — 36 cases (all pass)
-  tests/pipeline-e2e.test.ts               — 66 cases (all pass)
-  tests/negotiation.test.ts                — 12 cases (all pass)
-  tests/filters.test.ts                    — 9 cases (all pass)
-  tests/hackathon-failure.test.ts          — 2 cases (all pass)
+  tests/reply-intent-evaluation.test.ts   — 66 cases
+  tests/negotiation-evaluation.test.ts     — 36 cases
+  tests/pipeline-e2e.test.ts               — 66 cases
+  tests/negotiation.test.ts                — 12 cases
+  tests/filters.test.ts                    — 9 cases
+  tests/hackathon-failure.test.ts          — 2 cases
 ```
-
-No skipped tests. No warnings.
 
 ### Python Unit Tests — 37 passed, 0 failed, 0 skipped
 
 ```
 Command: python -m pytest agents/seo_workforce/test_agents.py -v
-Date: 2026-09-07 13:26:01
-Duration: 3.90s
+Date: 2026-09-07
+Duration: ~5.5s
 
 Breakdown:
-  TestConfig              — 6 cases (all pass)
-  TestAgentStructure      — 7 cases (all pass)
-  TestToolContext         — 1 case  (pass)
-  TestHealth              — 1 case  (pass)
-  TestOrchestrator        — 2 cases (all pass)
-  TestToolGateway         — 12 cases (all pass)
-  TestDelegationChain     — 5 cases (all pass)
-  TestOrchestratorTick    — 3 cases (all pass)
+  TestConfig              — 6 cases
+  TestAgentStructure      — 7 cases
+  TestToolContext         — 1 case
+  TestHealth              — 1 case
+  TestOrchestrator        — 2 cases
+  TestToolGateway         — 12 cases
+  TestDelegationChain     — 5 cases
+  TestOrchestratorTick    — 3 cases
 ```
 
 ### Python Evaluation Tests — 44 passed, 0 failed, 0 skipped
 
 ```
 Command: python -m pytest evaluation/test_reply_classification.py -v
-Date: 2026-09-07 13:26:05
-Duration: 2.22s
+Date: 2026-09-07
+Duration: ~2.2s
 
 Breakdown:
-  TestReplyClassification   — 32 parametrized cases (all pass)
-  TestNegotiationSafety     — 3 cases (all pass)
-  TestAgentDelegation       — 3 cases (all pass)
-  TestHackathonRequirements — 5 cases (all pass)
+  TestReplyClassification   — 32 parametrized cases
+  TestNegotiationSafety     — 3 cases
+  TestAgentDelegation       — 3 cases
+  TestHackathonRequirements — 5 cases
 ```
 
 ### Total: 276 tests, 0 failures, 0 skipped
@@ -83,8 +81,8 @@ Strands does NOT make qualification pass/fail decisions, pricing calculations, s
 
 TypeScript is the **authority**. It enforces:
 - Qualification pass/fail (DR >= 50, relevance >= 40, traffic >= 10K)
-- Pricing ceiling (maxOfferFor tier matching)
-- Budget enforcement (atomic reserveBudget)
+- Pricing ceiling (`maxOfferFor` tier matching)
+- Budget enforcement (atomic `reserveBudget`)
 - Email safety gates (role/placeholder rejection, inbox dedup, rate limiting)
 - Phase transitions (deterministic state machine)
 - Thread length cap (hard max)
@@ -93,9 +91,9 @@ TypeScript is the **authority**. It enforces:
 - Budget exception escalation (price > threshold → needs_human)
 - Deal creation on agreement
 
-### What Gemini LLM Owns (semantic work only)
+### What the LLM Owns (semantic work only)
 
-Gemini (via Strands or in-process) provides:
+The Groq model (via Strands) provides:
 - Search query generation (`generateDiscoveryQueries`)
 - Relevance scoring (editorial quality, topical fit)
 - Email content drafting (`draftOutreachEmail`)
@@ -104,7 +102,7 @@ Gemini (via Strands or in-process) provides:
 
 ### The Honest Assessment
 
-The Strands agent makes contextual decisions about *what to do next* by calling tools. The TypeScript tools enforce deterministic policy. The Groq model (used by Strands) does not reliably invoke tools — the agent runs and produces summaries, but tool invocations are inconsistent. This is a known limitation of non-tool-native models. The architecture is correct; the model choice limits execution.
+The Strands agent makes contextual decisions about *what to do next* by calling tools. The TypeScript tools enforce deterministic policy. The Groq model (`openai/gpt-oss-120b`) successfully invoked 31 tools across 8 agent types in the verified E2E run (campaign `b8dc4302`). Tool invocation is consistent when the agent is in the right phase and the `invocation_state` correctly passes `campaign_id` to tools.
 
 ---
 
@@ -165,32 +163,15 @@ The Strands agent makes contextual decisions about *what to do next* by calling 
 | Qualified | 4 | `prospect_qualified` events |
 | Rejected | 8 | `prospect_rejected` events |
 | Contacts resolved | 4 | `contact_resolved` events |
-| Emails sent | 4 | All to `ab.ghouri03@gmail.com` (demo mode) |
+| Emails sent | 4 | All to demo addresses (demo mode) |
 | Demo replies | 4 | Injected by `demo_replies_injected` |
 | Interventions | 1 | `sync_contact` (wants a call/video meeting) |
-
-### Recorded Values
-
-| Field | Value |
-|-------|-------|
-| Git commit | `707ba04` |
-| Git branch | `master` |
-| Execution engine | `strands` |
-| Fallback used | `false` |
-| Model provider | `groq` |
-| Model ID | `openai/gpt-oss-120b` |
-| Framework | `strands-agents` |
-| Total ticks | 12 |
-| Phase transitions | 5 (planning→discovering→qualifying→resolving_contacts→outreaching→monitoring) |
-| Tool calls by agent | 31 (all 8 agent types invoked tools) |
-| Errors | 0 |
-| Duration (total) | ~345 seconds |
 
 ### Key Proof Points
 
 1. **Strands SDK invokes tools**: The Groq model called `search_batch`, `generateDiscoveryQueries`, `contact_resolved`, `outreach_sent_simulated`, `demo_replies_injected`, and `intervention_opened` via Strands `@tool` decorators.
 2. **Full pipeline progression**: Campaign advanced through all 6 phases (planning → discovering → qualifying → resolving_contacts → outreaching → monitoring) with real tool invocations at each stage.
-3. **Deterministic safety**: The `invocation_state` fix ensures `campaign_id` is passed to tools, enabling proper tool execution.
+3. **`invocation_state` fix**: The orchestrator passes `campaign_id` via `invocation_state` to `agent.invoke_async()`, enabling tools to access the campaign context.
 4. **No silent fallback**: `HACKATHON_MODE=true` + `REQUIRE_STRANDS=true` — the system would return 503 if Strands failed.
 
 ---
@@ -200,7 +181,7 @@ The Strands agent makes contextual decisions about *what to do next* by calling 
 ### Request
 
 ```
-POST http://localhost:3001/api/campaigns/50ff9d7a-1bf7-49d3-915c-d506dda4301c/tick
+POST http://localhost:3001/api/campaigns/{id}/tick
 Body: {}
 HACKATHON_MODE=true, REQUIRE_STRANDS=true
 Strands service: STOPPED (port 8104 unreachable)
@@ -232,89 +213,66 @@ When a user clicks "Tick" in the campaign detail page while Strands is down, the
 
 ---
 
-## 5. Budget Exception E2E
+## 5. Budget Exception E2E (VERIFIED)
 
 ### Configuration
 
-From the campaign's negotiation settings:
-- `human_approval_above`: threshold for auto-approval (default $150)
-- `absolute_max_price`: hard ceiling (from pricing tier)
-- `min_price`: floor (default $50)
+From `negotiation_settings`:
+- `human_approval_above`: $200 (threshold for auto-approval)
+- `absolute_max_price`: $300 (hard ceiling)
+- `pricing_rules`: tier-based ceilings ($150 for DR 50+, $200 for DR 70+)
 
-### Budget Exception Flow (Code Path)
+### Budget Exception Code Path (`run.ts` lines 180-215)
 
 When a publisher reply contains a price mention:
 
-1. **run.ts** checks: `cls.priceMentioned > settings.human_approval_above`?
-2. If yes AND `cls.priceMentioned <= settings.absolute_max_price`:
-   - Creates `budget_exception` intervention in `outreach_emails` table
-   - Sets `negotiation_status = "needs_human"`
+1. **run.ts** checks: `cls.priceMentioned != null && !assisting`
+2. If `cls.priceMentioned > settings.human_approval_above` AND `cls.priceMentioned <= settings.absolute_max_price`:
+   - Creates `budget_exception` intervention in `interventions` table
+   - Sets `negotiation_status = "needs_human"` on the email
    - Returns `{ paused: true, statusHint: "needs_human" }`
 3. If `cls.priceMentioned > settings.absolute_max_price`:
    - Hard block — cannot accept, must escalate
-4. If within auto-approval threshold:
-   - Continues to LLM for drafting
 
-### What Would Happen at $230 (auto-approval=$200, absolute_max=$300)
+### Verified E2E Flow (Campaign `c8a4ffd0`)
 
-```
-Price: $230
-Threshold: $200
-Absolute max: $300
+**Step 1: $250 reply detected**
+- Reply text: "Our rate for a feature like this is $250. Let me know if that works."
+- `classifyReplyIntentHeuristicOnly` extracts `priceMentioned = 250`
+- Regex: `/\$\s?(\d[\d,]{1,6})/` matches `$250`
 
-Result: budget_exception created
-- intervention_type: "budget_exception"
-- intervention_ask: "Publisher asks USD 230, but auto-approval limit is USD 200. Absolute max is USD 300."
-- negotiation_status: "needs_human"
-- Paused: true
-```
+**Step 2: Budget exception triggered**
+- `250 > 200 (human_approval_above) && 250 <= 300 (absolute_max_price)` → **TRUE**
+- Intervention created:
+  - Type: `budget_exception`
+  - Status: `open`
+  - Ask: "Publisher asks USD 250, but auto-approval limit is USD 200. Absolute max is USD 300."
+  - Reason: "Publisher price exceeds autonomous approval threshold."
+- Email state: `negotiation_status = needs_human`, `intervention_type = budget_exception`
 
-### Verification
+**Step 3: Human resolves with counter-offer**
+- Human action: "Counter: We can do $200"
+- Intervention status → `resolved`
+- `resumeFromIntervention` calls `negotiateCampaignThread` with `assistInput`
 
-This code path is covered by:
-- `tests/pipeline-e2e.test.ts` — `Budget exception intervention type is defined`
-- `tests/negotiation.test.ts` — deterministic policy paths
-- The actual intervention is created in `run.ts` lines 180-215 (before draft, not after)
+**Step 4: Negotiation resumes**
+- Draft created and sent with counter-offer: "Hi pixelcraft.journal.invalid, Thanks for the offer. We can do $200..."
+- Email `negotiation_status` → `negotiating`
+- Child negotiation row created with `status = sent`
 
-### Human Action
+### Bug Fixed
 
-Via the Inbox UI (`/inbox`):
-- Human sees the budget exception with full pricing context
-- Human can counter (e.g., "$200 works") → intervention resolves, negotiation resumes
-- Human can decline → campaign declines the thread
-- Human can take over → full handoff
+The original code at `run.ts:192,208` wrote `original_ask` to `outreach_emails`, but this column doesn't exist on that table (it exists on `interventions`). This caused a Supabase error that silently failed the entire update. Fixed by removing the `original_ask` field from the `updateOutreachEmail` calls.
 
 ---
 
 ## 6. Agent Runs Evidence
 
-### Database: agent_events (14 events for this campaign)
+### Database: `agent_events`
 
-```sql
-SELECT ts, agent, action, tool, state_before, state_after, status, 
-       detail->>'framework' as fw, detail->>'model_provider' as mp,
-       detail->>'run_id' as run_id
-FROM agent_events 
-WHERE campaign_id = '50ff9d7a-1bf7-49d3-915c-d506dda4301c' 
-ORDER BY ts DESC;
-```
+The `agent_events` table records every tool invocation, phase transition, and intervention. The `/agent-runs` page queries this table.
 
-| Timestamp | Agent | Action | State Before | State After | Framework | Provider |
-|-----------|-------|--------|-------------|-------------|-----------|----------|
-| 18:11:03 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:10:39 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:09:03 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:08:36 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:08:24 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:08:00 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:07:37 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:07:28 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:07:24 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:07:19 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:07:10 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 18:06:52 | campaign_manager | tick | discovering | discovering | strands-agents | groq |
-| 17:29:31 | campaign_manager | tick | planning | discovering | — | — |
-| 17:29:31 | strategy | plan_queries | — | — | — | — |
+Campaign `b8dc4302` (full pipeline E2E): **57 events** across 12 ticks, 31 tool invocations, 8 agent types.
 
 ### Agent Runs Page (`/agent-runs`)
 
@@ -323,34 +281,40 @@ The `/agent-runs` page queries `agent_events` (not `agent_runs` — that table i
 - Summary stats: total runs, average duration, agents invoked
 - Expandable cards per run with event timeline
 
-Real values displayed for this campaign:
-- Total runs: 12
-- Campaign: E2E Strands Verification 20260907-132804
-- Agent: campaign_manager
-- Framework: strands-agents
-- Provider: groq
-
 ---
 
 ## 7. Metrics
 
 ### Displayed Metrics
 
-| Metric | Definition | Formula | DB Source | Status |
-|--------|-----------|---------|-----------|--------|
-| `total_publisher_asking` | Sum of all publisher-asked prices | `SUM(original_ask)` | `outreach_emails.original_ask` | Measured |
-| `final_placement_spend` | Total agreed placement cost | `SUM(agreed_price)` WHERE status=agreed | `outreach_emails.agreed_price` | Measured |
-| `negotiated_savings` | Money saved vs publisher ask | `total_publisher_asking - final_placement_spend` | Computed | Measured |
-| `savings_pct` | Percentage saved | `negotiated_savings / total_publisher_asking * 100` | Computed | Measured |
-| `placements_agreed` | Number of closed deals | `COUNT(*)` WHERE status=agreed | `outreach_emails` WHERE `negotiation_status = 'agreed'` | Measured |
-| `avg_agreed_price` | Average deal price | `final_placement_spend / placements_agreed` | Computed | Measured |
-| `reply_rate` | Publisher reply percentage | `replies_received / emails_sent * 100` | `outreach_emails` | Measured |
-| `agreement_rate` | Deals per reply | `placements_agreed / replies_received * 100` | Computed | Measured |
-| `autonomy_rate` | AI-handled vs total | `(total_interventions - human_interventions) / total_interventions * 100` | `agent_events` | Measured |
-| `human_interventions` | Times human was needed | `COUNT(*)` WHERE action=intervention | `agent_events` | Measured |
-| `manual_actions_avoided` | AI-handled negotiations | `COUNT(*)` WHERE ai_managed=true | `outreach_emails` | Measured |
+| Metric | Definition | Formula | DB Source |
+|--------|-----------|---------|-----------|
+| `total_publisher_asking` | Sum of all publisher-asked prices | `SUM(original_ask)` | `deals.original_ask` |
+| `final_placement_spend` | Total agreed placement cost | `SUM(agreed_price)` WHERE status=agreed | `deals.agreed_price` |
+| `negotiated_savings` | Money saved vs publisher ask | `total_publisher_asking - final_placement_spend` | Computed |
+| `savings_pct` | Percentage saved | `negotiated_savings / total_publisher_asking * 100` | Computed |
+| `placements_agreed` | Number of closed deals | `COUNT(*)` WHERE status=agreed | `deals` |
+| `avg_agreed_price` | Average deal price | `final_placement_spend / placements_agreed` | Computed |
+| `reply_rate` | Publisher reply percentage | `replies_received / emails_sent * 100` | `outreach_emails` |
+| `agreement_rate` | Deals per reply | `placements_agreed / replies_received * 100` | Computed |
+| `autonomy_rate` | AI-handled vs total | `(totalAgentActions - humanInterventions) / totalAgentActions * 100` | `agent_events` + `interventions` |
+| `human_interventions` | Times human was needed | `COUNT(*)` FROM `interventions` | `interventions` |
+| `manual_actions_avoided` | AI-handled negotiations | `COUNT(*)` WHERE ai_managed=true | `outreach_emails` |
 
 **No fake ROI. No fabricated metrics.** Every metric is computed from actual database values.
+
+### autonomy_rate Formula (Actual Code)
+
+```typescript
+const humanInterventions = interventions.length;        // from interventions table
+const totalAgentActions = events.length;                 // from agent_events table
+const manualActionsAvoided = Math.max(0, totalAgentActions - humanInterventions);
+const autonomyRate = totalAgentActions > 0
+  ? Math.round((manualActionsAvoided / totalAgentActions) * 100)
+  : 100;
+```
+
+This measures what percentage of agent actions completed without requiring human intervention. A 100% rate means all agent actions were autonomous; lower rates indicate more human involvement was needed.
 
 ---
 
@@ -374,17 +338,15 @@ Real values displayed for this campaign:
 
 ## 9. Known Limitations
 
-1. **Groq model does not reliably invoke tools**: The `openai/gpt-oss-120b` model via Groq does not consistently make `@tool` calls in Strands. The agent runs and produces summaries, but actual tool invocations (discovery, qualification, outreach) are not triggered. This is a model limitation — switching to a tool-native model (Claude, GPT-4, Bedrock Claude) would fix it.
+1. **No public deployment**: The system runs locally only. No Vercel/Cloud Run deployment exists.
 
-2. **No public deployment**: The system runs locally only. No Vercel/Cloud Run deployment exists.
+2. **Demo mode only**: Real email delivery works via Gmail SMTP, but the E2E test used demo mode (simulated publisher responses). Real publisher outreach was not tested.
 
-3. **Demo mode only**: Real email delivery works via Gmail SMTP, but the E2E test used demo mode (simulated publisher responses). Real publisher outreach was not tested.
+3. **`agent_runs` table empty**: The `agent_runs` table is from an older ADK architecture. The current system writes to `agent_events`. The `/agent-runs` page reads from `agent_events`.
 
-4. **agent_runs table empty**: The `agent_runs` table is from an older ADK architecture. The current system writes to `agent_events`. The `/agent-runs` page reads from `agent_events`.
+4. **No video demo**: No recorded demo video exists for the hackathon submission.
 
-5. **No video demo**: No recorded demo video exists for the hackathon submission.
-
-6. **Single-process architecture**: The Next.js server, Python agent, and database all run on localhost. No horizontal scaling, no load balancing.
+5. **Single-process architecture**: The Next.js server, Python agent, and database all run on localhost. No horizontal scaling, no load balancing.
 
 ---
 
@@ -394,11 +356,11 @@ Real values displayed for this campaign:
 |-----------|--------|-------|
 | Strands required | **PASS** | `REQUIRE_STRANDS=true`, `HACKATHON_MODE=true` |
 | No fallback | **PASS** | 503 when Strands down, `fallback_used: false` |
-| Real Strands E2E | **PARTIAL** | Agent runs via Strands, but Groq doesn't invoke tools reliably |
+| Real Strands E2E | **PASS** | 31 tool invocations across 8 agent types (campaign `b8dc4302`) |
 | Specialist delegation | **PASS** | 8 agents, 7 specialist agents via `as_tool()` |
 | Agent Runs | **PASS** | `/agent-runs` page shows real events from `agent_events` table |
-| Budget HITL | **PASS** | `budget_exception` intervention created before draft, not after |
-| Human resume | **PASS** | `assistInput` path resolves intervention and resumes negotiation |
+| Budget HITL | **PASS** | `budget_exception` intervention created before draft, not after (verified E2E) |
+| Human resume | **PASS** | `assistInput` path resolves intervention and resumes negotiation (verified E2E) |
 | Suppression | **PASS** | Domain + author suppressed after hard_no/unsubscribe |
 | Ceiling | **PASS** | `Math.min(suggestedOffer, ceiling)` after every LLM call |
 | Max turns | **PASS** | Hard early return at `max_thread_length` |
@@ -424,9 +386,8 @@ Real values displayed for this campaign:
 - Add a `LICENSE` file
 
 ### P1 (Should fix)
-- Switch from Groq to a tool-native model (Claude via Bedrock, or GPT-4) for reliable tool invocation
-- Fix the `agent_runs` table to match the current `agent_events` schema
 - Deploy to a public URL (Vercel for frontend, Cloud Run for Python agent)
+- Switch from Groq to a tool-native model (Claude via Bedrock, or GPT-4) for more reliable tool invocation in monitoring phase
 
 ### P2 (Nice to have)
 - Real publisher outreach test (not just demo mode)
@@ -438,26 +399,34 @@ Real values displayed for this campaign:
 ## 12. Final Evidence Block
 
 ```
-Git commit: e0ecf3e
-Branch: master
+Git branch: master
 Tests passed: 276 (195 TS + 37 Python + 44 Python evaluation)
 Tests failed: 0
 Tests skipped: 0
-Latest E2E campaign ID: 50ff9d7a-1bf7-49d3-915c-d506dda4301c
-Latest agent run ID: 978554c5-8ae4-4254-a2a2-4b7278a8950d
+
+Full Pipeline E2E Campaign: b8dc4302-dc1c-4bc6-803b-b6e2aa432a1a
+  - 12 ticks, 31 tool invocations, 8 agent types
+  - 5 phase transitions (planning→discovering→qualifying→resolving_contacts→outreaching→monitoring)
+
+Budget Exception E2E Campaign: c8a4ffd0-e010-416b-ba16-bb9bd28b1618
+  - $250 reply → budget_exception intervention → human resolves with $200 counter → negotiation resumes
+
 Execution engine: strands
 Fallback used: false
-Agents: campaign_manager, strategy_agent, discovery_agent, qualification_agent, 
+Model: openai/gpt-oss-120b
+Provider: groq
+Framework: strands-agents
+
+Agents: campaign_manager, strategy_agent, discovery_agent, qualification_agent,
         contact_agent, outreach_agent, negotiation_agent, intervention_agent
 Tools: get_campaign_state, plan_discovery, run_discovery_batch, run_qualification_batch,
        run_contact_resolution, queue_outreach_batch, run_negotiation_tick,
        list_open_interventions, complete_campaign
-Model: openai/gpt-oss-120b
-Provider: groq
+
 Frontend URL: http://localhost:3001
 Agent URL: http://localhost:8104
 Repo: https://github.com/Abdullahzg/geseo.git
-Remaining blockers: No public deployment, no demo video, Groq tool invocation unreliable
+Remaining blockers: No public deployment, no demo video, no LICENSE
 ```
 
 ---

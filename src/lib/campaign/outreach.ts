@@ -261,7 +261,7 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
 
   if (!p.contact_email) return { ok: false, reason: "no contact resolved" };
   if (isRoleEmail(p.contact_email)) return { ok: false, reason: "role mailbox refused" };
-  if (isPlaceholderEmail(p.contact_email)) return { ok: false, reason: "placeholder address refused" };
+  if (isPlaceholderEmail(p.contact_email)) { console.error(`[outreach] PLACEHOLDER email rejected: ${p.contact_email} (prospect ${prospectId})`); return { ok: false, reason: "placeholder address refused" }; }
   // Cross-campaign duplicate guard: never initial two threads into one inbox.
   if (!p.contact_email.includes("@simulated") && await addressHasOtherSentInitial(p.contact_email, "").catch(() => false)) {
     await updateProspect(prospectId, { status: "lost", notes: { reason: "inbox already contacted elsewhere" } });
@@ -280,7 +280,7 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
 
   const demo = !!camp.demo_mode;
   // Demo mode: route ALL emails to the test inbox so the full flow is observable.
-  const DEMO_RECIPIENT = "ab.ghouri03@gmail.com";
+  const DEMO_RECIPIENT = process.env.DEMO_RECIPIENT || "demo@geseo.ai";
   const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
 
   // Per-domain rate limiting: max 3 emails per domain per hour
@@ -333,20 +333,18 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     sendBody += `\n<img src="${pixelUrl}" width="1" height="1" style="display:none" alt="" />`;
   }
 
-  // Demo mode: actually send the email via SMTP so it's observable in the inbox.
+  // Demo mode: attempt actual send via SMTP with a short timeout so the tick doesn't hang.
   if (demo) {
     try {
-      await sendEmail({
-        to: DEMO_RECIPIENT,
-        subject: draft.subject,
-        body: sendBody,
-      });
+      await Promise.race([
+        sendEmail({ to: DEMO_RECIPIENT, subject: draft.subject, body: sendBody }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("SMTP timeout")), 8000)),
+      ]);
       await supabaseAdmin.from("outreach_emails").update({
         status: "sent",
         sent_at: new Date().toISOString(),
       }).eq("id", (inserted as any).id);
     } catch (e: any) {
-      // Log but don't fail — the row is recorded as sent for demo flow continuity.
       console.error("[demo-send] SMTP failed:", e?.message);
     }
   }
@@ -430,7 +428,7 @@ export async function scheduleNextSequenceTouch(prospectId: string): Promise<{ o
   }
 
   const demo = !!camp.demo_mode;
-  const DEMO_RECIPIENT = "ab.ghouri03@gmail.com";
+  const DEMO_RECIPIENT = process.env.DEMO_RECIPIENT || "demo@geseo.ai";
   const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
 
   const { error } = await supabaseAdmin.from("outreach_emails").insert({
@@ -790,7 +788,7 @@ export async function processRepliesTick(
     const r = await negotiateCampaignThread(th.anchor_id, { runId: opts.runId }).catch((e) => ({ action: "error", error: e?.message, email_id: th.anchor_id, intent: null, offer: null, ceiling: null }) as NegotiateOutcome);
     if (r.action === "sent" || r.action === "drafted") out.negotiated++;
     if (r.action === "needs_human") out.needs_human++;
-    if (r.action === "error") out.errors.push(r.error ?? "negotiation error");
+    if (r.action === "error") { out.errors.push(r.error ?? "negotiation error"); await emitEvent(campaignId, "negotiation", "negotiation_error", { thread_id: th.anchor_id, detail: { error: r.error } }); }
   }
   return out;
 }

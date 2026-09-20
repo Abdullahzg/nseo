@@ -5,12 +5,50 @@ import { ScanSearch, Play, Loader2, FileText, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { BrokenLinksPanel, type BrokenLinksHandle, type BrokenLinksSummary } from "@/components/site-audit/BrokenLinksPanel";
 import { SitemapQaPanel } from "@/components/site-audit/SitemapQaPanel";
 import {
   usePageHealth, PageHealthOptions, PastChecks, IndexabilitySection, SpeedSection, PageTypesSection, ShareHealth, Stat,
 } from "@/components/site-audit/pageHealth";
+
+function AuditLoadingSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Loading audit data…</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card px-5 py-4 space-y-2">
+            <Skeleton className="h-7 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-full" />
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-lg border border-border p-4 space-y-2">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-3/4" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Site Audit — one place to scan the site and see everything that's wrong, grouped by category.
 // Composes the two existing subsystems (Link Audit + Page Health) via their existing APIs; no
@@ -75,12 +113,16 @@ export default function SiteAuditPage() {
       {showOptions && <PageHealthOptions ph={ph} />}
 
       {/* Overview strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Broken links" value={bl.progressPct != null ? <span className="text-base font-normal text-muted-foreground">crawling {bl.progressPct}%</span> : show(bl.brokenCount)} tone={bl.brokenCount ? "text-destructive" : undefined} />
-        <Stat label="Need attention" value={show(needsAttention)} tone={needsAttention ? "text-warning" : undefined} />
-        <Stat label="Hidden from search" value={show(hiddenFromSearch)} tone={hiddenFromSearch ? "text-destructive" : undefined} />
-        <Stat label="Pages checked" value={show(pagesChecked)} />
-      </div>
+      {busy ? (
+        <AuditLoadingSkeleton />
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Broken links" value={bl.progressPct != null ? <span className="text-base font-normal text-muted-foreground">crawling {bl.progressPct}%</span> : show(bl.brokenCount)} tone={bl.brokenCount ? "text-destructive" : undefined} />
+          <Stat label="Need attention" value={show(needsAttention)} tone={needsAttention ? "text-warning" : undefined} />
+          <Stat label="Hidden from search" value={show(hiddenFromSearch)} tone={hiddenFromSearch ? "text-destructive" : undefined} />
+          <Stat label="Pages checked" value={show(pagesChecked)} />
+        </div>
+      )}
 
       {/* Category tabs */}
       <Tabs defaultValue="overview">

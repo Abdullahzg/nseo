@@ -112,12 +112,11 @@ export function Sidebar() {
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex transition-all duration-300 ease-in-out lg:static lg:z-auto",
-          "p-3",
-          collapsed ? "w-[104px]" : "w-[280px]",
+          collapsed ? "w-[72px]" : "w-[260px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-      <div className="flex min-h-0 w-full flex-col rounded-2xl border border-border bg-card">
+      <div className="flex min-h-0 w-full flex-col rounded-2xl border border-border bg-card overflow-hidden">
         {/* Brand */}
         <div className={cn("flex h-14 items-center border-b border-border px-4 shrink-0", collapsed && "justify-center px-2")}>
           {!collapsed && (
@@ -145,7 +144,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-2")}>
+        <nav className={cn("flex-1 overflow-y-auto py-3 px-2", collapsed && "px-1.5")}>
           {NAV_GROUPS.map((group, gi) => {
             const groupActive = group.items.some((it) => isActive(pathname, it));
             // A single-item group (Outreach, now that it's just Backlink Outreach) has nothing to
@@ -197,15 +196,9 @@ export function Sidebar() {
                           aria-current={active ? "page" : undefined}
                           className={cn(
                             "relative flex items-center rounded-lg font-medium transition-colors",
-                            // py-2.5: these are the most-clicked targets in the app and were
-                            // noticeably thin next to the raised button scale.
-                            collapsed ? "h-11 w-11 mx-auto justify-center" : "ml-2 px-3 py-2.5 text-sm",
+                            collapsed ? "h-10 w-10 mx-auto justify-center" : "px-3 py-2.5 text-sm",
                             active
-                              // Collapsed, a faint tinted box was hard to spot among twenty icons, so
-                              // the active item gets the accent colour outright.
-                              ? collapsed
-                                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[var(--primary-shadow)]"
-                                : "bg-sidebar-primary text-sidebar-primary-foreground shadow-[var(--primary-shadow)]"
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[var(--primary-shadow)]"
                               : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                           )}
                           onClick={() => setMobileOpen(false)}

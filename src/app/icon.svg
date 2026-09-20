@@ -1,20 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 14 72 72" role="img" aria-label="Summit">
-  <!-- Twin peaks, redrawn as vector from the supplied mark so the background is genuinely transparent
-       and the shape stays crisp at 16px in a browser tab. All four slopes share one angle
-       (run/rise ~0.595); the gap between the peaks is real transparency, not a dark stroke, so it
-       works on any tab colour.
-
-       A favicon cannot see the in-app theme, so it switches on the OS colour scheme instead — near
-       black against a light tab strip, teal against a dark one. Kept geometrically identical to
-       src/components/brand/SummitMark.tsx. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Geseo">
   <style>
-    .back { fill: rgba(20, 38, 42, 0.42); }
-    .front { fill: #14262a; }
+    .mark { fill: #000000; }
     @media (prefers-color-scheme: dark) {
-      .back { fill: #5eead4; }
-      .front { fill: #14b8a6; }
+      .mark { fill: #ffffff; }
     }
   </style>
-  <path class="back" d="M53.6 24.8 L84 75.3 L60.2 75.3 L42 45 Z"/>
-  <path class="front" d="M36.4 41.4 L56.5 75.3 L16.4 75.3 Z"/>
+  <rect x="4" y="4" width="56" height="56" rx="14" class="mark" opacity="0.08"/>
+  <text x="32" y="44" text-anchor="middle" font-family="Poppins, Inter, system-ui, sans-serif" font-size="32" font-weight="700" letter-spacing="-1" class="mark">G</text>
 </svg>

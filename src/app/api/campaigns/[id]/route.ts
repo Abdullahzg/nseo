@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { identifyCaller } from "@/lib/auth/service";
-import { getCampaignRow, getDeals, countProspectsByStatus, listInterventions, listAgentEvents, updateCampaignExt, setCampaignPhase } from "@/lib/campaign/queries";
+import { getCampaignRow, getDeals, countProspectsByStatus, listInterventions, listAgentEvents, listProspects, updateCampaignExt, setCampaignPhase } from "@/lib/campaign/queries";
 import { isActivePhase } from "@/lib/campaign/queries";
 import { supabaseAdmin } from "@/lib/db/supabase";
 
@@ -15,11 +15,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const camp = await getCampaignRow(id);
   if (!camp) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const [byStatus, deals, interventions, events] = await Promise.all([
+  const [byStatus, deals, interventions, events, prospects] = await Promise.all([
     countProspectsByStatus(id).catch(() => ({})),
     getDeals(id).catch(() => []),
     listInterventions(id).catch(() => []),
     listAgentEvents(id, 0, 300).catch(() => []),
+    listProspects(id).catch(() => []),
   ]);
 
   // Email tracking stats
@@ -88,6 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     campaign: camp,
     is_active: isActivePhase(camp.phase),
     prospects_by_status: byStatus,
+    prospects: prospects.slice(0, 200),
     deals,
     interventions,
     events,

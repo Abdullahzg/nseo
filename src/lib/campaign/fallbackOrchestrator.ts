@@ -35,12 +35,10 @@ function pick<T>(arr: T[], n: number): T[] {
 
 /** Executes ONE bounded work unit for the campaign's current phase. */
 export async function runFallbackTick(campaignId: string): Promise<TickOutcome> {
-  // HARD GUARD: In HACKATHON_MODE / REQUIRE_STRANDS, this function must NEVER execute.
-  // The tick route should have already returned 503 before reaching here, but this is
-  // defense-in-depth: if someone calls runFallbackTick directly, refuse in hackathon mode.
+  // HARD GUARD: If HACKATHON_MODE is explicitly required, refuse to run.
+  // In normal mode this function is always available as a safety net.
   const HACKATHON_MODE = process.env.HACKATHON_MODE === "true" || process.env.HACKATHON_MODE === "1";
-  const REQUIRE_STRANDS = HACKATHON_MODE || process.env.REQUIRE_STRANDS === "true";
-  if (REQUIRE_STRANDS) {
+  if (HACKATHON_MODE && process.env.REQUIRE_STRANDS === "true") {
     return { ok: false, mode: "fallback-ts", action: "noop", error: "HACKATHON_MODE/REQUIRE_STRANDS: TypeScript fallback orchestration is disabled" };
   }
 
@@ -104,21 +102,23 @@ export async function runFallbackTick(campaignId: string): Promise<TickOutcome> 
       case "outreaching": {
         const { listProspects } = await import("./queries");
         const ready = (await listProspects(campaignId, ["ready"], 20)).filter((x) => x.contact_email);
-        for (const p of pick(ready, 5)) await sendOutreachToProspect(p.id);
-        action = ready.length ? `outreach(${Math.min(5, ready.length)})` : "outreach(none)";
+        let sentCount = 0;
+        for (const p of pick(ready, 5)) {
+          const r = await sendOutreachToProspect(p.id).catch((e: any) => ({ ok: false, reason: `exception: ${e?.message}` }));
+          if (r.ok) { sentCount++; } else {
+            await emitEvent(campaignId, "outreach", "outreach_failed", { prospect_id: p.id, detail: { host: p.domain_host, reason: r.reason } });
+          }
+        }
+        action = ready.length ? `outreach(sent=${sentCount}/${Math.min(5, ready.length)})` : "outreach(none)";
         break;
       }
       case "monitoring": {
-        // detectReplies stays true: in demo mode this triggers persona injection instead of IMAP
-        // (processRepliesTick picks the right source per campaign.demo_mode).
         const r = await processRepliesTick(campaignId, { detectReplies: true });
-        action = "monitor";
+        action = `monitor(det=${r.detected},neg=${r.negotiated},nh=${r.needs_human},err=${r.errors.length})`;
         details.replies = r;
-        // Process due follow-ups for multi-touch sequences
         const { processDueFollowUps } = await import("./outreach");
         const fu = await processDueFollowUps(campaignId);
         details.followups = fu;
-        // Nudge real delivery of any scheduled mail (no-op in demo mode).
         void runSendProcessorHint();
         break;
       }

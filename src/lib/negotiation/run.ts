@@ -189,7 +189,6 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
         intervention_reason: INTERVENTION_REASON.budget_exception,
         intervention_at: new Date().toISOString(),
         negotiation_notes: `budget_exception: their_price=${cls.priceMentioned} > threshold=${approvalThreshold}, absolute_max=${absoluteMax}`,
-        original_ask: cls.priceMentioned,
       } as any);
       return {
         ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human",
@@ -205,7 +204,6 @@ export async function negotiateThread(emailId: string, opts?: { forceDraft?: boo
         intervention_reason: "Publisher price exceeds absolute maximum allowed price.",
         intervention_at: new Date().toISOString(),
         negotiation_notes: `budget_exception: their_price=${cls.priceMentioned} > absolute_max=${absoluteMax}`,
-        original_ask: cls.priceMentioned,
       } as any);
       return {
         ...base, ok: true, ceiling, intent: cls.intent, statusHint: "needs_human",

@@ -22,7 +22,7 @@ deals — escalating to a human only when policy or capability genuinely require
 │  Campaign control ──► /api/campaigns/[id]/{start,tick}                        │
 │                          │                         │                         │
 │  Tool gateway /api/agent/*│                         ▼                         │
-│   (AGENT_SERVICE_TOKEN)   │            Strands Agent Service on Cloud Run      │
+│   (AGENT_SERVICE_TOKEN)   │            Strands Agent Service                  │
 │   discover qualify        ├──────────►  campaign_manager (root, Bedrock)      │
 │   contact outreach        │              ├ strategy_agent                    │
 │   negotiate interventions │              ├ discovery_agent                   │
@@ -49,7 +49,7 @@ deals — escalating to a human only when policy or capability genuinely require
 
 | Concern | Owner | Why |
 |---|---|---|
-| What to do next (phase, batch choice, strategy) | **Gemini via ADK** agents | Semantic judgment, planning |
+| What to do next (phase, batch choice, strategy) | **Claude via Strands** agents | Semantic judgment, planning |
 | How much money may move | **Code** — pricing tiers (`negotiation/pricing.ts`), atomic budget reservation (`campaign/queries.reserveBudget`) | LLMs never decide money math |
 | Whether an email goes out | **Code** — burst processor trust gates (role/placeholder/guessed rejection, duplicate-inbox guards, per-user SMTP) | Idempotent, auditable delivery |
 | When humans get involved | **Both** — classifier detects capability gaps (`needs_human` taxonomy); code parks threads and creates durable `interventions` | No hollow promises |
@@ -66,19 +66,16 @@ Campaigns run for days. Nothing assumes one request:
 4. Inbound email is event-shaped: Cloud Scheduler triggers `/api/emails/process`, which runs IMAP
    reply detection, records replies idempotently onto thread anchors (envelope-date stamped,
    monotonic — a legacy runaway fix), then the monitoring tick answers within policy.
-5. ADK sessions persist in Postgres (`DatabaseSessionService`), so agent memory survives restarts.
+5. Strands sessions persist via FileSessionManager (`campaign-{id}`), so agent memory survives restarts.
 
-## Google technologies used (and why)
+## AWS technologies used (and why)
 
-- **Google ADK (Python)** — genuine orchestration: root Campaign Manager + specialist sub-agents,
-  function tools bound to the gateway, durable sessions. Not decorative.
-- **Gemini 3.5 Flash** (configurable via `GEMINI_MODEL`) — planning, article understanding,
+- **Strands Agents SDK** — genuine orchestration: root Campaign Manager + specialist sub-agents,
+  @tool-decorated functions bound to the gateway, agents-as-tools delegation, FileSessionManager sessions. Not decorative.
+- **Amazon Bedrock** (`anthropic.claude-sonnet-4-20250514-v1:0`) — planning, article understanding,
   reply classification ambiguity, negotiation language. Structured outputs where downstream
   code depends on fields.
-- **Cloud Run** — both web and agent service containers.
-- **Cloud Scheduler** — drives the send/reply/follow-up processor every 30 minutes.
-- **Secret Manager** — all credentials at deploy time.
-- Supabase Postgres remains the system of record (pre-existing infrastructure; not replaced).
+- **Vercel / Cloud Run** — hosts the Next.js app and agent service containers.
 
 ## Demo mode
 

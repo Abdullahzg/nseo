@@ -1,6 +1,6 @@
 # Summit — Autonomous SEO Deal Acquisition Workforce
 
-**Google All Things Agentic Hackathon 2026 · Taskmaster category**
+**AWS Agents for Humans Hackathon 2026 · Professional Agents track**
 
 Give an agent workforce an objective, constraints, and a budget — it autonomously researches
 editorial opportunities, identifies the right human at each publication, runs personalized
@@ -45,25 +45,23 @@ human-decisions queue.
 - **Honest HITL** — meeting requests, contracts, invoices, over-ceiling terms park that one
   negotiation as a structured intervention; your answer resumes the same thread mid-flight.
 
-## Google technologies
+## AWS technologies
 
 | Tech | Role |
 |---|---|
-| **Google ADK (Python)** | The orchestration brain: Campaign Manager root agent + 7 specialist sub-agents, function tools, durable Postgres-backed sessions |
-| **Gemini 3.5 Flash** (`GEMINI_MODEL`, Gemini API) | Strategy, article understanding, relevance scoring, reply classification, negotiation language |
-| **Cloud Run** | Hosts both the Next.js app and the ADK agent service |
-| **Cloud Scheduler** | Drives the send/reply/follow-up processor every 30 minutes |
-| **Artifact Registry + Secret Manager + Cloud Build** | Deployment plumbing |
+| **Strands Agents SDK** | The orchestration brain: Campaign Manager root agent + 7 specialist sub-agents, @tool-decorated functions, agents-as-tools delegation, FileSessionManager |
+| **Amazon Bedrock** (`anthropic.claude-sonnet-4-20250514-v1:0`) | Strategy, article understanding, relevance scoring, reply classification, negotiation language |
+| **Vercel / Cloud Run** | Hosts the Next.js app and agent service |
 
 ## Architecture (short version)
 
 ```
-Browser ─ Next.js (Cloud Run) ─ /api/agent/* tool gateway ──► ADK Agent Service (Cloud Run)
-                     │                                          campaign_manager (+7 sub-agents)
-                     │◄──────────── tool calls over HTTP ───────┘   model: Gemini 3.5 Flash
-             Proven engine (unchanged):
-             discovery pipeline · enrichment cascade · guarded SMTP/IMAP ·
-             negotiation policy engine
+Browser ─ Next.js ─ /api/agent/* tool gateway ──► Strands Agent Service
+                     │                              campaign_manager (root, Bedrock)
+                     │◄────────── tool calls over HTTP ──── 7 specialist agents
+             Proven engine (unchanged):                    (agents-as-tools delegation)
+             discovery pipeline · enrichment cascade ·
+             guarded SMTP/IMAP · negotiation policy engine
                      │
              Supabase Postgres (campaigns, prospects, deals, interventions,
              agent_events timeline, budget ledger)
@@ -72,16 +70,29 @@ Browser ─ Next.js (Cloud Run) ─ /api/agent/* tool gateway ──► ADK Agen
 Full diagram + authority model: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Agent design details: [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md).
 
+## How Strands Agents Is Used
+
+Summit's autonomous campaign layer is built entirely on **Strands Agents SDK**:
+
+- **8 genuine Strands Agent objects**: `campaign_manager` (root), `strategy_agent`, `discovery_agent`, `qualification_agent`, `contact_agent`, `outreach_agent`, `negotiation_agent`, `intervention_agent`
+- **9 @tool-decorated functions**: `get_campaign_state`, `plan_discovery`, `run_discovery_batch`, `run_qualification_batch`, `run_contact_resolution`, `queue_outreach_batch`, `run_negotiation_tick`, `list_open_interventions`, `complete_campaign`
+- **Agents-as-tools delegation**: The `campaign_manager` exposes all 7 specialist agents as tools via `agent.as_tool()`, enabling genuine multi-agent reasoning
+- **@tool(context=True)**: Tools receive `invocation_state` containing the `campaign_id`, so the model never needs to pass infrastructure identifiers explicitly
+- **Session management**: `FileSessionManager` with campaign-scoped session IDs (`campaign-{id}`) persists agent conversation history across ticks
+- **Model provider**: Amazon Bedrock (`anthropic.claude-sonnet-4-20250514-v1:0`) as primary, with Groq/Gemini as dev fallbacks
+- **HACKATHON_MODE**: When enabled, campaigns MUST use the Strands agent service. If unavailable, the system fails visibly (503) — no silent TypeScript fallback
+- **Observability**: Each tick records `framework`, `model_provider`, `run_id`, `agent`, `action`, `duration_ms` to the `agent_events` timeline, proving Strands execution in the UI
+
 ## What was pre-existing vs. built for the hackathon
 
 This repo began as a production-used SEO-outreach platform. All proven machinery (discovery,
 enrichment, email transport, negotiation engine) is **pre-existing** and reused deliberately;
-the autonomous campaign layer, ADK service, observability UI, demo mode, tests and cloud assets
-are new. Full disclosure: [`docs/PREEXISTING_WORK.md`](docs/PREEXISTING_WORK.md).
+the autonomous campaign layer, Strands agent service, observability UI, demo mode, tests and
+deployment assets are new. Full disclosure: [`docs/PREEXISTING_WORK.md`](docs/PREEXISTING_WORK.md).
 
 ## Setup
 
-Prereqs: Node 20+, Python 3.10+, a free Supabase project, a Google OAuth client, a Gemini API key.
+Prereqs: Node 20+, Python 3.10+, a free Supabase project, a Google OAuth client, an AWS account (for Bedrock) or a Groq API key.
 
 ```bash
 npm install
@@ -91,11 +102,11 @@ node scripts/run-migrations.mjs     # idempotent; creates core + agentic schema
 npm run dev
 ```
 
-Optional full-agent mode:
+Optional full-agent mode (Strands service):
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r agents/requirements.txt
-set GEMINI_API_KEY=... & set AGENT_SERVICE_TOKEN=REDACTED & set AGENT_BASE_URL=http://localhost:3000
+set MODEL_PROVIDER=groq & set GROQ_API_KEY=... & set AGENT_SERVICE_TOKEN=REDACTED & set AGENT_BASE_URL=http://localhost:3000
 uvicorn seo_workforce.main:app --port 8104   # from agents/
 set AGENT_SERVICE_URL=http://localhost:8104  # for Next.js
 ```

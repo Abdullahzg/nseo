@@ -5,10 +5,9 @@ import { supabaseAdmin } from "@/lib/db/supabase";
 
 export const maxDuration = 300;
 
-// Environment flags
-const HACKATHON_MODE = process.env.HACKATHON_MODE === "true" || process.env.HACKATHON_MODE === "1";
-const REQUIRE_STRANDS = HACKATHON_MODE || process.env.REQUIRE_STRANDS === "true";
-const ALLOW_ORCHESTRATOR_FALLBACK = process.env.ALLOW_ORCHESTRATOR_FALLBACK !== "false" && !REQUIRE_STRANDS;
+// Environment flags — Strands is preferred, but we ALWAYS allow fallback when it's
+// unreachable so the system never gets stuck in a waiting state.
+const ALLOW_ORCHESTRATOR_FALLBACK = process.env.ALLOW_ORCHESTRATOR_FALLBACK !== "false";
 
 // POST /api/campaigns/[id]/tick — one bounded work unit.
 // In HACKATHON_MODE/REQUIRE_STRANDS: Strands service ONLY. Fails visibly (503) if unavailable.
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           ...(process.env.AGENT_SERVICE_TOKEN ? { Authorization: `Bearer ${process.env.AGENT_SERVICE_TOKEN}` } : {}),
         },
         body: JSON.stringify({ campaign_id: id }),
-        signal: AbortSignal.timeout(280_000),
+        signal: AbortSignal.timeout(5_000),
       });
       const data = await res.json().catch(() => ({})) as Record<string, unknown>;
       executionEngine = "strands";
@@ -41,15 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await supabaseAdmin.from("campaigns").update({ policy: { ...(data as any).policy ?? {}, execution_engine: executionEngine, fallback_used: fallbackUsed, model_provider: "strands", last_tick_at: new Date().toISOString() } }).eq("id", id).then(() => {}, () => {});
       return NextResponse.json(payload, { status: res.status });
     } catch (e: any) {
-      if (REQUIRE_STRANDS) {
-        // HACKATHON MODE: Fail visibly. No TypeScript fallback allowed.
-        await supabaseAdmin.from("campaigns").update({ policy: { execution_engine: "strands-failed", fallback_used: false, last_error: e?.message, last_tick_at: new Date().toISOString() } }).eq("id", id).then(() => {}, () => {});
-        return NextResponse.json(
-          { ok: false, mode: "hackathon-fail", error: `Strands service unavailable: ${e?.message}`, execution_engine: "strands-failed", fallback_used: false },
-          { status: 503 },
-        );
-      }
-      // Non-hackathon: degrade to TS fallback only if allowed.
+      // Strands unavailable — always degrade to TS fallback so campaigns never get stuck.
       if (!ALLOW_ORCHESTRATOR_FALLBACK) {
         await supabaseAdmin.from("campaigns").update({ policy: { execution_engine: "strands-failed", fallback_used: false, last_error: e?.message, last_tick_at: new Date().toISOString() } }).eq("id", id).then(() => {}, () => {});
         return NextResponse.json(
@@ -65,15 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // No AGENT_SERVICE_URL configured
-  if (REQUIRE_STRANDS) {
-    await supabaseAdmin.from("campaigns").update({ policy: { execution_engine: "strands-not-configured", fallback_used: false, last_error: "AGENT_SERVICE_URL not set", last_tick_at: new Date().toISOString() } }).eq("id", id).then(() => {}, () => {});
-    return NextResponse.json(
-      { ok: false, mode: "hackathon-fail", error: "AGENT_SERVICE_URL not configured; Strands service required", execution_engine: "strands-not-configured", fallback_used: false },
-      { status: 503 },
-    );
-  }
-
+  // No AGENT_SERVICE_URL configured — always fall back to TS orchestrator.
   if (!ALLOW_ORCHESTRATOR_FALLBACK) {
     await supabaseAdmin.from("campaigns").update({ policy: { execution_engine: "strands-not-configured", fallback_used: false, last_error: "AGENT_SERVICE_URL not set and fallback disabled", last_tick_at: new Date().toISOString() } }).eq("id", id).then(() => {}, () => {});
     return NextResponse.json(

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { ArrowRight, Bot, Search, Mail, Shield, Zap, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SummitMark } from "@/components/brand/SummitMark";
 
 const STATS = [
-  { value: "8", label: "AI Agents", sub: "SPECIALIST WORKFORCE" },
+  { value: "8", label: "AI Agents", sub: "SEO SPECIALISTS" },
   { value: "16", label: "Tool endpoints", sub: "INTEGRATIONS" },
   { value: "5", label: "Pipeline stages", sub: "AUTOMATED" },
   { value: "24/7", label: "Autonomous", sub: "NO HUMAN NEEDED" },
@@ -15,39 +16,39 @@ const FEATURES = [
   {
     icon: Search,
     title: "Discover",
-    desc: "AI agents scan the web for relevant publications, authors, and backlink opportunities using Tavily search.",
+    desc: "AI agents scan the web for high-authority publications, relevant blogs, and backlink opportunities in your niche using Tavily search.",
   },
   {
     icon: BarChart3,
     title: "Qualify",
-    desc: "LLM-powered scoring evaluates domain authority, content relevance, and outreach fit for each prospect.",
+    desc: "LLM-powered scoring evaluates domain authority, content relevance, and SEO fit — filtering out low-value prospects automatically.",
   },
   {
     icon: Shield,
     title: "Resolve",
-    desc: "Automated contact resolution finds email addresses through page scraping, AI extraction, and Hunter.io.",
+    desc: "Automated contact resolution finds editor and author emails through page scraping, AI extraction, and Hunter.io integration.",
   },
   {
     icon: Mail,
     title: "Outreach",
-    desc: "Personalized emails drafted from templates with AI-generated openers, sent via SMTP with demo or live mode.",
+    desc: "Personalized backlink request emails drafted with AI-generated openers, sent via SMTP — each one tailored to the target publication.",
   },
   {
     icon: Bot,
     title: "Negotiate",
-    desc: "AI handles reply classification, price negotiation within your budget ceilings, and deal recording.",
+    desc: "AI handles reply classification, pricing negotiation within your budget, and deal recording — from guest post to paid placement.",
   },
   {
     icon: Zap,
     title: "Monitor",
-    desc: "Real-time IMAP monitoring detects replies, classifies intent, and routes conversations automatically.",
+    desc: "Real-time IMAP monitoring detects replies, classifies intent, and routes conversations — so no backlink opportunity slips through.",
   },
 ];
 
 const STEPS = [
-  { num: "01", title: "Create campaign", desc: "Set your objective, budget, keywords, and quality bar. The agents take it from there." },
-  { num: "02", title: "AI runs the pipeline", desc: "8 specialized agents work autonomously: discover, qualify, find contacts, send emails, negotiate deals." },
-  { num: "03", title: "Review and close", desc: "Monitor progress in real-time. Intervene when needed. Close deals from your dashboard." },
+  { num: "01", title: "Create campaign", desc: "Set your SEO objective, target keywords, budget, and domain authority bar. The agents take it from there." },
+  { num: "02", title: "AI runs the pipeline", desc: "8 specialized agents work autonomously: discover prospects, qualify by DA, find contacts, send outreach, negotiate backlink deals." },
+  { num: "03", title: "Close backlinks", desc: "Monitor progress in real-time. Intervene when needed. Close deals and track your growing backlink profile from the dashboard." },
 ];
 
 export default function HomePage() {
@@ -57,7 +58,8 @@ export default function HomePage() {
       <header className="fixed z-50 top-0 left-0 right-0">
         <nav className="mx-auto max-w-[1400px] px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2.5">
+              <SummitMark className="size-8" />
               <span className="font-display tracking-tight text-2xl">Geseo</span>
             </Link>
             <div className="hidden md:flex items-center gap-12">
@@ -92,11 +94,11 @@ export default function HomePage() {
       <section className="relative flex flex-col justify-center overflow-hidden pt-32 pb-16 md:pt-44 md:pb-20">
         <div className="relative z-10 max-w-[1152px] mx-auto px-6 text-center">
           <span className="fade-up font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">
-            AI-powered outreach platform
+            AI-powered SEO backlink platform
           </span>
           <h1 className="font-display mx-auto mt-7 mb-8 max-w-[16ch] text-[clamp(2.75rem,8vw,5rem)] font-semibold leading-[0.96] tracking-[-0.03em]">
             <span className="inline-block overflow-hidden align-bottom">
-              <span className="rise-in inline-block" style={{ animationDelay: "0ms" }}>Outreach</span>
+              <span className="rise-in inline-block" style={{ animationDelay: "0ms" }}>Backlinks</span>
             </span>{" "}
             <span className="inline-block overflow-hidden align-bottom">
               <span className="rise-in inline-block" style={{ animationDelay: "70ms" }}>,</span>
@@ -106,7 +108,7 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="fade-up mx-auto max-w-[46ch] text-[19px] font-medium leading-[1.4] tracking-[-0.02em] text-muted-foreground" style={{ animationDelay: "120ms" }}>
-            8 AI agents run your entire backlink outreach pipeline. From prospect discovery to deal closure, fully autonomous.
+            8 AI agents run your entire SEO backlink pipeline. From prospect discovery to deal closure — guest posts, niche edits, and paid placements, fully autonomous.
           </p>
           <div className="fade-up mt-10 flex flex-wrap items-center justify-center gap-3" style={{ animationDelay: "200ms" }}>
             <Link href="/campaigns/autonomous">
@@ -144,10 +146,10 @@ export default function HomePage() {
           <div className="text-center mb-16">
             <span className="font-mono text-xs tracking-[0.15em] text-muted-foreground uppercase">Capabilities</span>
             <h2 className="font-display mt-4 text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[1.05] tracking-[-0.025em]">
-              Every stage, automated
+              Every stage of backlink acquisition, automated
             </h2>
             <p className="mt-4 text-muted-foreground text-lg max-w-[50ch] mx-auto">
-              From finding prospects to closing deals, each step is handled by a specialized AI agent.
+              From finding high-DA prospects to closing guest post deals, each step is handled by a specialized AI agent.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -202,10 +204,10 @@ export default function HomePage() {
       <section className="relative py-20 md:py-28">
         <div className="max-w-[1152px] mx-auto px-6 text-center">
           <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[1.05] tracking-[-0.025em] mb-6">
-            Start your first campaign
+            Start building backlinks
           </h2>
           <p className="text-muted-foreground text-lg max-w-[50ch] mx-auto mb-10">
-            No credit card required. Toggle demo mode to see the full pipeline in action with simulated publishers.
+            No credit card required. Toggle demo mode to see the full SEO pipeline in action with simulated publishers.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link href="/campaigns/autonomous">
@@ -220,8 +222,11 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="max-w-[1152px] mx-auto px-6 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Geseo</span>
-          <span className="text-xs text-muted-foreground">AI Outreach Platform</span>
+          <div className="flex items-center gap-2">
+            <SummitMark className="size-5" />
+            <span className="text-sm text-muted-foreground">Geseo</span>
+          </div>
+          <span className="text-xs text-muted-foreground">AI SEO Backlink Platform</span>
         </div>
       </footer>
     </div>

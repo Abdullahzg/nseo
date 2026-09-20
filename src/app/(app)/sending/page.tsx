@@ -88,6 +88,55 @@ function dayLabel(iso?: string | null): string {
 function senderKeyOf(e: StatusEmail): string { return e.sender_email ?? "__default__"; }
 function senderLabelOf(e: StatusEmail): string { return e.sender_label || e.sender_email || "Default account"; }
 
+function SendingDashboardSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Connecting to server…</span>
+      </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="space-y-1.5">
+          <div className="h-8 w-28 bg-muted rounded" />
+          <div className="h-4 w-72 bg-muted/60 rounded" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-9 w-24 bg-muted rounded" />
+          <div className="h-9 w-24 bg-muted rounded" />
+          <div className="h-9 w-28 bg-muted rounded" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card px-5 py-4 space-y-2">
+            <div className="h-7 w-1/3 bg-muted rounded" />
+            <div className="h-3 w-1/2 bg-muted/60 rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="rounded-xl border border-border overflow-hidden bg-card">
+        <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-card">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-8 w-20 bg-muted rounded" />
+          ))}
+        </div>
+        <div className="space-y-0">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="px-4 py-3 border-b border-border/50 flex items-center gap-3 animate-pulse">
+              <div className="h-4 w-4 bg-muted rounded shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-1/3 bg-muted rounded" />
+                <div className="h-2.5 w-2/3 bg-muted/60 rounded" />
+              </div>
+              <div className="h-3 w-16 bg-muted/40 rounded shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SendingContent() {
   const searchParams = useSearchParams();
   const workflowId = searchParams.get("workflow_id");
@@ -524,6 +573,10 @@ function SendingContent() {
     { key: "wins", label: "Wins", count: winsTotal },
   ];
 
+  if (loading) {
+    return <SendingDashboardSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       {workflowId && (
@@ -772,7 +825,28 @@ function SendingContent() {
 
 export default function SendingPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Preparing sending dashboard…</span>
+        </div>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="space-y-1.5">
+            <div className="h-8 w-28 bg-muted rounded animate-pulse" />
+            <div className="h-4 w-72 bg-muted/60 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card px-5 py-4 space-y-2 animate-pulse">
+              <div className="h-7 w-1/3 bg-muted rounded" />
+              <div className="h-3 w-1/2 bg-muted/60 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    }>
       <SendingContent />
     </Suspense>
   );

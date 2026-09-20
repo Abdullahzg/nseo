@@ -20,7 +20,7 @@ export function PageContainer({ children }: { children: React.ReactNode }) {
   const full = FULL_WIDTH.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   return (
-    <div className={cn("mx-auto h-full min-h-0", full ? "max-w-none" : "max-w-7xl")}>
+    <div className={cn("h-full min-h-0", full ? "max-w-none" : "")}>
       {children}
     </div>
   );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthorDrawer } from "@/components/prospects/useAuthorDrawer";
 
 interface Person {
@@ -63,17 +64,54 @@ function Intent({ i }: { i: string | null }) {
   return <span className={`inline-flex items-center gap-1 text-xs rounded px-1 border ${cls}`}><Icon className="h-3 w-3" />{label}</span>;
 }
 function ListSkeleton() {
-  return <div className="p-2 space-y-1">{Array.from({ length: 8 }).map((_, i) => (
-    <div key={i} className="flex items-start gap-2.5 px-2 py-2.5 animate-pulse">
-      <div className="h-8 w-8 rounded-full bg-muted shrink-0" />
-      <div className="flex-1 space-y-1.5"><div className="h-3 bg-muted rounded w-2/3" /><div className="h-2.5 bg-muted/60 rounded w-1/2" /></div>
-    </div>))}</div>;
+  return (
+    <div className="p-2 space-y-1">
+      <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>Fetching inbox…</span>
+      </div>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="flex items-start gap-2.5 px-2 py-2.5 animate-pulse">
+          <div className="h-8 w-8 rounded-full bg-muted shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 bg-muted rounded w-2/3" />
+            <div className="h-2.5 bg-muted/60 rounded w-1/2" />
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="h-3.5 w-12 bg-muted/60 rounded" />
+              <div className="h-3.5 w-14 bg-muted/60 rounded" />
+            </div>
+          </div>
+          <div className="h-3 w-10 bg-muted/40 rounded shrink-0" />
+        </div>
+      ))}
+    </div>
+  );
 }
 function ThreadSkeleton() {
-  return <div className="px-5 py-4 space-y-3">{[0, 1, 2].map((i) => (
-    <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"} animate-pulse`}>
-      <div className={`h-16 rounded-2xl bg-muted ${i % 2 ? "w-[55%]" : "w-[65%]"}`} />
-    </div>))}</div>;
+  return (
+    <div className="px-5 py-4 space-y-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>Loading conversation…</span>
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"} animate-pulse`}>
+          <div className={`${i % 2 ? "w-[55%]" : "w-[65%]"} space-y-1.5`}>
+            <div className="flex items-center gap-1.5">
+              <div className="h-4 w-4 rounded-full bg-muted" />
+              <div className="h-2.5 w-16 bg-muted/60 rounded" />
+              <div className="h-2.5 w-10 bg-muted/40 rounded ml-auto" />
+            </div>
+            <div className={`rounded-2xl bg-muted ${i % 2 ? "rounded-br-sm" : "rounded-bl-sm"} px-4 py-3 space-y-1.5`}>
+              <div className="h-2.5 bg-muted-foreground/10 rounded w-full" />
+              <div className="h-2.5 bg-muted-foreground/10 rounded w-4/5" />
+              <div className="h-2.5 bg-muted-foreground/10 rounded w-2/3" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function InboxPage() {
@@ -230,16 +268,18 @@ export default function InboxPage() {
         </div>
         {accounts.length > 1 && (
           <div className="min-w-0 shrink-0 border-b border-border px-3 py-2">
-            <select
-              value={viewAs || me}
-              onChange={(e) => setViewAs(e.target.value === me ? "" : e.target.value)}
-              className="w-full h-8 text-xs rounded-md border border-border bg-background px-2 outline-none focus:ring-1 focus:ring-teal-500 w-full min-w-0 truncate pr-7"
-              title="View another team member's inbox"
-            >
-              {accounts.map((a) => (
-                <option key={a.email} value={a.email}>{a.email === me ? `${a.label} (you)` : `${a.label} — ${a.email}`}</option>
-              ))}
-            </select>
+            <Select value={viewAs || me} onValueChange={(v) => setViewAs(v === me ? "" : (v ?? ""))}>
+              <SelectTrigger className="h-8 text-xs" title="View another team member's inbox">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((a) => (
+                  <SelectItem key={a.email} value={a.email} className="text-xs">
+                    {a.email === me ? `${a.label} (you)` : `${a.label} — ${a.email}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {viewAs && viewAs !== me && <p className="text-xs text-warning mt-1">Viewing {viewAs} as admin</p>}
           </div>
         )}
@@ -256,13 +296,18 @@ export default function InboxPage() {
         </div>
         {/* Sort + filter toolbar */}
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} title="Sort" className="h-7 rounded-md border border-border bg-background px-1.5 text-xs outline-none focus:ring-1 focus:ring-teal-500">
-            <option value="recent">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="unread">Unread first</option>
-            <option value="name">Name A–Z</option>
-            <option value="sentiment">Sentiment</option>
-          </select>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
+            <SelectTrigger className="h-7 w-[100px] text-xs" title="Sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent" className="text-xs">Newest</SelectItem>
+              <SelectItem value="oldest" className="text-xs">Oldest</SelectItem>
+              <SelectItem value="unread" className="text-xs">Unread first</SelectItem>
+              <SelectItem value="name" className="text-xs">Name A–Z</SelectItem>
+              <SelectItem value="sentiment" className="text-xs">Sentiment</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-0.5 ml-auto">
             <button onClick={() => setSentFilter("all")} title="All sentiments" className={`px-1.5 h-7 rounded-md text-xs ${sentFilter === "all" ? "bg-highlight-soft text-highlight-ink" : "text-muted-foreground hover:bg-muted/40"}`}>All</button>
             <button onClick={() => setSentFilter("positive")} title="Positive only" className={`p-1 h-7 rounded-md ${sentFilter === "positive" ? "bg-success/15 text-success" : "text-muted-foreground hover:bg-muted/40"}`}><Smile className="h-3.5 w-3.5" /></button>
@@ -348,7 +393,7 @@ export default function InboxPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
               {threadLoading ? <ThreadSkeleton /> : threadErr && messages.length === 0 ? (
                 <div className="flex items-start gap-2 text-sm text-warning bg-warning/8 border border-warning/25 rounded-md px-3 py-2"><AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />{threadErr}</div>
               ) : messages.length === 0 ? (
@@ -365,7 +410,7 @@ export default function InboxPage() {
                         {m.hasAttachments && <Paperclip className="h-2.5 w-2.5" />}
                         <span className="ml-auto">{timeLabel(m.date)}</span>
                       </div>
-                      <div className="whitespace-pre-wrap leading-relaxed break-words">{m.body || <span className="opacity-60 italic">(no text)</span>}</div>
+                      <div className="whitespace-pre-wrap leading-relaxed break-words prose prose-sm prose-invert max-w-none">{m.body || <span className="opacity-60 italic">(no text)</span>}</div>
                       {m.images?.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {m.images.map((src, i) => (

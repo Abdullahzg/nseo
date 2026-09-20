@@ -23,14 +23,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (agentUrl) {
     void fetch(`${agentUrl.replace(/\/$/, "")}/campaigns/${id}/start`, {
       method: "POST",
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(5_000),
       headers: process.env.AGENT_SERVICE_TOKEN ? { Authorization: `Bearer ${process.env.AGENT_SERVICE_TOKEN}` } : {},
     })
       .then(() => fetch(`${agentUrl.replace(/\/$/, "")}/tick`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(process.env.AGENT_SERVICE_TOKEN ? { Authorization: `Bearer ${process.env.AGENT_SERVICE_TOKEN}` } : {}) },
         body: JSON.stringify({ campaign_id: id }),
-        signal: AbortSignal.timeout(300_000),
+        signal: AbortSignal.timeout(5_000),
       }))
       .catch(() => {});
     kicked = true;
