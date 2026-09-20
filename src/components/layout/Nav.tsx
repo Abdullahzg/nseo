@@ -29,8 +29,9 @@ export function Nav() {
         setMe(m); setOpen(i.open_count ?? 0);
         // The Campaign tab opens the campaign that is running (or the newest one), never a dead end.
         const list = Array.isArray(cs) ? cs : [];
-        const live = list.find((c: any) => ["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"].includes(c.phase) && !c.paused) ?? list[0];
-        setRunningId(live?.id ?? null);
+        // One running campaign → the tab opens it. Several (or none running) → the list.
+        const live = list.filter((c: any) => ["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"].includes(c.phase));
+        setRunningId(live.length === 1 ? live[0].id : null);
       } catch { /* offline */ }
     };
     load();

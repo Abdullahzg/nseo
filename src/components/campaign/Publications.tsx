@@ -41,24 +41,25 @@ export function Publications({ campaignId, refreshKey }: { campaignId: string; r
           const isOpen = openId === r.id;
           return (
             <div key={r.id} className="p-3 sm:p-4">
-              <button type="button" className="w-full text-left grid gap-x-3 gap-y-1 grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_auto] items-start" onClick={() => setOpenId(isOpen ? null : r.id)} aria-expanded={isOpen}>
+              <button type="button" className="w-full text-left grid gap-x-3 gap-y-1 grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_auto] items-start rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent" onClick={() => setOpenId(isOpen ? null : r.id)} aria-expanded={isOpen}>
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{r.host}{r.synthetic && <span className="chip ml-2 !text-[10px]">fixture</span>}</div>
-                  <div className="text-xs text-ink-3 truncate">{r.title ?? r.url ?? ""}</div>
+                  <div className="font-medium break-words">{r.host}{r.synthetic && <span className="chip ml-2 !text-[10px] align-middle">demo publication</span>}</div>
+                  <div className="text-xs text-ink-3 break-words">{r.title ?? r.url ?? ""}</div>
                 </div>
-                <div className="min-w-0 text-sm text-ink-2 hidden sm:block truncate">{r.why ?? (r.stage === "found" ? "Not read yet" : "")}</div>
+                <div className="min-w-0 text-sm text-ink-2 hidden sm:block">{r.why ?? (r.stage === "found" ? "Not read yet" : "")}</div>
                 <div className="flex items-center gap-2 justify-end">
                   {r.deal && <span className="mono text-sm text-accent font-semibold">${r.deal.agreed}</span>}
                   {r.score != null && r.stage !== "rejected" && <span className="mono text-xs text-ink-3" title={r.score_basis === "relevance_only" ? "relevance only — authority unverified" : "relevance + authority"}>{r.score}{r.score_basis === "relevance_only" ? "*" : ""}</span>}
                   <span className={`chip ${STAGE_CHIP[r.stage] ?? ""}`}>{r.stage.replace("_", " ")}</span>
+                  <span aria-hidden="true" className={`text-ink-3 text-xs inline-block transition-transform ${isOpen ? "rotate-90" : ""}`}>▸</span>
                 </div>
               </button>
               {isOpen && (
                 <div className="mt-3 grid gap-4 sm:grid-cols-2 fade-in text-sm">
                   <div className="space-y-2">
                     <div><div className="label">The page</div>
-                      {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-model underline break-all">{r.url}</a> : <span className="text-ink-3">no URL</span>}
-                      <div className="text-xs text-ink-3 mt-0.5">Found via {r.source === "seed" ? "your list" : r.source === "demo-fixture" ? "demo fixtures" : r.source.replace("websearch:", "web search: ")}{r.page_type ? ` · read as ${r.page_type.replace(/_/g, " ")}` : ""}</div>
+                      {r.synthetic ? <span className="break-all">{r.url} <span className="text-xs text-ink-3">(a demo publication; this address does not exist)</span></span> : r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-model underline break-all">{r.url}</a> : <span className="text-ink-3">no URL</span>}
+                      <div className="text-xs text-ink-3 mt-0.5">Found via {r.source === "seed" ? "your list" : r.source === "demo-fixture" ? "the demo's publication list" : r.source.replace("websearch:", "web search: ")}{r.page_type ? ` · read as ${r.page_type.replace(/_/g, " ")}` : ""}</div>
                     </div>
                     <div><div className="label">The verdict — {r.stage_label}</div>
                       {r.checks.length ? (
@@ -72,7 +73,7 @@ export function Publications({ campaignId, refreshKey }: { campaignId: string; r
                   </div>
                   <div className="space-y-2">
                     <div><div className="label">The editor</div>
-                      {r.editor ? <div>{r.editor.name ?? "Editor"} <span className="mono text-xs text-ink-3">{r.editor.email}</span><div className="text-xs text-ink-3">{r.editor.source === "demo-simulated" ? "simulated editor (demo)" : r.editor.source === "provided" ? "address you gave at setup" : `found via ${r.editor.source}`}</div></div>
+                      {r.editor ? <div>{r.editor.name ?? "Editor"} <span className="mono text-xs text-ink-3">{r.editor.email}</span><div className="text-xs text-ink-3">{r.editor.source === "demo-simulated" ? "a demo editor; no real mailbox" : r.editor.source === "provided" ? "address you gave at setup" : `found via ${r.editor.source}`}</div></div>
                         : <div className="text-ink-3">{r.stage === "rejected" ? "Not looked for — the page was rejected." : r.contact_attempts > 0 ? `No verifiable address yet (${r.contact_attempts} of 3 attempts).` : "Not looked for yet."}</div>}
                     </div>
                     <div><div className="label">The conversation</div>

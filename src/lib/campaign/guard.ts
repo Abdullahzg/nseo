@@ -50,6 +50,16 @@ export async function addTokens(n: number): Promise<number> {
   return Number(data ?? 0);
 }
 
+export const TAVILY_DAILY_BUDGET = Number(process.env.TAVILY_DAILY_BUDGET ?? 150);
+
+/** Demo searches spend the platform's Tavily credits: a daily cap, counted in app_state like tokens. */
+export async function assertTavilyBudget(n: number): Promise<void> {
+  const { data } = await supabaseAdmin.rpc("add_tokens", { p_key: `tavily:${day()}`, p_n: 0 });
+  const used = Number(data ?? 0);
+  if (used + n > TAVILY_DAILY_BUDGET) throw new Error(`Today's web-search allowance for demos is used up (${used} of ${TAVILY_DAILY_BUDGET}); the demo continues tomorrow, or run it with your own Tavily key`);
+  await supabaseAdmin.rpc("add_tokens", { p_key: `tavily:${day()}`, p_n: n });
+}
+
 /** Throws NebiusError("budget") when today's global allowance is spent. */
 export async function assertTokenBudget(): Promise<{ used: number; budget: number }> {
   const used = await tokensUsedToday();

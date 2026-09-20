@@ -15,7 +15,7 @@ import { countDueDemoReplies } from "./demo";
 import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
 import { withKeys } from "@/lib/ai/context";
-import { setActivity } from "./queries";
+import { setActivity, markActivityDone } from "./queries";
 import { getOwnerKeys } from "@/lib/db/queries";
 import type { Campaign } from "./types";
 
@@ -51,7 +51,7 @@ async function policyInput(camp: Campaign): Promise<PolicyInput> {
     sendableReady: ready.filter((p) => !!p.contact_email).length,
     actionableQualified: qualified.filter((p) => (p.contact_attempts ?? 0) < 3).length,
     dueDemoReplies,
-    canSearch: camp.demo_mode ? true : camp.search_web !== false && !!searchProvider(),
+    canSearch: camp.demo_mode ? !!searchProvider() : camp.search_web !== false && !!searchProvider(),
     dueFollowups,
   };
 }
@@ -149,9 +149,9 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
     const details: Record<string, unknown> = { chosen: chosen.key, decided_by: decidedBy };
     switch (chosen.key) {
       case "run_discovery": {
-        // Demo mode loads fixtures; without a search provider only the owner's seeds load. Planning
-        // queries in either case would be a model call with no purpose.
-        const queries = camp.demo_mode || camp.search_web === false || !searchProvider() ? [] : (await planDiscoveryQueries(camp)).queries;
+        // Without a search provider only fixtures (demo) or the owner's seeds load; planning queries
+        // would then be a model call with no purpose.
+        const queries = camp.search_web === false || !searchProvider() ? [] : (await planDiscoveryQueries(camp)).queries;
         details.discovery = await discoverBatch(camp, queries, 8);
         break;
       }
@@ -179,7 +179,9 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
     else await recordEvent({ campaign_id: campaignId, agent: "system", action: "tick_error", engine: "system", level: "error", human: `Step failed: ${e?.message ?? e}`, detail: { kind, via: opts.via } });
     return done({ ok: false, phase_before: before, phase_after: (await getCampaign(campaignId))?.phase ?? before, action: "error", decided_by: null, error: e?.message ?? String(e), details: { kind } });
   } finally {
-    await setActivity(campaignId, null);
+    // The step is over, but the page should not go dark: the last agent stays lit, marked finished,
+    // until the next step lights another one.
+    await markActivityDone(campaignId);
     await releaseTickLock(campaignId).catch(() => {});
   }
 }

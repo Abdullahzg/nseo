@@ -22,7 +22,8 @@ import { scrapePageSignals } from "@/lib/enrich/pageSignals";
 import { resolveEmailCascade } from "@/lib/enrich/cascade";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { getCampaign, updateProspect, getProspect, upsertProspect, recordEvent, listProspects, setActivity } from "./queries";
-import { DEMO_FIXTURES, demoContactFor } from "./demo";
+import { assertTavilyBudget } from "./guard";
+import { DEMO_FIXTURES, demoContactFor, demoUsesFixtures } from "./demo";
 import type { Campaign, Prospect, ScoreBreakdown } from "./types";
 
 function hostOf(url: string): string {
@@ -56,7 +57,7 @@ Return 6 diverse queries that would surface articles like "best X tools", "X rou
 export interface DiscoverResult { found: number; created: number; duplicates: number; suppressed: number; provider: string }
 
 export async function discoverBatch(camp: Campaign, queries: string[], maxPerQuery = 8): Promise<DiscoverResult> {
-  if (camp.demo_mode) return discoverFixtures(camp);
+  if (camp.demo_mode && demoUsesFixtures()) return discoverFixtures(camp);
   const { data: existing } = await supabaseAdmin.from("campaign_prospects").select("domain_host").eq("campaign_id", camp.id);
   const known = new Set(((existing ?? []) as any[]).map((r) => r.domain_host));
 
@@ -70,7 +71,10 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
   }
   const res: DiscoverResult = { found: seeded, created: seeded, duplicates: 0, suppressed: 0, provider };
   const errors: string[] = [];
-  for (const query of queries.slice(0, 6)) {
+  // A demo searches for real, on the platform's Tavily credits: fewer queries, and a daily cap.
+  const maxQueries = camp.demo_mode ? Number(process.env.DEMO_SEARCH_QUERIES ?? 3) : 6;
+  if (camp.demo_mode && queries.length) await assertTavilyBudget(queries.slice(0, maxQueries).length);
+  for (const query of queries.slice(0, maxQueries)) {
     const t0 = Date.now();
     const hits = await webSearch(query, maxPerQuery, undefined, (m) => errors.push(m));
     res.found += hits.length;
@@ -95,6 +99,7 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
 /** Owner-supplied publications → prospects with provenance "seed". Returns how many were new. */
 async function loadSeeds(camp: Campaign, known: Set<string>): Promise<number> {
   let created = 0;
+  if ((camp.seed_contacts ?? []).length) await setActivity(camp.id, { agent: "discovery", doing: "loading the publications you listed" });
   for (let i = 0; i < (camp.seed_contacts ?? []).length; i++) {
     const seed = camp.seed_contacts[i];
     const host = hostOf(seed.url);
@@ -109,6 +114,7 @@ async function loadSeeds(camp: Campaign, known: Set<string>): Promise<number> {
 }
 
 async function discoverFixtures(camp: Campaign): Promise<DiscoverResult> {
+  await setActivity(camp.id, { agent: "discovery", doing: "loading the demo's publications" });
   const { data: existing } = await supabaseAdmin.from("campaign_prospects").select("domain_host").eq("campaign_id", camp.id);
   const known = new Set(((existing ?? []) as any[]).map((r) => r.domain_host));
   const res: DiscoverResult = { found: DEMO_FIXTURES.length, created: 0, duplicates: 0, suppressed: 0, provider: "demo-fixture" };
@@ -143,7 +149,7 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
   if (!camp) throw new Error("campaign not found");
   const fixture = DEMO_FIXTURES.find((f) => f.host === p.domain_host);
 
-  // 1) Article text (plain fetch). Fixtures have .invalid URLs, so the model judges the title + blurb.
+  // 1) Article text (plain fetch). Fixtures have .example URLs, so the model judges the title + blurb.
   let text = fixture?.blurb ?? "";
   let title = p.title ?? "";
   let meta: ExtractedMeta = {};
@@ -265,7 +271,7 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
 
     const host = p.domain_host;
     const seedEmail = (camp.seed_contacts ?? []).find((s) => hostOf(s.url) === host && s.email)?.email ?? null;
-    if (camp.demo_mode) {
+    if (camp.demo_mode && p.provenance?.synthetic) {
       const c = demoContactFor(p.domain_host);
       steps.push("demo: simulated editor assigned (a fixture has no real address)");
       result = { ok: true, email: c.email, name: c.name, source: "demo-simulated", confidence: 100, steps };
@@ -288,10 +294,17 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
       }
     }
 
-    if (result?.ok && result.email && (result.source === "provided" || (!isRoleEmail(result.email) && !isPlaceholderEmail(result.email)))) {
+    // A demo must not stall on a site that publishes no address: a clearly labelled stand-in editor
+    // keeps the negotiation visible. Nothing is ever sent to it, or to anyone, in a demo.
+    if (camp.demo_mode && !(result?.ok && result.email)) {
+      const c = demoContactFor(p.domain_host);
+      steps.push("no public address found; the demo continues with a stand-in editor (nothing is sent in a demo)");
+      result = { ok: true, email: c.email, name: c.name, source: "demo-simulated", confidence: 0, steps };
+    }
+    if (result?.ok && result.email && (result.source === "provided" || result.source === "demo-simulated" || (!isRoleEmail(result.email) && !isPlaceholderEmail(result.email)))) {
       await upsertContact({ author_id: authorId, type: "mailto", value: `mailto:${result.email}`, confidence: Math.min(1, (result.confidence ?? 60) / 100), source: result.source ?? "campaign" } as any).catch(() => {});
       await updateProspect(prospectId, { status: "ready", contact_email: result.email, contact_name: result.name ?? null, contact_source: result.source, contact_confidence: result.confidence ?? null });
-      await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_resolved", engine: camp.demo_mode ? "fixture" : "system", prospect_id: prospectId, human: `Found ${result.name ? `${result.name} ` : "an editor "}at ${p.domain_host}${camp.demo_mode ? " (simulated)" : result.source === "provided" ? " — the address you gave at setup" : ` via ${result.source}`}`, detail: { source: result.source, confidence: result.confidence, steps } });
+      await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_resolved", engine: result.source === "demo-simulated" ? "fixture" : "system", prospect_id: prospectId, human: result.source === "demo-simulated" ? `${p.provenance?.synthetic ? "Assigned the demo editor" : "No public address on the site — assigned a stand-in editor"} for ${p.domain_host} (demo: nothing is sent)` : `Found ${result.name ? `${result.name} ` : "an editor "}at ${p.domain_host}${result.source === "provided" ? " — the address you gave at setup" : ` via ${result.source}`}`, detail: { source: result.source, confidence: result.confidence, steps } });
       return result;
     }
     await updateProspect(prospectId, { status: "qualified", contact_attempts: (p.contact_attempts ?? 0) + 1 });

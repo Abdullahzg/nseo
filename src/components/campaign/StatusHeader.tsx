@@ -11,7 +11,7 @@ export interface CampaignState {
   numbers: { found: number; contacted: number; replied: number; deals: number };
   budget: { total: number; used: number; currency: string };
   open_interventions: number;
-  activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string } | null;
+  activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string; done?: boolean } | null;
   agents?: Record<string, { events: number; model_calls: number; cost_usd: number }>;
   tools?: ToolUsage;
   counts?: Record<string, number>;
@@ -28,22 +28,21 @@ export interface ToolUsage {
   ledger: { deals: number; committed: number };
 }
 
-/** "Judge is reading designdigest.creative.invalid (3 of 12)" — or what the campaign is waiting for. */
+/** "Judge is reading designdigest.creative.example (3 of 12)" — or what the campaign is waiting for. */
 export function activityLine(s: CampaignState, stepping: boolean): string {
   const a = s.activity;
   const fresh = a && Date.now() - new Date(a.at).getTime() < 90_000;
-  if (a && fresh) {
-    const who = AGENT_LABEL[a.agent] ?? a.agent;
-    const count = a.n && a.of ? ` (${a.n} of ${a.of})` : "";
-    return `${who} is ${a.doing}${a.target ? ` ${a.target}` : ""}${count}${a.model ? ` · ${a.model}` : ""}`;
-  }
-  if (stepping) return "Starting the next step…";
+  const who = a ? (AGENT_LABEL[a.agent] ?? a.agent) : "";
+  const count = a && a.n && a.of ? ` (${a.n} of ${a.of})` : "";
+  if (a && fresh && !a.done) return `${who} is ${a.doing}${a.target ? ` ${a.target}` : ""}${count}${a.model ? ` · ${a.model}` : ""}`;
+  const last = a ? `${who} just finished ${a.doing}${a.target ? ` ${a.target}` : ""}${count}. ` : "";
+  if (stepping) return `${last}Starting the next step…`;
   const c = s.campaign;
-  if (c.phase === "completed") return "Finished.";
-  if (c.phase === "stopped") return "Stopped.";
-  if (c.paused) return "Paused.";
-  if (c.phase === "monitoring") return c.demo_mode ? "Waiting for editors to reply (simulated editors answer on the next step)." : "Waiting for editors to reply. The inbox is checked every 5 minutes.";
-  return c.demo_mode ? "Next step in a few seconds." : "Next step when the scheduler runs (every 5 minutes).";
+  if (c.phase === "completed") return `${last}Finished.`;
+  if (c.phase === "stopped") return `${last}Stopped.`;
+  if (c.paused) return `${last}Paused.`;
+  if (c.phase === "monitoring") return `${last}${c.demo_mode ? "Waiting for editors to reply; the demo's editors answer on the next step." : "Waiting for editors to reply. The inbox is checked every 5 minutes."}`;
+  return `${last}${c.demo_mode ? "Next step in a few seconds." : "Next step when the scheduler runs (every 5 minutes)."}`;
 }
 
 export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, setAutoStep }: {
@@ -58,7 +57,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         <span className="font-medium text-ink-2">{c.name}</span>
         <span>·</span>
         <span>{c.keywords.join(" · ")}</span>
-        {c.demo_mode && <span className="chip">Demo · simulated publishers</span>}
+        {c.demo_mode && <span className="chip">Demo · made-up publications, real decisions</span>}
         {s.is_active && !c.paused && <span className="inline-flex items-center gap-1.5"><span className="live-dot" />live</span>}
       </div>
 

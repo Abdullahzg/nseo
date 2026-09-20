@@ -15,18 +15,30 @@ export interface ThreadView {
   id: string; host: string; editor: string | null; subject: string; status: string | null; persona: string | null;
   messages: { from: "us" | "them"; body: string; at: string | null }[];
   open: boolean;
+  /** What is happening on this thread right now, in the user's terms. */
+  state: "agent_writing" | "waiting_editor" | "editor_replied" | "needs_you" | "you_answered" | "deal" | "declined" | "closed" | "taken_over";
+  state_label: string;
+  intervention: { type: string; status: string; answer: string | null } | null;
 }
 
 async function threadsFor(campaignId: string): Promise<ThreadView[]> {
-  const { data: rows } = await supabaseAdmin.from("outreach_emails")
-    .select("id, kind, parent_id, subject, body, status, sent_at, replied_at, reply_excerpt, reply_from, negotiation_status, prospect:campaign_prospects(domain_host, contact_name, demo_persona)")
-    .eq("campaign_id", campaignId).in("kind", ["initial", "negotiation"]).neq("status", "draft").order("created_at", { ascending: true });
+  const [{ data: rows }, { data: ivs }, { data: campRow }] = await Promise.all([
+    supabaseAdmin.from("outreach_emails")
+      .select("id, kind, parent_id, subject, body, status, sent_at, replied_at, reply_excerpt, reply_from, negotiation_status, prospect:campaign_prospects(domain_host, contact_name, demo_persona)")
+      .eq("campaign_id", campaignId).in("kind", ["initial", "negotiation"]).neq("status", "draft").order("created_at", { ascending: true }),
+    supabaseAdmin.from("interventions").select("anchor_email_id, type, status, answer, created_at").eq("campaign_id", campaignId).order("created_at", { ascending: false }),
+    supabaseAdmin.from("campaigns").select("activity").eq("id", campaignId).maybeSingle(),
+  ]);
+  const ivByAnchor = new Map<string, any>();
+  for (const iv of (ivs ?? []) as any[]) if (!ivByAnchor.has(iv.anchor_email_id)) ivByAnchor.set(iv.anchor_email_id, iv);
+  const activity = (campRow as any)?.activity ?? null;
+  const writingTarget = activity && !activity.done && activity.agent === "negotiation" && Date.now() - new Date(activity.at).getTime() < 90_000 ? String(activity.target ?? "") : "";
   const byAnchor = new Map<string, ThreadView>();
   for (const r of (rows ?? []) as any[]) {
     const anchorId = r.kind === "initial" ? r.id : r.parent_id;
     if (!anchorId) continue;
     if (r.kind === "initial") {
-      byAnchor.set(r.id, { id: r.id, host: r.prospect?.domain_host ?? "", editor: r.prospect?.contact_name ?? null, subject: r.subject ?? "", status: r.negotiation_status ?? null, persona: r.prospect?.demo_persona ?? null, messages: [], open: !["agreed", "declined", "stalled", "handoff", "withdrawn", "needs_human"].includes(r.negotiation_status ?? "") });
+      byAnchor.set(r.id, { id: r.id, host: r.prospect?.domain_host ?? "", editor: r.prospect?.contact_name ?? null, subject: r.subject ?? "", status: r.negotiation_status ?? null, persona: r.prospect?.demo_persona ?? null, messages: [], open: !["agreed", "declined", "stalled", "handoff", "withdrawn", "needs_human"].includes(r.negotiation_status ?? ""), state: "waiting_editor", state_label: "", intervention: null });
     }
     const t = byAnchor.get(anchorId);
     if (!t) continue;
@@ -34,7 +46,23 @@ async function threadsFor(campaignId: string): Promise<ThreadView[]> {
     if (r.kind === "initial" && r.reply_excerpt) t.messages.push({ from: "them", body: r.reply_excerpt, at: r.replied_at });
   }
   // Their reply belongs after the send it answers: order by time.
-  for (const t of byAnchor.values()) t.messages.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
+  for (const t of byAnchor.values()) {
+    t.messages.sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
+    const iv = ivByAnchor.get(t.id);
+    t.intervention = iv ? { type: iv.type, status: iv.status, answer: iv.answer ?? null } : null;
+    const lastFrom = t.messages[t.messages.length - 1]?.from;
+    const who = t.editor ?? "the editor";
+    const st = t.status ?? "";
+    if (st === "agreed") { t.state = "deal"; t.state_label = "Deal agreed"; }
+    else if (st === "declined") { t.state = "declined"; t.state_label = `${who} declined; closed politely`; }
+    else if (st === "handoff") { t.state = "taken_over"; t.state_label = "You took this over; the agent stays out"; }
+    else if (st === "withdrawn" || st === "stalled") { t.state = "closed"; t.state_label = st === "withdrawn" ? "Closed politely; the campaign finished" : "Wound down after several rounds"; }
+    else if (st === "needs_human") { t.state = "needs_you"; t.state_label = `Needs you: ${(iv?.type ?? "a decision").replace(/_/g, " ")}`; }
+    else if (writingTarget && (t.host === writingTarget || t.host.endsWith(writingTarget))) { t.state = "agent_writing"; t.state_label = "Negotiator is writing the reply now"; }
+    else if (iv && iv.status === "resolved" && lastFrom === "us") { t.state = "you_answered"; t.state_label = `You answered; the agent resumed and wrote back. Waiting for ${who}`; }
+    else if (lastFrom === "them") { t.state = "editor_replied"; t.state_label = `${who} replied; the Negotiator answers on the next step`; }
+    else { t.state = "waiting_editor"; t.state_label = `Waiting for ${who} to reply`; }
+  }
   return [...byAnchor.values()].reverse();
 }
 

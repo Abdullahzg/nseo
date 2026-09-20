@@ -12,7 +12,7 @@ export interface PolicyInput {
   unansweredReplies: number;
   sendableReady: number;                // ready prospects with a contact email
   actionableQualified: number;          // qualified prospects with < 3 contact attempts
-  dueDemoReplies?: number;              // demo only: scripted editor replies waiting to arrive
+  dueDemoReplies?: number;              // demo only: model-written editor replies waiting to arrive
   canSearch?: boolean;                  // real only: a search provider exists and the owner allowed searching (default true)
   dueFollowups?: number;                // real only: unanswered initials old enough for a polite nudge
 }
@@ -40,7 +40,7 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
     case "planning":
     case "discovering":
       // Demo fixtures load in one go; real campaigns keep searching until the pool target is met.
-      if (loadsInOneGo(i) ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? "Load the demo publications." : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
+      if (loadsInOneGo(i) ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? (i.canSearch === false ? "Load the demo publications." : "Search the web for publications.") : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
       if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
       break;
     case "qualifying":

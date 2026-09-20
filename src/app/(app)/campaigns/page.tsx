@@ -23,25 +23,29 @@ export default async function CampaignsIndex() {
   const { data } = await q;
   const rows = (data ?? []) as any[];
   if (rows.length === 0) redirect("/setup");
-  if (rows.length === 1) redirect(`/campaigns/${rows[0].id}`);
+  const ACTIVE = new Set(["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"]);
+  const PHASE: Record<string, string> = { planning: "planning", discovering: "searching", qualifying: "judging pages", resolving_contacts: "finding editors", outreaching: "writing emails", monitoring: "waiting for replies", completed: "finished", stopped: "stopped", failed: "failed" };
+  const running = rows.filter((c) => ACTIVE.has(c.phase));
+  const done = rows.filter((c) => !ACTIVE.has(c.phase));
+  const Card = ({ c }: { c: any }) => (
+    <Link href={`/campaigns/${c.id}`} className="card p-4 hover:border-ink-2 transition-colors block">
+      <div className="flex items-center gap-3">
+        {ACTIVE.has(c.phase) && <span className="orb !w-5 !h-5 !border-[3px] shrink-0" aria-hidden="true" />}
+        <div className="font-semibold truncate flex-1">{c.name}</div>
+        <span className={`chip ${c.phase === "completed" ? "chip-accent" : ""}`}>{PHASE[c.phase] ?? String(c.phase).replace("_", " ")}</span>
+      </div>
+      <div className="text-sm text-ink-2 mt-1 truncate">{(c.keywords as string[]).join(" · ")}</div>
+      <div className="text-xs text-ink-3 mt-3 mono">{money(c.budget_used)} of {money(c.budget_total)} · goal {c.desired_deals}{c.demo_mode ? " · demo" : ""}</div>
+    </Link>
+  );
   return (
     <div>
       <div className="flex items-end justify-between gap-4 mb-6">
         <h1 className="serif text-3xl font-semibold">Campaigns</h1>
         <Link href="/setup" className="btn">New campaign</Link>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {rows.map((c) => (
-          <Link key={c.id} href={`/campaigns/${c.id}`} className="card p-4 hover:border-ink-2 transition-colors">
-            <div className="flex items-center justify-between gap-3">
-              <div className="font-semibold truncate">{c.name}</div>
-              <span className="chip">{String(c.phase).replace("_", " ")}</span>
-            </div>
-            <div className="text-sm text-ink-2 mt-1 truncate">{(c.keywords as string[]).join(" · ")}</div>
-            <div className="text-xs text-ink-3 mt-3 mono">{money(c.budget_used)} of {money(c.budget_total)} · goal {c.desired_deals}{c.demo_mode ? " · demo" : ""}</div>
-          </Link>
-        ))}
-      </div>
+      {running.length > 0 && <><h2 className="label mb-3">Running now ({running.length})</h2><div className="grid gap-3 sm:grid-cols-2 mb-8">{running.map((c) => <Card key={c.id} c={c} />)}</div></>}
+      {done.length > 0 && <><h2 className="label mb-3">Finished ({done.length})</h2><div className="grid gap-3 sm:grid-cols-2">{done.map((c) => <Card key={c.id} c={c} />)}</div></>}
     </div>
   );
 }

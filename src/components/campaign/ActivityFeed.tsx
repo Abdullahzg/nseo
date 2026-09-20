@@ -14,11 +14,11 @@ import { AGENT_LABEL } from "@/lib/campaign/agents";
 function EngineChip({ e }: { e: FeedEvent }) {
   if (e.engine === "model") return <span className="chip chip-model">{modelShort(e.model) || "Nemotron"}</span>;
   if (e.engine === "policy") return <span className="chip">policy rule</span>;
-  if (e.engine === "fixture") return <span className="chip">fixture</span>;
+  if (e.engine === "fixture") return <span className="chip">demo data</span>;
   return null;
 }
 
-function Row({ e }: { e: FeedEvent }) {
+export function Row({ e }: { e: FeedEvent }) {
   const [open, setOpen] = useState(false);
   const expandable = e.engine === "model" || Object.keys(e.detail ?? {}).length > 0;
   const tone = e.level === "error" ? "border-l-danger" : e.level === "warn" ? "border-l-attention" : e.action === "deal_agreed" ? "border-l-accent" : e.engine === "model" ? "border-l-model" : "border-l-rule";
@@ -33,7 +33,7 @@ function Row({ e }: { e: FeedEvent }) {
           <span>{AGENT_LABEL[e.agent] ?? e.agent}</span>
           <EngineChip e={e} />
           {e.engine === "model" && e.tokens_in != null && <span className="mono">{(e.tokens_in ?? 0) + (e.tokens_out ?? 0)} tok · {((e.latency_ms ?? 0) / 1000).toFixed(1)} s{cost(e.cost_usd)}</span>}
-          {expandable && <span className="ml-auto">{open ? "hide" : e.engine === "model" ? "why?" : "details"}</span>}
+          {expandable && <span className="ml-auto inline-flex items-center gap-1">{open ? "hide" : e.engine === "model" ? "why?" : "details"}<span aria-hidden="true" className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span></span>}
         </div>
       </button>
       {open && (
