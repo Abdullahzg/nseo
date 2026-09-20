@@ -9,7 +9,7 @@ export interface FeedEvent {
   detail: Record<string, unknown>; created_at: string;
 }
 
-const AGENT_LABEL: Record<string, string> = { strategy: "Strategy", discovery: "Discovery", qualification: "Qualification", contact: "Contacts", outreach: "Outreach", negotiation: "Negotiation", inbox: "Inbox", manager: "Manager", system: "System", you: "You", editor: "Editor (you)" };
+import { AGENT_LABEL } from "@/lib/campaign/agents";
 
 function EngineChip({ e }: { e: FeedEvent }) {
   if (e.engine === "model") return <span className="chip chip-model">{modelShort(e.model) || "Nemotron"}</span>;
