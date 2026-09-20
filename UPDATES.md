@@ -43,6 +43,10 @@ dated and unsquashed.
   only behind a route nothing called. `/api/cron/tick` now ticks, sweeps IMAP and sends. Also fixed
   from that run: an outreach draft that called the product by the publication's name; a black-on-black
   active nav label; idle real campaigns spending a Super call every 20 minutes.
+- **2026-09-20 (evening)** — Renamed to **Nseo**. Ten-editor real run (LEDGER Run E) with every kind
+  of reply, through Gmail both ways; nine negotiation fixes from it. "You be the editor" on demo
+  campaigns. Qualification moved to Super after Nano passed vendors' product pages (Run F).
+  Completion winds down open threads politely.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before

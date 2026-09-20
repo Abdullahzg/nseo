@@ -25,7 +25,7 @@ Four screens. Nothing else.
 | Screen | What it is for |
 |---|---|
 | **Setup** | Six fields, under a minute. Before launch, Nemotron 3 Nano writes the plan in plain English. Demo is the default and pre-filled. |
-| **Campaign** | One true sentence of current state ("Negotiating with 2 editors. 2 deals agreed, $240 of $800 committed. 2 things need you."), four numbers, a budget bar, and a human-readable feed — newest first, one line per decision, expandable to the model's reasoning. |
+| **Campaign** | One true sentence of current state ("Negotiating with 2 editors. 2 deals agreed, $240 of $800 committed. 2 things need you."), four numbers, a budget bar, and a human-readable feed — newest first, one line per decision, expandable to the model's reasoning. In a demo, **the editors' inbox**: every thread both ways, and a box to reply *as* the editor — the agent answers whatever you type, live. |
 | **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
 | **Deals** | Publication, what they asked, what you pay, what you saved. |
 
@@ -41,14 +41,16 @@ only those are contacted.
 | Decision | Model | Mode | Why this model |
 |---|---|---|---|
 | **Which action to take this step** (search, evaluate, find editors, email, answer replies) | `nvidia/nemotron-3-super-120b-a12b` | thinking on, tool call | One planning turn per busy step needs judgment across the whole funnel; Super's reasoning is cheap enough to run every step and its `reasoning_content` is shown in the feed. |
-| Search angles, **publication relevance & editorial quality**, outreach subject/body, **reply classification**, follow-ups, the plan preview | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (falls over to `nvidia/Nemotron-3_5-Lightning` on a truncation) | thinking off, `json_schema` | The high-volume calls. With `chat_template_kwargs.enable_thinking=false` Nano answers a structured judgment in 60–110 tokens, ~0.5 s, at $0.06/$0.24 per M. |
+| **Could this publisher feature us?** — relevance, editorial quality, and page type (a publication vs a vendor's own product page) | `nvidia/nemotron-3-super-120b-a12b` | thinking on, `json_schema` | Once per prospect. Nano (thinking off) judged relevance well but called adobe.com's and canva.com's own feature pages "editorial" in two runs of three; telling a publication from a product page took a moment of reasoning (docs/LEDGER.md, Run F). ~$0.0007 and ~4 s each. |
+| Search angles, outreach subject/body, **reply classification**, follow-ups, the plan preview | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (falls over to `nvidia/Nemotron-3_5-Lightning` on a truncation) | thinking off, `json_schema` | The high-volume calls. With `chat_template_kwargs.enable_thinking=false` Nano answers a structured judgment in 60–110 tokens, ~0.5 s, at $0.06/$0.24 per M. |
 | **Counter-offers** against a named price | `nvidia/Nemotron-3-Ultra-550b-a55b` | thinking on | The one place "serious reasoning" changes money. Hard-capped at 20 calls per campaign, then Super. |
 
 Code owns everything that must be true regardless of what a model says: price ceilings and floors,
 budget commits (an atomic Postgres function), send safety, the escalation cues (a call, an NDA, an
 invoice, a traffic question → a human), phase transitions, completion, and the status sentence.
-See [`docs/LEDGER.md`](docs/LEDGER.md) for a run's full decision ledger — 38 model decisions, 8 policy
-rules, zero heuristics, $0.005.
+See [`docs/LEDGER.md`](docs/LEDGER.md) for the decision ledgers — a demo arc is 39 model decisions,
+11 policy rules, zero heuristics, about three cents; a real-mode run with ten editor replies of every
+kind is there too.
 
 ## Where Token Factory accelerated the workflow
 
@@ -57,9 +59,9 @@ rules, zero heuristics, $0.005.
   from Super to Ultra is an environment variable.
 - `response_format: json_schema` on every structured call means the app validates the model's answer
   and **throws** if it is wrong — no fabricated scores, no canned fallbacks.
-- Thinking on/off per call let us spend reasoning where it matters (planning, counter-offers) and
-  run the rest at Nano speed. A whole demo campaign — 12 publications evaluated, 8 editors emailed,
-  8 replies negotiated, 2 deals — costs about half a cent.
+- Thinking on/off per call let us spend reasoning where it matters (planning, qualification,
+  counter-offers) and run the rest at Nano speed. A whole demo campaign — 12 publications judged,
+  7 editors emailed, every reply answered, 3 deals — costs about three cents.
 - `GET /v1/models` is checked at `/api/health?deep=1`; the app pauses with a visible banner if a
   routed model disappears or the key fails.
 
@@ -89,7 +91,8 @@ Nebius Token Factory: Nemotron 3 Nano / Super / Ultra (+ 3.5 Lightning)   Tavily
 **Demo mode rule:** fixture data is fake, every decision is real. The publications, editors and
 scripted replies are fixtures; relevance, classification, outreach wording, counter-offers and deal
 recording are genuine Nemotron calls or the same policy rules as real mode. Only the email transport
-is simulated.
+is simulated — and you can replace any scripted editor with yourself from the campaign page, so
+nothing you see has to be taken on trust.
 
 **Guests** can run demos only, and that is enforced in the database, not in a permissions check: a
 `CHECK` constraint forbids a guest campaign from being real, and a trigger forbids scheduling real

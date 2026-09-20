@@ -4,6 +4,41 @@ Three demo campaigns and one real-mode campaign run on **2026-09-20** against li
 read back from `agent_events` (the append-only feed every decision writes to). Numbers are the
 database's, not estimates.
 
+## Run G — demo, after the qualification and negotiation changes (2026-09-20, evening)
+Goal 3, budget $800, max $250. Browser-driven with one unscripted editor reply typed in the inbox.
+**Goal reached: 3 deals, $480 committed.** 78 events · **model 39** · policy 11 · fixture 24 · system 4 ·
+**0 idle model calls**. Super 25 (manager + 12 qualifications) · Nano 13 · Nano+Ultra 3 · Nano+Super 3.
+Tokens 23,309 in / 17,213 out · **$0.0286**. The unscripted reply ("$220 if you send two before/after
+examples") was parked by rule as an asset request — the agent did not promise files it cannot attach.
+
+## Run F — page-type gate check (2026-09-20)
+Six real pages, no addresses, evaluated only. **Nano, thinking off:** all six "editorial_article" (twice).
+**Super, thinking on:** adobe.com, canva.com, picsart.com → `vendor_product_page`, rejected; the Yahoo PR
+item → rejected on relevance; the letsenhance and photoglory roundups → qualified. Qualification is
+routed to Super since this run.
+
+## Run E — REAL mode, ten editors, ten kinds of reply (2026-09-20)
+Ten real pages seeded with plus-addresses of the author's own Gmail (`ab.ghouri03+maya@…`), search off.
+Ten outreach emails sent through Gmail; the author replied as each editor from the same mailbox,
+threaded with `In-Reply-To`, and the IMAP sweep read them back (9 replies + 1 autoresponder).
+
+| Editor said | What the agent did |
+|---|---|
+| "$280 … with a do-follow link" | Ultra countered $220 → editor "$200" → Super agreed at $200 (saved $80) |
+| "$120 works, send a blurb" | (first pass: countered $85 — fixed) → policy accept at their number |
+| "hop on a 15-minute call?" | parked: *Wants a call* → owner "email only" → Super resumed the thread |
+| "what's your monthly traffic, do-follow?" | parked: *Asks a fact* → owner's numbers → Super answered → editor "$160" → policy accept |
+| "we don't take sponsored placements" | polite close, domain suppressed |
+| out-of-office (Auto-Submitted header) | classified `auto`, ignored |
+| "$600 standard rate" | parked: above the $300 absolute maximum → owner "counter at $250" → Ultra countered → editor accepted $250 → agreed (owner-approved figure honoured) |
+| "legal needs an NDA" | parked: *Wants a contract* → owner's line → Super resumed |
+| "$140 includes a do-follow link" | (first pass: parked as a factual question — fixed) → policy accept |
+| "what budget do you have in mind?" | Super asked what they charge → "$180" → Ultra countered $130 |
+
+40 model events · $0.027 · every reply delivered through the owner's Gmail with a Message-ID. On
+completion the four still-open threads received one fixed closing line each (`thread_withdrawn`).
+What this run fixed is listed in the commit `negotiation fixes from Run E`.
+
 ## Run D — REAL mode, seed-only, sending to the author's own address (2026-09-20)
 Goal 1 placement, budget $300, max $150. Owner `ab.ghouri03@gmail.com` (Gmail app password, own Nebius
 and Tavily keys saved in Settings). One publication listed at Setup — a real article,
@@ -20,7 +55,7 @@ of waiting 5 minutes each).
 | Tavily calls | **0** (seed-only) |
 | Transport | SMTP through the owner's Gmail, `Message-ID <a7a25384-…@gmail.com>`, received in the chrio.site inbox; the IMAP sweep logs into the sender mailbox every round (`accountsChecked: 1`) |
 | What it fixed | the scheduler had never sent queued mail; an outreach draft named the product after the publication; idle real campaigns spent a Super call every 20 minutes; black-on-black active nav label |
-| Reply leg | _pending — waiting for a reply from the "editor" mailbox; recorded below when it lands_ |
+| Reply leg | superseded by Run E (the same mailbox, replying as ten editors) |
 
 ## Run C — clean database, browser-driven, after the review fixes
 Goal 3 placements, budget $800, max $250/placement. **Completed on tick 13 in ~3 minutes — goal reached.**
@@ -67,7 +102,7 @@ Two runs together: **60,019 tokens**, about **$0.025**, tracked live in `app_sta
 |---|---|---|---|
 | Which action to take this step | **MODEL** | Nemotron 3 Super, thinking on | 35 `manager/decided` events, each with a one-line "why" and the full reasoning trace in the feed |
 | Search angles (real mode) | **MODEL** | Nano, thinking off, json_schema | `strategy/plan_queries` |
-| Publication relevance / editorial quality | **MODEL** | Nano, json_schema | 24 `qualification` events; rejections read "relevance 10/100 — no overlap between garden beds and photo restoration" |
+| Publication relevance / editorial quality / could this publisher feature us | **MODEL** | Super, thinking on, json_schema (Nano until Run F) | `qualification` events; rejections read "relevance 10/100 — no overlap between garden beds and photo restoration" or "vendor product page, not a publication that could feature us" |
 | Authority (DR) | **DATA** | — | fixture value in demo, Ahrefs in real mode, otherwise **"unverified"** and `score_basis = relevance_only` |
 | DR gate, relevance threshold, spam gate | **POLICY** | — | `min_dr`, ≥ 40 relevance, `is_editorial && spam_risk != high` |
 | Editor contact | **DATA** | — | demo: fixture editor (labelled *simulated*); real: enrichment cascade |
