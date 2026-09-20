@@ -4,7 +4,6 @@ import { findLinkedinUrl } from "./findLinkedin";
 import { linkedinToEmail, blitzEnabled } from "./blitz";
 import { resolveDomainPattern, type DomainPattern } from "./patternInfer";
 import { aiScrapeEmail, aiScrapeEnabled } from "./aiScrape";
-import { hermesEnabled, hermesScrape } from "@/lib/hermes/client";
 import { isRoleEmail, isPlaceholderEmail } from "./personFilter";
 import {
   findEmailHunter, domainSearchHunter, pickFromDomainSearch, hunterEnabled,
@@ -171,25 +170,6 @@ export async function resolveEmailCascade(
     if (email) { onStep(`AI found an email`); return { email, source: "ai-scrape", score: 75 }; }
   }
 
-  // 5.5) Hermes stealth browser — the last attempt at a REAL address before we resort to guessing.
-  //
-  // Placed here on purpose. Steps 1-5 all use plain fetches, which publishers increasingly block;
-  // when they fail we fall through to step 6 and construct an address from a domain pattern, and
-  // those constructed guesses are where the bounces come from. A browser that can actually render
-  // the page turns some of those guesses back into sourced addresses.
-  //
-  // Last resort rather than first, because a browser session per prospect is expensive — this only
-  // runs when everything cheap has already failed. No-ops entirely when HERMES_BASE_URL is unset.
-  if (hermesEnabled()) {
-    onStep(`opening ${t.host} in a real browser…`);
-    const hit = await hermesScrape({ url: `https://${t.host}`, want: "email" }).catch(() => null);
-    if (hit?.ok && hit.value && !isRoleEmail(hit.value)) {
-      onStep(`found an email with the browser`);
-      flushContacts();
-      return { email: hit.value, source: "hermes-browser", score: 88 };
-    }
-    if (hit && !hit.ok && hit.error) onStep(`! browser could not read ${t.host}: ${hit.error}`);
-  }
 
   const mailDomain = registrableDomain(t.host);
 

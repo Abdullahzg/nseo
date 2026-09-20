@@ -1,152 +1,93 @@
-// Typed data access for the agentic campaign layer. All calls go through the
-// service-role client (server-side only), matching the legacy queries.ts pattern.
+// Data access for campaigns, prospects, deals, interventions and the activity feed.
 import { supabaseAdmin } from "@/lib/db/supabase";
-import type {
-  AgentEventInput,
-  BudgetCheck,
-  CampaignPhase,
-  DealStatus,
-  DealTerms,
-  DiscoveryProvenance,
-  ProspectStatus,
-  ScoreBreakdown,
-} from "./types";
+import { costUsd } from "@/lib/ai/models";
+import type { AgentEventInput, AgentEvent, BudgetCheck, Campaign, CampaignPhase, DealTerms, Prospect, ProspectStatus } from "./types";
 
-// ─── Campaign lifecycle ───────────────────────────────────────────────────────
+// ─── Campaigns ───────────────────────────────────────────────────────────────
 
-export async function getCampaignRow(id: string): Promise<any | null> {
+export async function getCampaign(id: string): Promise<Campaign | null> {
   const { data } = await supabaseAdmin.from("campaigns").select("*").eq("id", id).maybeSingle();
-  return (data as any) ?? null;
+  return (data as Campaign) ?? null;
 }
 
-export async function updateCampaignExt(id: string, patch: Record<string, unknown>): Promise<void> {
-  const { error } = await supabaseAdmin.from("campaigns").update(patch).eq("id", id);
+export async function updateCampaign(id: string, patch: Record<string, unknown>): Promise<void> {
+  const { error } = await supabaseAdmin.from("campaigns").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
 
-export function isActivePhase(phase: string | null | undefined): boolean {
-  return ["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"].includes(phase ?? "");
-}
-
-export async function setCampaignPhase(id: string, phase: CampaignPhase, reason?: string): Promise<void> {
+export async function setPhase(id: string, phase: CampaignPhase, reason?: string): Promise<void> {
   const patch: Record<string, unknown> = { phase };
   if (reason !== undefined) patch.completion_reason = reason;
-  if (phase === "completed" || phase === "stopped" || phase === "failed") patch.completed_at = new Date().toISOString();
-  await updateCampaignExt(id, patch);
+  if (phase === "completed" || phase === "stopped" || phase === "failed") { patch.completed_at = new Date().toISOString(); patch.next_tick_after = null; }
+  await updateCampaign(id, patch);
 }
 
-export async function setCampaignControls(
-  id: string,
-  controls: Partial<{ paused_discovery: boolean; paused_outreach: boolean; paused_negotiation: boolean; emergency_stopped: boolean }>
-): Promise<void> {
-  await updateCampaignExt(id, controls);
+export async function listCampaigns(scope: { owner_email?: string | null; guest_id?: string | null }): Promise<Campaign[]> {
+  let q = supabaseAdmin.from("campaigns").select("*").order("created_at", { ascending: false }).limit(100);
+  if (scope.guest_id) q = q.eq("guest_id", scope.guest_id);
+  else if (scope.owner_email) q = q.eq("owner_email", scope.owner_email).is("guest_id", null);
+  const { data } = await q;
+  return (data as Campaign[]) ?? [];
 }
 
-/** Atomic budget reservation. Returns ok=false when the remaining budget is insufficient —
- *  the WHERE clause makes the check-and-increment a single atomic statement in Postgres. */
+/** Campaigns the cron should tick now. */
+export async function listDueCampaigns(limit = 10): Promise<Campaign[]> {
+  const { data } = await supabaseAdmin
+    .from("campaigns").select("*")
+    .in("phase", ["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"])
+    .eq("paused", false)
+    .or(`next_tick_after.is.null,next_tick_after.lte.${new Date().toISOString()}`)
+    .order("next_tick_after", { ascending: true, nullsFirst: true })
+    .limit(limit);
+  return (data as Campaign[]) ?? [];
+}
+
+/**
+ * Atomic budget commit: the UPDATE only applies while headroom holds, so two concurrent deals
+ * cannot both pass the check. Returns ok=false when the second one loses.
+ */
 export async function reserveBudget(campaignId: string, amount: number, dealId?: string | null, note?: string): Promise<BudgetCheck> {
-  const camp = await getCampaignRow(campaignId);
+  const camp = await getCampaign(campaignId);
   if (!camp) return { ok: false, remaining: 0, requested: amount, reason: "campaign not found" };
   const total = Number(camp.budget_total ?? 0);
-  const used = Number(camp.budget_used ?? 0);
-  if (amount > total - used) {
-    return { ok: false, remaining: Math.max(0, total - used), requested: amount, reason: "insufficient budget" };
-  }
-  // Guarded increment: only applies when the headroom still holds (race-safe).
-  const { data, error } = await supabaseAdmin
-    .from("campaigns")
-    .update({ budget_used: used + amount })
-    .eq("id", campaignId)
-    .lte("budget_used", total - amount)
-    .select("budget_total,budget_used")
-    .single();
-  if (error || !data) {
-    const cur = await getCampaignRow(campaignId);
-    return { ok: false, remaining: Math.max(0, Number(cur?.budget_total ?? 0) - Number(cur?.budget_used ?? 0)), requested: amount, reason: "concurrent spend" };
-  }
-  await addLedgerEntry(campaignId, dealId ?? null, "commit", amount, camp.currency ?? "USD", note ?? "deal committed");
-  return { ok: true, remaining: Number(data.budget_total) - Number(data.budget_used), requested: amount };
+  const { data, error } = await supabaseAdmin.rpc("commit_budget", { p_campaign: campaignId, p_amount: amount });
+  if (error) return { ok: false, remaining: Math.max(0, total - Number(camp.budget_used ?? 0)), requested: amount, reason: error.message };
+  const ok = data === true;
+  if (ok) await supabaseAdmin.from("budget_ledger").insert({ campaign_id: campaignId, deal_id: dealId ?? null, entry_type: "commit", amount, currency: camp.currency ?? "USD", note: note ?? null });
+  const fresh = await getCampaign(campaignId);
+  return { ok, remaining: Math.max(0, total - Number(fresh?.budget_used ?? 0)), requested: amount, reason: ok ? undefined : "insufficient budget" };
 }
 
-export async function releaseBudget(campaignId: string, amount: number, dealId?: string | null, note?: string): Promise<void> {
-  const camp = await getCampaignRow(campaignId);
-  if (!camp) return;
-  const next = Math.max(0, Number(camp.budget_used ?? 0) - amount);
-  await updateCampaignExt(campaignId, { budget_used: next });
-  await addLedgerEntry(campaignId, dealId ?? null, "release", amount, camp.currency ?? "USD", note ?? "released");
-}
+// ─── Prospects ───────────────────────────────────────────────────────────────
 
-export async function addLedgerEntry(
-  campaignId: string,
-  dealId: string | null,
-  entryType: "commit" | "spend" | "release" | "adjust",
-  amount: number,
-  currency: string,
-  note?: string,
-  createdBy: "agent" | "human" = "agent"
-): Promise<void> {
-  await supabaseAdmin.from("budget_ledger").insert({
-    campaign_id: campaignId, deal_id: dealId, entry_type: entryType, amount, currency, note, created_by: createdBy,
-  });
-}
-
-// ─── Prospects ────────────────────────────────────────────────────────────────
-
-export async function upsertCampaignProspect(input: {
-  campaign_id: string;
-  author_id?: string | null;
-  domain_host: string;
-  prospect_url?: string | null;
-  title?: string | null;
-  provenance: DiscoveryProvenance;
-}): Promise<{ id: string; created: boolean }> {
-  // Aggressive dedupe at the DB boundary: one prospect per (campaign, host, author).
-  const { data: existing } = await supabaseAdmin
-    .from("campaign_prospects")
-    .select("id")
-    .eq("campaign_id", input.campaign_id)
-    .eq("domain_host", input.domain_host)
-    .maybeSingle();
+export async function upsertProspect(input: { campaign_id: string; domain_host: string; prospect_url?: string | null; title?: string | null; provenance: Prospect["provenance"] }): Promise<{ id: string; created: boolean }> {
+  const { data: existing } = await supabaseAdmin.from("campaign_prospects").select("id").eq("campaign_id", input.campaign_id).eq("domain_host", input.domain_host).maybeSingle();
   if (existing) return { id: (existing as any).id, created: false };
-  const { data, error } = await supabaseAdmin
-    .from("campaign_prospects")
-    .insert({
-      campaign_id: input.campaign_id,
-      author_id: input.author_id ?? null,
-      domain_host: input.domain_host,
-      prospect_url: input.prospect_url ?? null,
-      title: input.title ?? null,
-      provenance: input.provenance,
-      status: "discovered",
-    })
-    .select("id")
-    .single();
+  const { data, error } = await supabaseAdmin.from("campaign_prospects").insert({ ...input, status: "discovered" }).select("id").single();
   if (error) {
-    // Race with a parallel insert — treat as existing.
-    const { data: again } = await supabaseAdmin
-      .from("campaign_prospects").select("id").eq("campaign_id", input.campaign_id).eq("domain_host", input.domain_host).maybeSingle();
+    const { data: again } = await supabaseAdmin.from("campaign_prospects").select("id").eq("campaign_id", input.campaign_id).eq("domain_host", input.domain_host).maybeSingle();
     if (again) return { id: (again as any).id, created: false };
     throw error;
   }
   return { id: (data as any).id, created: true };
 }
 
-export async function getProspect(id: string): Promise<any | null> {
+export async function getProspect(id: string): Promise<Prospect | null> {
   const { data } = await supabaseAdmin.from("campaign_prospects").select("*").eq("id", id).maybeSingle();
-  return (data as any) ?? null;
+  return (data as Prospect) ?? null;
 }
 
-export async function listProspects(campaignId: string, status?: ProspectStatus | ProspectStatus[], limit = 500): Promise<any[]> {
-  let q = supabaseAdmin.from("campaign_prospects").select("*").eq("campaign_id", campaignId).order("opportunity_score", { ascending: false, nullsFirst: false }).limit(limit);
-  if (status) q = Array.isArray(status) ? q.in("status", status as string[]) : q.eq("status", status);
+export async function listProspects(campaignId: string, status?: ProspectStatus | ProspectStatus[], limit = 500): Promise<Prospect[]> {
+  let q = supabaseAdmin.from("campaign_prospects").select("*").eq("campaign_id", campaignId).order("created_at", { ascending: true }).limit(limit);
+  if (status) q = Array.isArray(status) ? q.in("status", status) : q.eq("status", status);
   const { data } = await q;
-  return (data as any[]) ?? [];
+  return (data as Prospect[]) ?? [];
 }
 
 export async function countProspectsByStatus(campaignId: string): Promise<Record<string, number>> {
-  const rows = await fetchAll<{ status: string }>("campaign_prospects", "status", (q) => q.eq("campaign_id", campaignId));
+  const { data } = await supabaseAdmin.from("campaign_prospects").select("status").eq("campaign_id", campaignId).limit(2000);
   const out: Record<string, number> = {};
-  for (const r of rows) out[r.status] = (out[r.status] ?? 0) + 1;
+  for (const r of (data as any[]) ?? []) out[r.status] = (out[r.status] ?? 0) + 1;
   return out;
 }
 
@@ -155,70 +96,12 @@ export async function updateProspect(id: string, patch: Record<string, unknown>)
   if (error) throw error;
 }
 
-export async function setProspectEvaluation(
-  id: string,
-  opts: { score: number; breakdown: ScoreBreakdown; qualified: boolean; qualification: Record<string, unknown>; ceiling: number | null }
-): Promise<void> {
-  await updateProspect(id, {
-    opportunity_score: opts.score,
-    score_breakdown: opts.breakdown,
-    qualification: opts.qualification,
-    ceiling: opts.ceiling,
-    status: opts.qualified ? "qualified" : "rejected",
-  });
-}
+// ─── Deals ───────────────────────────────────────────────────────────────────
 
-async function fetchAll<T>(table: string, cols: string, filter: (q: any) => any): Promise<T[]> {
-  const PAGE = 1000;
-  const out: T[] = [];
-  let from = 0;
-  for (;;) {
-    const { data, error } = await filter(supabaseAdmin.from(table).select(cols)).range(from, from + PAGE - 1);
-    if (error) throw error;
-    out.push(...((data as T[]) ?? []));
-    if (!data || data.length < PAGE) break;
-    from += PAGE;
-  }
-  return out;
-}
-
-// ─── Deals ────────────────────────────────────────────────────────────────────
-
-export async function createDeal(input: {
-  campaign_id: string;
-  anchor_email_id?: string | null;
-  author_id?: string | null;
-  domain_host: string;
-  publication?: string | null;
-  terms: DealTerms;
-  original_ask?: number | null;
-  agreed_price?: number | null;
-  currency?: string;
-}): Promise<any> {
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .insert({
-      campaign_id: input.campaign_id,
-      anchor_email_id: input.anchor_email_id ?? null,
-      author_id: input.author_id ?? null,
-      domain_host: input.domain_host,
-      publication: input.publication ?? null,
-      terms: input.terms,
-      original_ask: input.original_ask ?? null,
-      agreed_price: input.agreed_price ?? null,
-      currency: input.currency ?? "USD",
-      status: "terms_agreed",
-      agreed_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
+export async function createDeal(input: { campaign_id: string; anchor_email_id: string; author_id?: string | null; domain_host: string; publication?: string | null; terms: DealTerms; original_ask: number | null; agreed_price: number | null; currency?: string }) {
+  const { data, error } = await supabaseAdmin.from("deals").insert({ ...input, currency: input.currency ?? "USD", status: "terms_agreed", agreed_at: new Date().toISOString() }).select().single();
   if (error) throw error;
-  return data;
-}
-
-export async function updateDeal(id: string, patch: Partial<{ status: DealStatus; terms: DealTerms; next_action: string | null; agreed_price: number | null; closed_at: string }>): Promise<void> {
-  const { error } = await supabaseAdmin.from("deals").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
-  if (error) throw error;
+  return data as any;
 }
 
 export async function getDeals(campaignId: string): Promise<any[]> {
@@ -231,127 +114,90 @@ export async function getDealByAnchor(anchorEmailId: string): Promise<any | null
   return (data as any) ?? null;
 }
 
-// ─── Interventions (durable HITL) ─────────────────────────────────────────────
-
-export async function createIntervention(input: {
-  campaign_id?: string | null;
-  anchor_email_id?: string | null;
-  type: string;
-  ask?: string;
-  reason?: string;
-  agent_note?: string;
-  suggested_options?: string[];
-}): Promise<any> {
-  const { data, error } = await supabaseAdmin
-    .from("interventions")
-    .insert({
-      campaign_id: input.campaign_id ?? null,
-      anchor_email_id: input.anchor_email_id ?? null,
-      type: input.type,
-      ask: input.ask ?? null,
-      reason: input.reason ?? null,
-      agent_note: input.agent_note ?? null,
-      suggested_options: input.suggested_options ?? [],
-      status: "open",
-    })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function resolveIntervention(id: string, assistInput: string, resolvedBy: string, hasAsset = false): Promise<any | null> {
-  const { data, error } = await supabaseAdmin
-    .from("interventions")
-    .update({ status: "resolved", assist_input: assistInput, resolved_by: resolvedBy, resolved_at: new Date().toISOString(), has_asset: hasAsset })
-    .eq("id", id)
-    .eq("status", "open")
-    .select()
-    .single();
-  if (error) return null;
-  return data;
-}
-
-export async function listInterventions(campaignId: string | null, status?: "open" | "resolved" | "dismissed"): Promise<any[]> {
-  let q = supabaseAdmin.from("interventions").select("*").order("created_at", { ascending: false }).limit(200);
-  if (campaignId) q = q.eq("campaign_id", campaignId);
-  if (status) q = q.eq("status", status);
+export async function listDealsForScope(scope: { owner_email?: string | null; guest_id?: string | null }): Promise<any[]> {
+  let q = supabaseAdmin.from("deals").select("*, campaign:campaigns!inner(id, name, owner_email, guest_id, demo_mode)").order("created_at", { ascending: false }).limit(200);
+  if (scope.guest_id) q = q.eq("campaign.guest_id", scope.guest_id);
+  else if (scope.owner_email) q = q.eq("campaign.owner_email", scope.owner_email).is("campaign.guest_id", null);
   const { data } = await q;
   return (data as any[]) ?? [];
 }
 
-// ─── Agent runs & events ──────────────────────────────────────────────────────
+// ─── Interventions ───────────────────────────────────────────────────────────
 
-export async function startRun(campaignId: string, agent: string, tickKind?: string, adkSessionId?: string): Promise<string> {
-  const { data, error } = await supabaseAdmin
-    .from("agent_runs")
-    .insert({ campaign_id: campaignId || null, agent, tick_kind: tickKind ?? null, adk_session_id: adkSessionId ?? null })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return (data as any).id as string;
-}
-
-export async function finishRun(runId: string, status: "completed" | "failed" | "stopped", stats?: Record<string, unknown>, error?: string): Promise<void> {
-  await supabaseAdmin
-    .from("agent_runs")
-    .update({ status, stats: stats ?? {}, error: error ?? null, finished_at: new Date().toISOString() })
-    .eq("id", runId);
-}
-
-/** Idempotent event write. Duplicate event_key deliveries are dropped (Pub/Sub at-least-once). */
-export async function recordAgentEvent(ev: AgentEventInput): Promise<{ recorded: boolean }> {
-  const row: Record<string, unknown> = {
-    campaign_id: ev.campaign_id ?? null,
-    run_id: ev.run_id ?? null,
-    agent: ev.agent,
-    action: ev.action,
-    tool: ev.tool ?? null,
-    prospect_id: ev.prospect_id ?? null,
-    thread_id: ev.thread_id ?? null,
-    state_before: ev.state_before ?? null,
-    state_after: ev.state_after ?? null,
-    duration_ms: ev.duration_ms ?? null,
-    status: ev.status ?? "ok",
-    error_code: ev.error_code ?? null,
-    retry_count: ev.retry_count ?? 0,
-    level: ev.level ?? "info",
-    detail: ev.detail ?? {},
-    event_key: ev.event_key ?? null,
-  };
-  let q = supabaseAdmin.from("agent_events").insert(row);
-  const { error } = await q;
-  if (error) {
-    // Unique-violation on event_key means an at-least-once redelivery — that's success.
-    if (!String((error as any)?.message ?? "").includes("duplicate")) console.warn("[agent_events]", (error as any).message);
-    return { recorded: false };
+export async function createIntervention(input: { campaign_id: string; anchor_email_id: string | null; prospect_id?: string | null; type: string; editor_quote: string | null; agent_plan: string; agent_needs: string; assistable: boolean }) {
+  // One open card per thread.
+  if (input.anchor_email_id) {
+    const { data: open } = await supabaseAdmin.from("interventions").select("id").eq("anchor_email_id", input.anchor_email_id).eq("status", "open").maybeSingle();
+    if (open) return { ...(open as any), duplicate: true };
   }
-  return { recorded: true };
+  const { data, error } = await supabaseAdmin.from("interventions").insert({ ...input, status: "open" }).select().single();
+  if (error) throw error;
+  return data as any;
 }
 
-export async function listAgentEvents(campaignId: string, afterId = 0, limit = 200): Promise<any[]> {
-  const { data } = await supabaseAdmin
-    .from("agent_events")
-    .select("*")
-    .eq("campaign_id", campaignId)
-    .gt("id", afterId)
-    .order("id", { ascending: true })
-    .limit(limit);
+export async function resolveIntervention(id: string, answer: string, resolvedBy: string, outcome: "answered" | "dismissed" | "taken_over"): Promise<any | null> {
+  const { data, error } = await supabaseAdmin.from("interventions")
+    .update({ status: outcome === "answered" ? "resolved" : outcome === "dismissed" ? "dismissed" : "taken_over", answer, resolved_by: resolvedBy, resolved_at: new Date().toISOString() })
+    .eq("id", id).eq("status", "open").select().single();
+  if (error) return null;
+  return data as any;
+}
+
+export async function listInterventions(scope: { campaign_id?: string | null; owner_email?: string | null; guest_id?: string | null; status?: "open" | "resolved" | "dismissed" | "taken_over" }): Promise<any[]> {
+  let q = supabaseAdmin.from("interventions").select("*, campaign:campaigns!inner(id, name, owner_email, guest_id, demo_mode)").order("created_at", { ascending: false }).limit(200);
+  if (scope.campaign_id) q = q.eq("campaign_id", scope.campaign_id);
+  if (scope.guest_id) q = q.eq("campaign.guest_id", scope.guest_id);
+  else if (scope.owner_email) q = q.eq("campaign.owner_email", scope.owner_email).is("campaign.guest_id", null);
+  if (scope.status) q = q.eq("status", scope.status);
+  const { data } = await q;
   return (data as any[]) ?? [];
 }
 
-// ─── Idempotency ──────────────────────────────────────────────────────────────
+// ─── Activity feed ───────────────────────────────────────────────────────────
 
-/** Claims an idempotency key. True = caller should perform the action; False = already done/claimed. */
-export async function claimIdempotencyKey(key: string, scope?: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("idempotency_keys")
-    .upsert({ key, scope: scope ?? null }, { onConflict: "key", ignoreDuplicates: true })
-    .select("key")
-    .single();
-  return !!data;
+/** Append-only. Model metadata is flattened onto the row so the feed can show it without joins. */
+export async function recordEvent(ev: AgentEventInput): Promise<void> {
+  const metas = Array.isArray(ev.llm) ? ev.llm : ev.llm ? [ev.llm] : [];
+  const tokens_in = metas.reduce((s, m) => s + (m.tokens_in ?? 0), 0);
+  const tokens_out = metas.reduce((s, m) => s + (m.tokens_out ?? 0), 0);
+  const latency_ms = metas.reduce((s, m) => s + (m.latency_ms ?? 0), 0);
+  const model = metas.length ? [...new Set(metas.map((m) => m.model))].join(" + ") : null;
+  const cost = metas.reduce<number | null>((s, m) => { const c = costUsd(m.model, m.tokens_in, m.tokens_out); return c == null ? s : (s ?? 0) + c; }, null);
+  const reasoning = metas.map((m) => m.reasoning).filter(Boolean).join("\n\n---\n\n").slice(0, 4000) || null;
+  const { error } = await supabaseAdmin.from("agent_events").insert({
+    campaign_id: ev.campaign_id, agent: ev.agent, action: ev.action, human: ev.human, engine: ev.engine, level: ev.level ?? "info",
+    prospect_id: ev.prospect_id ?? null, thread_id: ev.thread_id ?? null, detail: ev.detail ?? {},
+    model, tokens_in: metas.length ? tokens_in : null, tokens_out: metas.length ? tokens_out : null, latency_ms: metas.length ? latency_ms : null,
+    reasoning, cost_usd: cost, event_key: ev.event_key ?? null,
+  });
+  if (error && !/duplicate key/i.test(error.message)) console.error("[events] insert failed:", error.message);
 }
 
-export async function completeIdempotencyKey(key: string, result: Record<string, unknown>): Promise<void> {
-  await supabaseAdmin.from("idempotency_keys").update({ result }).eq("key", key);
+export async function listEvents(campaignId: string, opts: { after_id?: number; before_id?: number; limit?: number } = {}): Promise<AgentEvent[]> {
+  let q = supabaseAdmin.from("agent_events").select("*").eq("campaign_id", campaignId).order("id", { ascending: false }).limit(Math.min(500, opts.limit ?? 100));
+  if (opts.after_id) q = q.gt("id", opts.after_id);
+  if (opts.before_id) q = q.lt("id", opts.before_id);
+  const { data } = await q;
+  return (data as AgentEvent[]) ?? [];
+}
+
+// ─── Threads (outreach_emails anchors) ───────────────────────────────────────
+
+export interface ThreadRow { id: string; author_id: string | null; negotiation_status: string | null; replied_at: string | null; reply_kind: string | null; to_email: string | null; prospect_id: string | null }
+
+export async function listCampaignThreads(campaignId: string): Promise<ThreadRow[]> {
+  const { data } = await supabaseAdmin.from("outreach_emails").select("id, author_id, negotiation_status, replied_at, reply_kind, to_email, prospect_id").eq("campaign_id", campaignId).eq("kind", "initial");
+  return (data as ThreadRow[]) ?? [];
+}
+
+export async function countUnansweredReplies(campaignId: string): Promise<number> {
+  const threads = await listCampaignThreads(campaignId);
+  let n = 0;
+  for (const t of threads) {
+    if (!t.replied_at || ["agreed", "declined", "needs_human", "stalled"].includes(t.negotiation_status ?? "") || t.reply_kind === "auto") continue;
+    const { data } = await supabaseAdmin.from("outreach_emails").select("sent_at").eq("parent_id", t.id).eq("kind", "negotiation").eq("status", "sent").order("sent_at", { ascending: false }).limit(1);
+    const last = (data as any[])?.[0]?.sent_at as string | undefined;
+    if (!last || last < t.replied_at) n++;
+  }
+  return n;
 }

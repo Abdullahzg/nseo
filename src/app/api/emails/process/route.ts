@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import PQueue from "p-queue";
 import type { Transporter } from "nodemailer";
-import { getDueEmails, updateOutreachEmail, getUserEmailConfig, getUserAppPasswordEnc, getFollowupParent, addressHasOtherSentInitial, logNegotiationActivity, reburstScheduledInitials } from "@/lib/db/queries";
+import { getDueEmails, updateOutreachEmail, getUserEmailConfig, getUserAppPasswordEnc, getFollowupParent, addressHasOtherSentInitial, reburstScheduledInitials } from "@/lib/db/queries";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { sendEmail, createPooledUserTransport, sendVia } from "@/lib/email/smtp";
@@ -226,61 +226,9 @@ export async function POST(req: NextRequest) {
     }
     const due = { length: drained }; // response shape: how many due emails we processed this run
 
-    // Auto-negotiation — when AI autonomy is ON, every AI-managed thread with a NEW reply we
-    // haven't answered yet gets an AI reply generated and SENT now (bounded per run). This is
-    // what makes the "let AI handle replies" checkbox actually reply on its own.
-    const negotiations = { attempted: 0, sent: 0, drafted: 0, errors: [] as string[] };
-    try {
-      const { getNegotiationSettings } = await import("@/lib/negotiation/settings");
-      const settings = await getNegotiationSettings();
-      if (settings.ai_autonomy) {
-        const { negotiateThread } = await import("@/lib/negotiation/run");
-        const { data: inits } = await supabaseAdmin
-          .from("outreach_emails").select("id, negotiation_status")
-          .eq("kind", "initial").eq("ai_managed", true).not("replied_at", "is", null).limit(40);
-        for (const it of inits ?? []) {
-          // Never auto-negotiate a thread that's closed OR parked for a human (asked for a doc/call/
-          // redirect/etc.) OR handed off — a person must handle those, not the AI.
-          if (["agreed", "declined", "needs_human", "handoff"].includes((it as any).negotiation_status)) continue;
-          const { data: thr } = await supabaseAdmin
-            .from("outreach_emails").select("kind, status, replied_at, reply_kind, sent_at")
-            .or(`id.eq.${(it as any).id},parent_id.eq.${(it as any).id}`);
-          const rowsT = (thr ?? []) as any[];
-          if (rowsT.some((r) => r.reply_kind === "auto")) continue; // autoresponders aren't negotiated
-          // Hard reply cap: never let the AI send more than max_thread_length replies in one
-          // thread (default 4). At the cap, escalate to a human instead of endless back-and-forth
-          // (prevents the runaway where a re-marked reply made the AI answer the same message N times).
-          const sentNegs = rowsT.filter((r) => r.kind === "negotiation" && r.status === "sent").length;
-          if (sentNegs >= (settings.max_thread_length ?? 4)) {
-            await supabaseAdmin.from("outreach_emails").update({
-              negotiation_status: "needs_human", intervention_type: "other",
-              intervention_ask: "Long AI back-and-forth, a person should take over",
-              intervention_reason: `Reached the ${settings.max_thread_length ?? 4}-reply cap for this thread.`,
-              intervention_at: new Date().toISOString(),
-            }).eq("id", (it as any).id);
-            continue;
-          }
-          const latestReply = rowsT.map((r) => r.replied_at).filter(Boolean).sort().pop();
-          const lastAnswer = rowsT.filter((r) => r.kind === "negotiation" && r.status === "sent").map((r) => r.sent_at).filter(Boolean).sort().pop();
-          if (!latestReply) continue;
-          if (lastAnswer && lastAnswer >= latestReply) continue; // their latest reply already answered
-          negotiations.attempted++;
-          const r = await negotiateThread((it as any).id).catch((e: any) => { negotiations.errors.push(e?.message ?? "negotiate error"); return null; });
-          if (r?.sent) { negotiations.sent++; await logNegotiationActivity((it as any).id, "ai-autonomy", "send", "AI auto-sent a negotiation reply"); }
-          else if (r?.ok) negotiations.drafted++;
-        }
-      }
-    } catch (e: any) { negotiations.errors.push(e?.message ?? "auto-negotiation error"); }
-
-    // Auto follow-ups — day-2, no-reply initials get a threaded nudge SCHEDULED (kill-switch
-    // respected). They send on a later run when due, threaded into the original.
-    let followups = { generated: 0, scheduled: 0, skippedDisabled: false, errors: [] as string[] };
-    try {
-      const { runFollowups } = await import("@/lib/email/followup");
-      followups = await runFollowups();
-    } catch (e: any) { followups.errors.push(e?.message ?? "followup error"); }
-
-    return NextResponse.json({ due: due.length, rebursted, sent, failed, cappedSkipped, dupSkipped, guessSkipped, placeholderSkipped, replies, negotiations, followups, results });
+    // Reply handling and follow-ups are owned by the campaign tick (src/lib/campaign/outreach.ts),
+    // not by the sender: one place answers editors, so a thread can never be answered twice.
+    return NextResponse.json({ due: due.length, rebursted, sent, failed, cappedSkipped, dupSkipped, guessSkipped, placeholderSkipped, replies, results });
   } finally {
     // Close every pooled SMTP connection opened for this burst.
     for (const tx of txPool.values()) { try { tx.close(); } catch { /* best-effort */ } }

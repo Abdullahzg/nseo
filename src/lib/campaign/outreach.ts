@@ -1,851 +1,284 @@
-// Outreach + negotiation tools for the agentic campaign layer (new hackathon work).
+// Outreach + reply handling for a campaign.
 //
-// Outreach reuses the guarded burst processor: we only INSERT outreach_emails rows
-// (status 'scheduled'); /api/emails/process performs every real send through the
-// legacy trust gates (role/placeholder/guessed rejection, duplicate-inbox guards,
-// pooled per-user SMTP, Message-ID stamping). In demo mode rows are marked sent
-// immediately with a simulated marker — nothing ever leaves the machine.
+// Real mode: rows are inserted as `scheduled`; /api/emails/process (owner-only, Redis-locked) is
+// the ONLY thing that ever sends. Demo mode: rows are recorded as simulated `sent` — no SMTP, no
+// DEMO_RECIPIENT, nothing leaves the machine.
 import { supabaseAdmin } from "@/lib/db/supabase";
-import { llmText } from "@/lib/ai/gemini";
+import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { sanitizeBody } from "@/lib/negotiation/agent";
-import { negotiateThread } from "@/lib/negotiation/run";
-import { getNegotiationSettings } from "@/lib/negotiation/settings";
+import { negotiateThread, type NegotiationResult } from "@/lib/negotiation/run";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
-import { addressHasOtherSentInitial, getUserEmailConfig } from "@/lib/db/queries";
-import { sendEmail } from "@/lib/email/smtp";
-import {
-  getCampaignRow, getProspect, updateProspect, reserveBudget,
-  createDeal, getDealByAnchor, updateDeal,
-  resolveIntervention, setCampaignPhase, createIntervention,
-} from "./queries";
-import { emitEvent } from "./tools";
-import type { DealTerms } from "./types";
+import { addressHasOtherSentInitial, createFollowupRow, getUserEmailConfig } from "@/lib/db/queries";
+import { getCampaign, getProspect, updateProspect, reserveBudget, createDeal, getDealByAnchor, createIntervention, resolveIntervention, listProspects, listCampaignThreads, recordEvent, updateCampaign, setPhase, getDeals } from "./queries";
+import { assignDemoPersona, injectDemoReplies } from "./demo";
+import type { Campaign, Prospect } from "./types";
 
-// ─── workflow binding ─────────────────────────────────────────────────────────
+// ─── Workflow binding (the email engine groups sends by workflow) ─────────────
 
-export async function ensureAgenticWorkflow(campaign: any): Promise<string> {
-  const name = `Agentic · ${campaign.name}`;
-  const { data: existing } = await supabaseAdmin
-    .from("workflows").select("id").eq("campaign_id", campaign.id).eq("name", name).limit(1).maybeSingle();
+export async function ensureWorkflow(camp: Campaign): Promise<string> {
+  const { data: existing } = await supabaseAdmin.from("workflows").select("id").eq("campaign_id", camp.id).limit(1).maybeSingle();
   if (existing) return (existing as any).id;
-  const { data: wf, error } = await supabaseAdmin
-    .from("workflows")
-    .insert({ campaign_id: campaign.id, name, filters: {}, status: "ready" })
-    .select("id")
-    .single();
+  const { data, error } = await supabaseAdmin.from("workflows").insert({ campaign_id: camp.id, name: camp.name, status: "ready" }).select("id").single();
   if (error) throw error;
-  return (wf as any).id;
+  return (data as any).id;
 }
 
-async function campaignWorkflowIds(campaignId: string): Promise<string[]> {
-  const { data } = await supabaseAdmin.from("workflows").select("id").eq("campaign_id", campaignId);
-  return ((data as any[]) ?? []).map((r) => r.id);
+// ─── Drafting ────────────────────────────────────────────────────────────────
+
+interface OutreachDraft { subject: string; body: string }
+const DRAFT_SCHEMA = { name: "outreach_email", schema: { type: "object", properties: { subject: { type: "string" }, body: { type: "string" } }, required: ["subject", "body"], additionalProperties: false } };
+const isDraft = (v: unknown): v is OutreachDraft => { const o = v as any; return !!o && typeof o.subject === "string" && o.subject.trim().length > 4 && typeof o.body === "string" && o.body.trim().length > 40; };
+
+export async function draftOutreachEmail(p: Prospect, camp: Campaign, signer: string): Promise<{ draft: OutreachDraft; meta: import("@/lib/ai/nebius").LLMMeta }> {
+  const q = p.qualification ?? ({} as NonNullable<Prospect["qualification"]>);
+  const editorFirst = (p.contact_name ?? "").split(/\s+/)[0] || "there";
+  const r = await nebiusJson<OutreachDraft>({
+    role: "fast", thinking: false, max_tokens: 500, temperature: 0.5, schema: DRAFT_SCHEMA, validate: isDraft,
+    messages: [
+      { role: "system", content: "You write short, specific, human outreach emails from a product team to an editor, asking to be included in a piece they wrote. Plain text. No em dashes. No bracketed placeholders. No claims about traffic, pricing, or files. JSON only: {subject, body}." },
+      { role: "user", content: `Editor first name: ${editorFirst}
+Publication: ${p.domain_host}
+Their article: "${q.title ?? p.title ?? ""}"
+Why it fits (from our analysis): ${q.why_fit ?? ""}
+Suggested angle: ${q.placement_angle ?? ""}
+Our product: ${camp.what_you_sell ?? camp.name} — ${camp.website_url ?? ""}
+Sign-off name: ${signer}
+
+Write: a subject under 60 chars that references their article, and a body of 4-6 sentences: one genuine specific line about their article, what we make in one sentence, a clear ask (include us in that piece or a similar one), and ask what they typically charge for an inclusion. End with "Best,\n${signer}".` },
+    ],
+  });
+  return { draft: { subject: r.data.subject.trim().slice(0, 120), body: sanitizeBody(r.data.body) }, meta: r.meta };
 }
 
-export interface CampaignThread {
-  anchor_id: string;
-  author_id: string | null;
-  negotiation_status: string | null;
-  replied_at: string | null;
-}
+// ─── Sending (queueing) ──────────────────────────────────────────────────────
 
-export async function listCampaignThreads(campaignId: string): Promise<CampaignThread[]> {
-  const ids = await campaignWorkflowIds(campaignId);
-  if (!ids.length) return [];
-  const { data } = await supabaseAdmin
-    .from("outreach_emails")
-    .select("id, author_id, negotiation_status, replied_at")
-    .in("workflow_id", ids)
-    .eq("kind", "initial");
-  return ((data as any[]) ?? []).map((r) => ({
-    anchor_id: r.id,
-    author_id: r.author_id ?? null,
-    negotiation_status: r.negotiation_status ?? null,
-    replied_at: r.replied_at ?? null,
-  }));
-}
+export interface SendResult { ok: boolean; email_id?: string; simulated?: boolean; reason?: string }
 
-// ─── email template engine ──────────────────────────────────────────────────
-
-/** Replace {{placeholder}} tokens with values. */
-function fillTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
-}
-
-/** Drop lines that contain an unfilled placeholder. */
-function dropEmptyLines(template: string): string {
-  return template.split("\n").filter((line) => !/\{\{[^}]+\}\}/.test(line)).join("\n");
-}
-
-/** Strip any leftover {{tokens}} and clean whitespace. */
-function stripPlaceholders(text: string): string {
-  return text.replace(/\{\{[^}]+\}\}/g, "").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-async function getDefaultTemplate(): Promise<{ subject: string; body: string; guidance: string } | null> {
-  const { data } = await supabaseAdmin
-    .from("email_templates").select("subject, body, guidance").eq("channel", "email").limit(1).maybeSingle();
-  return (data as any) ?? null;
-}
-
-async function getTemplateById(id: string): Promise<{ subject: string; body: string; guidance: string } | null> {
-  const { data } = await supabaseAdmin
-    .from("email_templates").select("subject, body, guidance").eq("id", id).limit(1).maybeSingle();
-  return (data as any) ?? null;
-}
-
-// ─── outreach ────────────────────────────────────────────────────────────────
-
-interface OutreachDraft { subject: string; body: string; provider: string; simulated_reason?: string; template_id?: string | null }
-
-/** Personalized opener drafted from the stored article understanding, using templates when available. */
-export async function draftOutreachEmail(
-  prospect: any,
-  campaign: any,
-  sequence?: { subjectPrefix?: string; bodyPrefix?: string }
-): Promise<OutreachDraft> {
-  const q = prospect.qualification ?? {};
-  const title = q.title ?? prospect.title ?? prospect.domain_host;
-  const websiteName = campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product";
-  const toolMentioned = q.placement_angle?.split(" ").slice(0, 4).join(" ") ?? campaign.keywords?.[0] ?? "AI tools";
-
-  // A/B testing: if ab_variant_ids is set, randomly pick one; otherwise use email_template_id
-  let templateId = campaign.email_template_id;
-  if (campaign.ab_variant_ids?.length) {
-    templateId = campaign.ab_variant_ids[Math.floor(Math.random() * campaign.ab_variant_ids.length)];
-  }
-
-  // Try to load the campaign's preferred template, or fall back to the first email template
-  let template: { subject: string; body: string; guidance: string } | null = null;
-  if (templateId) {
-    template = await getTemplateById(templateId);
-  }
-  if (!template) {
-    template = await getDefaultTemplate();
-  }
-
-  // Generate the AI personalized opener ({{custom_line}})
-  const guidance = template?.guidance ?? "Write a warm, specific 2-3 sentence opener referencing their article.";
-  const openerPrompt = `Write a short personalized opener for an outreach email.
-
-THEIR ARTICLE: ${title}
-PUBLICATION: ${prospect.domain_host}
-OUR PRODUCT: ${websiteName}
-WHY WE FIT: ${q.why_fit ?? "relevant to their coverage"}
-
-RULES:
-- 2-3 sentences. Warm, specific about THEIR article. Not salesy.
-- Do NOT include greeting (Hi/Hey) or sign-off (Best/Thanks).
-- Do NOT promise attachments, links, meetings, or payments.
-- Plain text only. No em dashes or en dashes.
-- Reference something specific about their article title or topic.
-
-Output ONLY the personalized opening lines.`;
-  const openerOut = await llmText(openerPrompt, { maxTokens: 300, temperature: 0.6 });
-  const customLine = openerOut && openerOut.text.length > 20 ? sanitizeBody(openerOut.text) : `I really enjoyed your article "${String(title).slice(0, 80)}", the way you broke down the key tools and trends in this space was exactly the kind of thoughtful coverage our readers appreciate.`;
-
-  if (template) {
-    // Resolve author name from prospect's author_id or qualification data
-    let authorName = "there";
-    let firstName = "";
-    if (prospect.author_id) {
-      try {
-        const { data: author } = await supabaseAdmin.from("authors").select("full_name").eq("id", prospect.author_id).maybeSingle();
-        const rawName = (author as any)?.full_name ?? "";
-        // Skip domain-like author names (e.g. "futureframe.media.invalid Editorial")
-        if (rawName && !rawName.includes(".") && rawName !== "there") {
-          authorName = rawName;
-          firstName = rawName.split(" ")[0];
-        }
-      } catch {}
-    }
-    if (!firstName) {
-      // Try from qualification data
-      const qAuthor = q.article_author ?? "";
-      if (qAuthor && qAuthor !== "Unknown") {
-        authorName = qAuthor;
-        firstName = qAuthor.split(" ")[0];
-      }
-    }
-    if (!firstName) {
-      // Fall back to a clean publication name (strip .invalid/.test/.example TLDs)
-      const cleanPub = prospect.domain_host?.replace(/\.(invalid|test|example)$/i, "").split(".")[0] ?? "there";
-      firstName = cleanPub.charAt(0).toUpperCase() + cleanPub.slice(1);
-      authorName = `${firstName} (Editorial)`;
-    }
-
-    // Fill template with placeholders
-    const vars: Record<string, string> = {
-      author_name: firstName !== "there" ? firstName : "there",
-      first_name: firstName,
-      pub_name: prospect.domain_host?.replace(/\.(invalid|test|example)$/i, "") ?? prospect.domain_host,
-      website_name: campaign.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") ?? campaign.name ?? "our product",
-      article_title: String(title).slice(0, 120),
-      article_date: q.published_at?.slice(0, 10) ?? "",
-      tool_mentioned: toolMentioned,
-      custom_line: customLine,
-      article_link: q.url ?? "",
-      signer_name: "Abdullah Zubair",
-    };
-    let body = fillTemplate(template.body, vars);
-    body = dropEmptyLines(body);
-    body = stripPlaceholders(body);
-    body = sanitizeBody(body);
-    if (sequence?.bodyPrefix) body = sequence.bodyPrefix + body;
-
-    let subject = fillTemplate(template.subject, vars);
-    subject = stripPlaceholders(subject);
-    if (!subject) subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
-    if (sequence?.subjectPrefix) subject = sequence.subjectPrefix + subject;
-
-    return { subject, body, provider: openerOut?.provider ?? "template+fallback", template_id: templateId };
-  }
-
-  // No template available — use LLM to draft the full email
-  const prompt = `Write a short outreach email to the writer/editor of an article, asking whether they'd consider including or mentioning our product.
-
-OUR PRODUCT SITE: ${campaign.website_url || "(see objective)"}
-CAMPAIGN OBJECTIVE: ${campaign.objective || "editorial coverage for our product"}
-TARGET TOPICS: ${(campaign.keywords ?? []).join(", ") || "n/a"}
-
-THEIR ARTICLE: ${title}
-WHY WE FIT (analysis): ${q.why_fit ?? "relevant to their coverage"}
-SUGGESTED ANGLE: ${q.placement_angle ?? "a natural inclusion in their coverage"}
-PUBLICATION: ${prospect.domain_host}
-
-RULES:
-- 4 to 6 sentences. Warm, human, specific. Not salesy.
-- Reference something specific about THEIR article (use the title/topic naturally).
-- Ask whether they accept such inclusions and what their rate would be.
-- Do NOT promise attachments, links, meetings, or payments.
-- Plain text only. Never use em dashes or en dashes.
-- Start with a greeting and end with a sign-off.
-
-Output ONLY the email body.`;
-  const out = await llmText(prompt, { maxTokens: 500, temperature: 0.6 });
-  let body = out ? sanitizeBody(out.text) : sanitizeBody(
-    `Hi there,\n\n${customLine}\n\nWe build ${websiteName} and think it could be a natural fit for your coverage of ${toolMentioned}. Would you be open to including it, and if so what would your rate be?\n\nBest,`
-  );
-  if (sequence?.bodyPrefix) body = sequence.bodyPrefix + body;
-  let subject = `Quick idea for your "${String(title).slice(0, 60)}" piece`;
-  if (sequence?.subjectPrefix) subject = sequence.subjectPrefix + subject;
-  return {
-    subject,
-    body,
-    provider: out?.provider ?? "fallback-template",
-    template_id: templateId,
-  };
-}
-
-export interface SendResult {
-  ok: boolean;
-  email_id?: string;
-  simulated?: boolean;
-  reason?: string;
-}
-
-/**
- * Queue outreach to one prospect. Real mode inserts status='scheduled' (the burst processor
- * owns delivery + all safety gates). Demo mode records a SIMULATED send so downstream reply/
- * negotiation flows run identically without touching the outside world.
- */
 export async function sendOutreachToProspect(prospectId: string): Promise<SendResult> {
-  const t0 = Date.now();
   const p = await getProspect(prospectId);
   if (!p) return { ok: false, reason: "prospect not found" };
-  const camp = await getCampaignRow(p.campaign_id);
+  const camp = await getCampaign(p.campaign_id);
   if (!camp) return { ok: false, reason: "campaign not found" };
-  if (camp.emergency_stopped) return { ok: false, reason: "emergency stop active" };
-  if (camp.paused_outreach && !camp.demo_mode) return { ok: false, reason: "outreach paused" };
-
   if (!p.contact_email) return { ok: false, reason: "no contact resolved" };
   if (isRoleEmail(p.contact_email)) return { ok: false, reason: "role mailbox refused" };
-  if (isPlaceholderEmail(p.contact_email)) { console.error(`[outreach] PLACEHOLDER email rejected: ${p.contact_email} (prospect ${prospectId})`); return { ok: false, reason: "placeholder address refused" }; }
-  // Cross-campaign duplicate guard: never initial two threads into one inbox.
-  if (!p.contact_email.includes("@simulated") && await addressHasOtherSentInitial(p.contact_email, "").catch(() => false)) {
-    await updateProspect(prospectId, { status: "lost", notes: { reason: "inbox already contacted elsewhere" } });
-    return { ok: false, reason: "duplicate inbox" };
-  }
-
-  const workflowId = await ensureAgenticWorkflow(camp);
-  const draft = await draftOutreachEmail(p, camp);
-  let authorId = p.author_id;
-  if (!authorId) {
-    try {
-      const { data: a } = await supabaseAdmin.from("authors").select("id").eq("primary_domain_id", p.domain_host).limit(1).maybeSingle();
-      authorId = (a as any)?.id ?? null;
-    } catch { authorId = null; }
-  }
-
+  if (isPlaceholderEmail(p.contact_email)) return { ok: false, reason: "placeholder address refused" };
   const demo = !!camp.demo_mode;
-  // Demo mode: route ALL emails to the test inbox so the full flow is observable.
-  const DEMO_RECIPIENT = process.env.DEMO_RECIPIENT || "demo@geseo.ai";
-  const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
-
-  // Per-domain rate limiting: max 3 emails per domain per hour
-  if (!demo && recipientEmail) {
-    const domain = recipientEmail.split("@")[1];
-    if (domain) {
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const { count } = await supabaseAdmin
-        .from("outreach_emails")
-        .select("id", { count: "exact", head: true })
-        .like("to_email", `%@${domain}`)
-        .gte("created_at", oneHourAgo);
-      if ((count ?? 0) >= 3) {
-        return { ok: false, reason: `rate limit: 3 emails/hour max for @${domain}` };
-      }
+  if (!demo) {
+    if (!camp.owner_email) return { ok: false, reason: "real campaigns need an owner with a configured sender" };
+    const cfg = await getUserEmailConfig(camp.owner_email);
+    if (!cfg.hasPassword) return { ok: false, reason: "owner has no Gmail app password configured" };
+    if (await addressHasOtherSentInitial(p.contact_email, "")) {
+      await updateProspect(prospectId, { status: "lost" });
+      return { ok: false, reason: "inbox already contacted by another campaign" };
     }
+    const domain = p.contact_email.split("@")[1];
+    const { count } = await supabaseAdmin.from("outreach_emails").select("id", { count: "exact", head: true }).like("to_email", `%@${domain}`).gte("created_at", new Date(Date.now() - 3600_000).toISOString());
+    if ((count ?? 0) >= 3) return { ok: false, reason: `rate limit: 3 emails/hour for @${domain}` };
   }
 
-  if (demo) {
-    // Pre-assign the simulated publisher persona for this thread's scenario.
-    try { const { assignDemoPersona } = await import("./demo"); await assignDemoPersona(prospectId); } catch {}
-  }
-  // In demo mode, resolve the real SMTP sender so negotiation replies can actually send.
-  const smtpUser = process.env.SMTP_USER || process.env.SMTP_FROM_EMAIL || null;
-  const senderEmail = demo ? (smtpUser || camp.owner_email) : (camp.owner_email ?? null);
-  const row: Record<string, unknown> = {
-    workflow_id: workflowId,
-    campaign_id: p.campaign_id,
-    author_id: authorId,
-    kind: "initial",
-    subject: draft.subject,
-    body: draft.body,
-    sender_email: senderEmail,
-    sent_by_email: senderEmail,
-    to_email: recipientEmail,
-    ai_managed: true,
-    max_offer: p.ceiling ?? null,
-    email_template_id: draft.template_id ?? null,
-    ...(demo
-      ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` }
-      : { status: "scheduled", scheduled_at: new Date().toISOString() }),
-  };
-  const { data: inserted, error } = await supabaseAdmin.from("outreach_emails").insert(row as never).select("id").single();
+  const senderCfg = camp.owner_email ? await getUserEmailConfig(camp.owner_email).catch(() => null) : null;
+  const signer = senderCfg?.from_name?.trim() || (camp.owner_email ? camp.owner_email.split("@")[0] : "the team");
+  const { draft, meta } = await draftOutreachEmail(p, camp, signer);
+  const workflowId = await ensureWorkflow(camp);
+  if (demo) await assignDemoPersona(prospectId);
+
+  const { data: inserted, error } = await supabaseAdmin.from("outreach_emails").insert({
+    workflow_id: workflowId, campaign_id: camp.id, author_id: p.author_id, prospect_id: p.id, kind: "initial",
+    subject: draft.subject, body: draft.body, to_email: p.contact_email,
+    sender_email: demo ? null : camp.owner_email, sent_by_email: demo ? null : camp.owner_email,
+    ai_managed: true, max_offer: p.ceiling ?? null, simulated: demo,
+    ...(demo ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` } : { status: "scheduled", scheduled_at: new Date().toISOString() }),
+  }).select("id").single();
   if (error) return { ok: false, reason: error.message };
 
-  // Add tracking pixel for open tracking (real mode only)
-  let sendBody = draft.body;
-  if (!demo && inserted) {
-    const pixelUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3100"}/api/track/open?id=${(inserted as any).id}`;
-    sendBody += `\n<img src="${pixelUrl}" width="1" height="1" style="display:none" alt="" />`;
-  }
-
-  // Demo mode: attempt actual send via SMTP with a short timeout so the tick doesn't hang.
-  if (demo) {
-    try {
-      await Promise.race([
-        sendEmail({ to: DEMO_RECIPIENT, subject: draft.subject, body: sendBody }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("SMTP timeout")), 8000)),
-      ]);
-      await supabaseAdmin.from("outreach_emails").update({
-        status: "sent",
-        sent_at: new Date().toISOString(),
-      }).eq("id", (inserted as any).id);
-    } catch (e: any) {
-      console.error("[demo-send] SMTP failed:", e?.message);
-    }
-  }
-
   await updateProspect(prospectId, { status: "outreached" });
-  await emitEvent(p.campaign_id, "outreach", demo ? "outreach_sent_simulated" : "outreach_queued", {
-    prospect_id: prospectId,
-    thread_id: (inserted as any).id,
-    detail: {
-      host: p.domain_host, to_domain: p.contact_email?.split("@")[1],
-      subject: draft.subject, drafter: draft.provider, simulated: demo,
-      ceiling: p.ceiling ?? null,
-    },
-    duration_ms: Date.now() - t0,
+  await recordEvent({
+    campaign_id: camp.id, agent: "outreach", action: demo ? "outreach_sent_simulated" : "outreach_queued", engine: "model", llm: meta, prospect_id: prospectId, thread_id: (inserted as any).id,
+    human: `${demo ? "Emailed (simulated)" : "Queued email to"} ${p.contact_name ?? "the editor"} at ${p.domain_host} — “${draft.subject}”`,
+    detail: { subject: draft.subject, body: draft.body, to_domain: p.contact_email.split("@")[1], ceiling: p.ceiling, simulated: demo },
   });
   return { ok: true, email_id: (inserted as any).id, simulated: demo };
 }
 
-// ─── multi-touch sequences ────────────────────────────────────────────────────
-
-/** Default sequence: initial + 2 follow-ups spaced 2 and 4 days apart */
-const DEFAULT_SEQUENCE_DELAYS_MS = [0, 2 * 86400_000, 4 * 86400_000];
-const SEQUENCE_TEMPLATES = [
-  { kind: "initial" as const, subjectPrefix: "", bodyPrefix: "" },
-  { kind: "followup" as const, subjectPrefix: "Following up: ", bodyPrefix: "Just circling back on my previous email — " },
-  { kind: "followup" as const, subjectPrefix: "Re: ", bodyPrefix: "Bumping this to the top of your inbox. " },
-];
-
-/**
- * Schedule the next touch in a multi-touch sequence for a prospect.
- * Checks if there are remaining steps and if the previous step hasn't been replied to.
- */
-export async function scheduleNextSequenceTouch(prospectId: string): Promise<{ ok: boolean; scheduled?: boolean; reason?: string }> {
-  const p = await getProspect(prospectId);
-  if (!p) return { ok: false, reason: "prospect not found" };
-  if (!p.contact_email) return { ok: false, reason: "no contact" };
-
-  const camp = await getCampaignRow(p.campaign_id);
-  if (!camp) return { ok: false, reason: "campaign not found" };
-  if (camp.emergency_stopped) return { ok: false, reason: "emergency stop" };
-
-  // Count existing emails in this thread
-  const workflowId = await ensureAgenticWorkflow(camp);
-  const { data: existing } = await supabaseAdmin
-    .from("outreach_emails")
-    .select("id, kind, replied_at, sent_at, scheduled_at")
-    .eq("workflow_id", workflowId)
-    .eq("author_id", p.author_id)
-    .order("created_at", { ascending: true });
-
-  const emails = (existing ?? []) as any[];
-  const currentStep = emails.length;
-
-  // No more steps in sequence
-  if (currentStep >= SEQUENCE_TEMPLATES.length) {
-    return { ok: true, scheduled: false, reason: "sequence complete" };
-  }
-
-  // Don't schedule if they already replied
-  const hasReply = emails.some((e) => e.replied_at);
-  if (hasReply) {
-    return { ok: true, scheduled: false, reason: "already replied" };
-  }
-
-  const template = SEQUENCE_TEMPLATES[currentStep];
-  const delayMs = DEFAULT_SEQUENCE_DELAYS_MS[currentStep];
-  const scheduledAt = new Date(Date.now() + delayMs).toISOString();
-
-  // Draft the follow-up email
-  const draft = await draftOutreachEmail(p, camp, {
-    subjectPrefix: template.subjectPrefix,
-    bodyPrefix: template.bodyPrefix,
-  });
-
-  let authorId = p.author_id;
-  if (!authorId) {
+export async function outreachBatch(camp: Campaign, limit: number): Promise<{ sent: number; refused: Array<{ host: string; reason: string }> }> {
+  const ready = (await listProspects(camp.id, "ready", 50)).filter((x) => x.contact_email).slice(0, limit);
+  const out = { sent: 0, refused: [] as Array<{ host: string; reason: string }> };
+  for (const p of ready) {
     try {
-      const { data: a } = await supabaseAdmin.from("authors").select("id").eq("primary_domain_id", p.domain_host).limit(1).maybeSingle();
-      authorId = (a as any)?.id ?? null;
-    } catch { authorId = null; }
-  }
-
-  const demo = !!camp.demo_mode;
-  const DEMO_RECIPIENT = process.env.DEMO_RECIPIENT || "demo@geseo.ai";
-  const recipientEmail = demo ? DEMO_RECIPIENT : p.contact_email;
-
-  const { error } = await supabaseAdmin.from("outreach_emails").insert({
-    workflow_id: workflowId,
-    author_id: authorId,
-    kind: template.kind,
-    parent_id: emails[0]?.id ?? null,
-    subject: draft.subject,
-    body: draft.body,
-    sender_email: camp.owner_email ?? null,
-    sent_by_email: camp.owner_email ?? null,
-    to_email: recipientEmail,
-    ai_managed: true,
-    max_offer: p.ceiling ?? null,
-    status: demo ? "sent" : "scheduled",
-    sent_at: demo ? new Date().toISOString() : null,
-    scheduled_at: demo ? null : scheduledAt,
-    message_id: demo ? `<demo-${crypto.randomUUID()}@simulated.local>` : null,
-  } as never);
-
-  if (error) return { ok: false, reason: error.message };
-
-  await emitEvent(camp.id, "outreach", "sequence_scheduled", {
-    prospect_id: prospectId,
-    detail: { step: currentStep + 1, total_steps: SEQUENCE_TEMPLATES.length, scheduled_at: scheduledAt, kind: template.kind, subject: draft.subject },
-  });
-
-  return { ok: true, scheduled: true };
-}
-
-/**
- * Process due follow-ups: find scheduled follow-ups whose scheduled_at has passed
- * and whose thread hasn't received a reply yet.
- */
-export async function processDueFollowUps(campaignId: string): Promise<{ processed: number; skipped: number }> {
-  const now = new Date().toISOString();
-  const workflowIds = await campaignWorkflowIds(campaignId);
-  if (!workflowIds.length) return { processed: 0, skipped: 0 };
-
-  const { data: due } = await supabaseAdmin
-    .from("outreach_emails")
-    .select("id, parent_id, workflow_id, author_id, subject, body, to_email, scheduled_at")
-    .in("workflow_id", workflowIds)
-    .eq("status", "scheduled")
-    .eq("kind", "followup")
-    .not("scheduled_at", "is", null)
-    .lte("scheduled_at", now);
-
-  if (!due?.length) return { processed: 0, skipped: 0 };
-
-  let processed = 0;
-  let skipped = 0;
-
-  for (const email of due as any[]) {
-    // Check if the parent thread has received a reply
-    if (email.parent_id) {
-      const { data: parent } = await supabaseAdmin
-        .from("outreach_emails")
-        .select("replied_at")
-        .eq("id", email.parent_id)
-        .maybeSingle();
-      if ((parent as any)?.replied_at) { skipped++; continue; }
+      const r = await sendOutreachToProspect(p.id);
+      if (r.ok) out.sent++;
+      else { out.refused.push({ host: p.domain_host, reason: r.reason ?? "refused" }); await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "outreach_refused", engine: "policy", level: "warn", prospect_id: p.id, human: `Did not email ${p.domain_host} — ${r.reason}` }); }
+    } catch (e: any) {
+      out.refused.push({ host: p.domain_host, reason: e?.message ?? String(e) });
+      await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "outreach_error", engine: "system", level: "error", prospect_id: p.id, human: `Could not draft email to ${p.domain_host}: ${e?.message ?? e}` });
+      if (e instanceof NebiusError && (e.kind === "auth" || e.kind === "not_configured" || e.kind === "budget")) throw e;
     }
-
-    // Mark as sent (the burst processor will handle actual delivery)
-    await supabaseAdmin
-      .from("outreach_emails")
-      .update({ status: "sent", sent_at: now })
-      .eq("id", email.id);
-
-    processed++;
-  }
-
-  return { processed, skipped };
-}
-
-// ─── negotiation tick ─────────────────────────────────────────────────────────
-
-export interface NegotiateOutcome {
-  email_id: string;
-  intent: string | null;
-  action: string;              // sent | drafted | needs_human | agreed | declined | skipped | error
-  offer: number | null;
-  ceiling: number | null;
-  intervention_type?: string;
-  deal_id?: string;
-  error?: string;
-}
-
-/**
- * One negotiation step for a campaign thread: classify → policy → draft → (maybe send),
- * then persist a structured deal when terms are agreed (budget-checked, never over budget).
- */
-export async function negotiateCampaignThread(
-  anchorEmailId: string,
-  opts: { assistInput?: string | null; runId?: string | null } = {}
-): Promise<NegotiateOutcome> {
-  const base: NegotiateOutcome = { email_id: anchorEmailId, intent: null, action: "skipped", offer: null, ceiling: null };
-  const { data: anchor } = await supabaseAdmin
-    .from("outreach_emails")
-    .select("id, workflow_id, author_id, negotiation_status, replied_at")
-    .eq("id", anchorEmailId).maybeSingle();
-  if (!anchor) return { ...base, action: "error", error: "thread not found" };
-  const { data: wf } = await supabaseAdmin.from("workflows").select("campaign_id").eq("id", (anchor as any).workflow_id).maybeSingle();
-  const campaignId = (wf as any)?.campaign_id;
-  const camp = campaignId ? await getCampaignRow(campaignId) : null;
-
-  if (camp?.emergency_stopped) return { ...base, action: "skipped", error: "emergency stop" };
-  if (["agreed", "declined", "handoff"].includes(((anchor as any).negotiation_status ?? ""))) return base;
-
-  const settings = await getNegotiationSettings();
-  const autonomyMode = camp?.autonomy_mode ?? "autonomous";
-  const autonomyOverride = autonomyMode === "autonomous";
-
-  const result = await negotiateThread(anchorEmailId, {
-    assistInput: opts.assistInput ?? null,
-    autonomyOverride,
-    // Demo campaigns run deterministic classification + scripted-counter fallback so the
-    // arc can never be derailed by provider limits. Production keeps the full LLM path.
-    heuristicOnly: !!camp?.demo_mode,
-    demoScripted: !!camp?.demo_mode,
-  }).catch((e: any) => ({ ok: false, error: e?.message }) as any);
-
-  const intent = result.intent ?? null;
-  const action: NegotiateOutcome["action"] =
-    result.persistedAs === "needs_human" ? "needs_human"
-      : result.sent ? "sent"
-        : result.ok ? "drafted" : "error";
-
-  // Thread-level runaway cap mirrors the legacy cron guard: escalate instead of nagging.
-  if (result.ok && result.statusHint === "stalled") {
-    await supabaseAdmin.from("outreach_emails").update({ negotiation_status: "stalled" }).eq("id", anchorEmailId);
-  }
-
-  // Structured deal on agreement — deterministic budget enforcement BEFORE celebrating.
-  let dealId: string | undefined;
-  if (result.statusHint === "agreed") {
-    const price = Number(result.suggestedOffer ?? 0) || 0;
-    const { data: auth0 } = await supabaseAdmin
-      .from("authors").select("full_name, domain:domains(host, name)").eq("id", (anchor as any).author_id).maybeSingle();
-    const host = ((auth0 as any)?.domain?.host) ?? "unknown";
-    const waived = /\b(waive[ds]?|free of charge|no cost|no charge|complimentary|on the house|gratis|won'?t charge)\b/i.test(
-      ((await supabaseAdmin.from("outreach_emails").select("reply_excerpt").eq("id", anchorEmailId).maybeSingle()).data as any)?.reply_excerpt ?? ""
-    );
-    const effectivePrice = waived ? 0 : price;
-
-    if (effectivePrice > 0 && camp) {
-      const budget = await reserveBudget(camp.id, effectivePrice, null, `deal committed: ${host}`);
-      if (!budget.ok) {
-        // NEVER exceed the budget autonomously: park as an over-policy human decision.
-        await createInterventionSafe({
-          campaign_id: camp.id,
-          anchor_email_id: anchorEmailId,
-          type: "over_policy",
-          ask: `Agreed price ${camp.currency} ${effectivePrice} exceeds remaining budget (${camp.currency} ${budget.remaining})`,
-          reason: "Budget authority exhausted; human must approve or renegotiate.",
-          suggested_options: ["Approve over-budget spend", "Renegotiate lower", "Decline politely"],
-        });
-        await supabaseAdmin.from("outreach_emails").update({
-          negotiation_status: "needs_human",
-          intervention_type: "over_policy",
-          intervention_ask: "agreed price exceeds remaining budget",
-          intervention_at: new Date().toISOString(),
-        }).eq("id", anchorEmailId);
-        await emitEvent(camp.id, "negotiation", "deal_blocked_budget", {
-          thread_id: anchorEmailId, level: "warn",
-          detail: { host, requested: effectivePrice, remaining: budget.remaining },
-        });
-        return { email_id: anchorEmailId, intent, action: "needs_human", offer: effectivePrice, ceiling: result.ceiling ?? null, intervention_type: "over_policy" };
-      }
-      dealId = (await upsertDeal({
-        campaignId: camp.id, anchorEmailId, authorId: (anchor as any).author_id, host,
-        publication: (auth0 as any)?.domain?.name ?? host,
-        terms: { price: effectivePrice, currency: camp.currency ?? "USD", conditions: ["agreed via AI negotiation"] },
-        originalAsk: null, agreedPrice: effectivePrice,
-      })).id;
-    } else if (camp) {
-      dealId = (await upsertDeal({
-        campaignId: camp.id, anchorEmailId, authorId: (anchor as any).author_id, host,
-        publication: (auth0 as any)?.domain?.name ?? host,
-        terms: { price: 0, currency: camp.currency ?? "USD", conditions: [waived ? "fee waived by publisher" : "editorial inclusion, no fee"] },
-        originalAsk: null, agreedPrice: 0,
-      })).id;
-    }
-
-    if (camp) {
-      await emitEvent(camp.id, "negotiation", "terms_agreed", {
-        thread_id: anchorEmailId,
-        state_before: String(intent), state_after: "TERMS_AGREED",
-        detail: { host, price: effectivePrice, waived, deal_id: dealId },
-      });
-      // Completion check: goal reached?
-      await checkCampaignCompletion(camp.id);
-    }
-  }
-
-  if (result.persistedAs === "needs_human") {
-    // The legacy path flagged the outreach row; mirror it as a durable intervention so the
-    // campaign UI + ADK service see a resumable HITL request.
-    const { data: cur } = await supabaseAdmin
-      .from("outreach_emails").select("intervention_type, intervention_ask, intervention_reason").eq("id", anchorEmailId).maybeSingle();
-    await createInterventionSafe({
-      campaign_id: camp?.id ?? null,
-      anchor_email_id: anchorEmailId,
-      type: (cur as any)?.intervention_type ?? "other",
-      ask: (cur as any)?.intervention_ask ?? "needs a human",
-      reason: (cur as any)?.intervention_reason ?? "the AI cannot complete this step safely",
-      suggested_options: defaultOptionsFor((cur as any)?.intervention_type ?? "other"),
-    });
-    await emitEvent(camp?.id ?? null, "negotiation", "intervention_opened", {
-      thread_id: anchorEmailId, level: "warn",
-      detail: { type: (cur as any)?.intervention_type, ask: (cur as any)?.intervention_ask },
-    });
-  }
-
-  return {
-    email_id: anchorEmailId, intent, action,
-    offer: result.suggestedOffer ?? null,
-    ceiling: result.ceiling ?? null,
-    intervention_type: result.persistedAs === "needs_human" ? "needs_human" : undefined,
-    deal_id: dealId,
-    error: result.error,
-  };
-}
-
-function defaultOptionsFor(type: string): string[] {
-  switch (type) {
-    case "sync_contact": return ["Provide availability", "Decline call", "Take over thread"];
-    case "scheduling": return ["Share availability text", "Send calendar link", "Decline"];
-    case "asset_request": return ["Upload asset", "Describe where to get it", "Decline request"];
-    case "payment_details": return ["Provide invoice/bank details", "Route to finance", "Decline"];
-    case "factual_question": return ["Provide the answer", "Instruct agent to say it will follow up"];
-    case "legal_contract": return ["Review & sign externally", "Decline terms", "Negotiate via human"];
-    default: return ["Provide guidance", "Take over thread"];
-  }
-}
-
-async function createInterventionSafe(input: {
-  campaign_id?: string | null;
-  anchor_email_id?: string | null;
-  type: string;
-  ask?: string;
-  reason?: string;
-  suggested_options?: string[];
-}) {
-  try {
-    return await createIntervention(input);
-  } catch { return null; }
-}
-
-async function upsertDeal(input: { campaignId: string; anchorEmailId: string; authorId: string | null; host: string; publication: string; terms: DealTerms; originalAsk: number | null; agreedPrice: number }): Promise<any> {
-  const existing = await getDealByAnchor(input.anchorEmailId);
-  if (existing) {
-    await updateDeal(existing.id, { status: "terms_agreed", terms: input.terms, agreed_price: input.agreedPrice });
-    return existing;
-  }
-  return createDeal({
-    campaign_id: input.campaignId,
-    anchor_email_id: input.anchorEmailId,
-    author_id: input.authorId,
-    domain_host: input.host,
-    publication: input.publication,
-    terms: input.terms,
-    original_ask: input.originalAsk,
-    agreed_price: input.agreedPrice,
-    currency: input.terms.currency ?? "USD",
-  });
-}
-
-// ─── replies tick ─────────────────────────────────────────────────────────────
-
-export interface RepliesTickResult {
-  detected: number;
-  negotiated: number;
-  needs_human: number;
-  errors: string[];
-}
-
-/**
- * Bounded monitoring unit: sweep inbound mail once, then answer every unanswered,
- * AI-managed campaign thread within policy. Mirrors the legacy cron guards
- * (autoresponder skip, thread-length cap → escalate) but scoped to this campaign
- * and driven by campaign-level autonomy rather than the global singleton.
- */
-export async function processRepliesTick(
-  campaignId: string,
-  opts: { runId?: string | null; detectReplies?: boolean } = {}
-): Promise<RepliesTickResult> {
-  const out: RepliesTickResult = { detected: 0, negotiated: 0, needs_human: 0, errors: [] };
-  const camp = await getCampaignRow(campaignId);
-  if (!camp) { out.errors.push("campaign not found"); return out; }
-  if (camp.emergency_stopped) { out.errors.push("emergency stop"); return out; }
-
-  if (opts.detectReplies !== false) {
-    if (camp.demo_mode) {
-      // Demo mode: simulated publisher personas inject through the REAL reply-recording
-      // path; no IMAP is touched and nothing external ever sees these threads.
-      try {
-        const { injectDemoReplies } = await import("./demo");
-        const n = await injectDemoReplies(campaignId);
-        out.detected = n;
-        if (n > 0) {
-          await emitEvent(campaignId, "inbox_triage", "demo_replies_injected", { detail: { count: n, simulated: true } });
-        }
-      } catch (e: any) {
-        out.errors.push(`demo injection: ${e?.message}`);
-      }
-    } else {
-      try {
-        const { runReplyDetection } = await import("@/lib/email/imap");
-        const r = await runReplyDetection();
-        out.detected = r.repliesFound ?? 0;
-        await emitEvent(campaignId, "inbox_triage", "reply_sweep", {
-          tool: "imap.runReplyDetection", detail: { accounts: r.accountsChecked, found: r.repliesFound },
-        });
-      } catch (e: any) {
-        out.errors.push(`reply detection: ${e?.message}`);
-      }
-    }
-  }
-
-  const settings = await getNegotiationSettings();
-  const threads = await listCampaignThreads(campaignId);
-  for (const th of threads) {
-    if (!th.replied_at) continue;
-    if (["agreed", "declined", "needs_human", "handoff"].includes(th.negotiation_status ?? "")) continue;
-    // Autoresponders aren't negotiated (legacy rule).
-    const { data: kindRow } = await supabaseAdmin
-      .from("outreach_emails").select("reply_kind").eq("id", th.anchor_id).maybeSingle();
-    if (((kindRow as any)?.reply_kind ?? "") === "auto") continue;
-    // Thread-length cap (legacy runaway guard).
-    const { data: negRows } = await supabaseAdmin
-      .from("outreach_emails").select("kind, status, parent_id").or(`id.eq.${th.anchor_id},parent_id.eq.${th.anchor_id}`);
-    const rowsT = (negRows ?? []) as any[];
-    const sentNegs = rowsT.filter((r) => r.kind === "negotiation" && r.status === "sent").length;
-    if (sentNegs >= (settings.max_thread_length ?? 4)) {
-      await createInterventionSafe({
-        campaign_id: campaignId, anchor_email_id: th.anchor_id, type: "other",
-        ask: "Long AI back-and-forth, a person should take over",
-        reason: `Reached the ${settings.max_thread_length ?? 4}-reply cap.`,
-      });
-      out.needs_human++;
-      continue;
-    }
-    const latestReply = rowsT.map((r) => r.replied_at).filter(Boolean).sort().pop() as string | undefined;
-    // Legacy runaway guard: if our latest negotiation send is NEWER than their latest reply,
-    // this message is already answered — never answer twice (the auto-reply runaway bug).
-    if (latestReply) {
-      const lastAnswer = rowsT
-        .filter((r) => r.kind === "negotiation" && r.status === "sent")
-        .map((r) => r.sent_at)
-        .filter(Boolean)
-        .sort()
-        .pop() as string | undefined;
-      if (lastAnswer && lastAnswer >= latestReply) continue;
-    }
-    const r = await negotiateCampaignThread(th.anchor_id, { runId: opts.runId }).catch((e) => ({ action: "error", error: e?.message, email_id: th.anchor_id, intent: null, offer: null, ceiling: null }) as NegotiateOutcome);
-    if (r.action === "sent" || r.action === "drafted") out.negotiated++;
-    if (r.action === "needs_human") out.needs_human++;
-    if (r.action === "error") { out.errors.push(r.error ?? "negotiation error"); await emitEvent(campaignId, "negotiation", "negotiation_error", { thread_id: th.anchor_id, detail: { error: r.error } }); }
   }
   return out;
 }
 
-// ─── HITL resume ──────────────────────────────────────────────────────────────
+// ─── Follow-ups (real mode only; demo replies arrive on the next tick) ───────
 
-export interface ResumeResult { ok: boolean; resumed_negotiation?: boolean; outcome?: NegotiateOutcome; error?: string }
-
-/** Human answered an intervention: persist the trusted input and resume the SAME thread. */
-export async function resumeFromIntervention(
-  interventionId: string,
-  assistInput: string,
-  resolvedBy: string
-): Promise<ResumeResult> {
-  const iv = await resolveIntervention(interventionId, assistInput, resolvedBy);
-  if (!iv) return { ok: false, error: "intervention not open / not found" };
-  await emitEvent(iv.campaign_id, "hitl", "intervention_resolved", {
-    thread_id: iv.anchor_email_id,
-    detail: { type: iv.type, answered_by: resolvedBy, input_chars: assistInput.length },
-  });
-
-  if (!iv.anchor_email_id) return { ok: true, resumed_negotiation: false };
-  // Asset-backed interventions keep the uploaded file on the legacy columns; the negotiator
-  // picks it up via its own assist path when present.
-  const outcome = await negotiateCampaignThread(iv.anchor_email_id, { assistInput });
-  await supabaseAdmin.from("interventions").update({
-    result_action: outcome.action,
-    ...(outcome.deal_id ? {} : {}),
-  }).eq("id", interventionId);
-  return { ok: true, resumed_negotiation: true, outcome };
+export async function scheduleFollowups(camp: Campaign, limit = 10): Promise<{ scheduled: number }> {
+  if (camp.demo_mode) return { scheduled: 0 };
+  const since = new Date(Date.now() - 3 * 86400_000).toISOString();
+  const { data } = await supabaseAdmin.from("outreach_emails").select("id, workflow_id, author_id, prospect_id, subject, to_email, sender_email, sent_by_email").eq("campaign_id", camp.id).eq("kind", "initial").eq("status", "sent").is("replied_at", null).eq("followup_skipped", false).lte("sent_at", since).limit(limit);
+  let scheduled = 0;
+  for (const a of (data ?? []) as any[]) {
+    const { data: kid } = await supabaseAdmin.from("outreach_emails").select("id").eq("parent_id", a.id).eq("kind", "followup").limit(1).maybeSingle();
+    if (kid) continue;
+    await createFollowupRow({ workflow_id: a.workflow_id, author_id: a.author_id, parent_id: a.id, campaign_id: camp.id, to_email: a.to_email, subject: /^re:/i.test(a.subject ?? "") ? a.subject : `Re: ${a.subject}`, body: sanitizeBody(`Hi,\n\nJust circling back on my note below in case it got buried. Happy to answer any questions, and if it's not a fit, no worries at all.\n\nBest`), sender_email: a.sender_email, sent_by_email: a.sent_by_email, status: "scheduled", scheduled_at: new Date().toISOString() });
+    scheduled++;
+    await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "followup_scheduled", engine: "policy", thread_id: a.id, prospect_id: a.prospect_id, human: `Scheduled a follow-up to ${a.to_email?.split("@")[1] ?? "the editor"} (no reply after 3 days)` });
+  }
+  return { scheduled };
 }
 
-// ─── completion ───────────────────────────────────────────────────────────────
+// ─── Replies → negotiation → deals / interventions ───────────────────────────
 
-/** Deterministic completion: goal reached, budget exhausted, pool dry, or stopped. */
-export async function checkCampaignCompletion(campaignId: string): Promise<{ completed: boolean; reason?: string }> {
-  const camp = await getCampaignRow(campaignId);
-  if (!camp || camp.phase === "completed" || camp.phase === "stopped") return { completed: false };
-  const desired = camp.desired_deals ?? null;
-  if (desired != null) {
-    const { count } = await supabaseAdmin
-      .from("deals").select("id", { count: "exact", head: true })
-      .eq("campaign_id", campaignId).in("status", ["terms_agreed", "awaiting_content", "awaiting_payment_approval", "placement_pending", "live", "verified", "closed"]);
-    if ((count ?? 0) >= desired) {
-      await setCampaignPhase(campaignId, "completed", "goal_reached");
-      await emitEvent(campaignId, "campaign_manager", "campaign_completed", { detail: { reason: "goal_reached", deals: count } });
-      return { completed: true, reason: "goal_reached" };
+export async function handleThread(camp: Campaign, anchorId: string, opts: { assistInput?: string | null } = {}): Promise<NegotiationResult> {
+  const { data: anchor } = await supabaseAdmin.from("outreach_emails").select("id, prospect_id, author_id, negotiation_status, original_ask, to_email").eq("id", anchorId).maybeSingle();
+  const a = anchor as any;
+  const prospect = a?.prospect_id ? await getProspect(a.prospect_id) : null;
+  const host = prospect?.domain_host ?? a?.to_email?.split("@")[1] ?? "the publication";
+  const who = prospect?.contact_name ?? "the editor";
+
+  const r = await negotiateThread(anchorId, { assistInput: opts.assistInput ?? null, demo: !!camp.demo_mode, ultraCallsUsed: camp.ultra_calls ?? 0 });
+  if (r.llm.some((m) => /ultra/i.test(m.model))) await updateCampaign(camp.id, { ultra_calls: (camp.ultra_calls ?? 0) + 1 });
+  if (!r.ok) {
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "negotiation_error", engine: "system", level: "error", thread_id: anchorId, prospect_id: prospect?.id, human: `Could not handle ${who}'s reply from ${host}: ${r.error}`, llm: r.llm });
+    return r;
+  }
+  const price = r.theirPrice != null ? `$${r.theirPrice}` : null;
+  const quote = r.editorQuote ? `“${r.editorQuote.slice(0, 90)}${r.editorQuote.length > 90 ? "…" : ""}”` : "";
+
+  if (r.persistedAs === "needs_human") {
+    const plan = r.interventionType === "budget_exception" ? `wants to accept ${price} but that is above what it may approve alone` : r.interventionType === "thread_limit" ? "wants to stop and hand this thread to you" : `cannot ${r.interventionAsk ?? "do what they asked"} by email`;
+    const needs = r.interventionType === "budget_exception" ? `Approve ${price}, or give a counter figure.` : r.interventionType === "sync_contact" || r.interventionType === "scheduling" ? "Your availability, or a line to send instead." : r.interventionType === "factual_question" ? "The true answer, in one line." : r.interventionType === "payment_details" ? "Invoice/PO details, or how to proceed." : "What should the agent say?";
+    await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: `The agent ${plan}.`, agent_needs: needs, assistable: r.classification?.assistable !== false });
+    if (prospect) await updateProspect(prospect.id, { status: "escalated" });
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "intervention_created", engine: r.classification?.decided_by === "model" ? "model" : "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Needs you: ${who} at ${host} ${quote} — ${r.interventionReason ?? "a person is needed"}`, detail: { type: r.interventionType, ask: r.interventionAsk, intent: r.intent, decided_by: r.classification?.decided_by } });
+    return r;
+  }
+  if (r.persistedAs === "skipped") {
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "reply_skipped", engine: "model", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `${host} sent an ${r.intent === "auto" ? "auto-reply" : "unrelated message"} — ignored`, detail: { intent: r.intent } });
+    return r;
+  }
+  if (r.statusHint === "agreed") {
+    const agreed = r.agreedPrice ?? 0;
+    const existing = await getDealByAnchor(anchorId);
+    if (!existing) {
+      let ok = true, remaining = 0;
+      if (agreed > 0) { const b = await reserveBudget(camp.id, agreed, null, `deal with ${host}`); ok = b.ok; remaining = b.remaining; }
+      if (!ok) {
+        await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: "budget_exception", editor_quote: r.editorQuote ?? null, agent_plan: `The agent agreed ${price} with ${who} but only $${remaining} of budget is left.`, agent_needs: "Raise the budget, or tell the agent to withdraw.", assistable: true });
+        await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "budget_exhausted", engine: "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Agreed ${price} with ${host} but the budget cannot cover it ($${remaining} left) — needs you` });
+        return r;
+      }
+      const deal = await createDeal({ campaign_id: camp.id, anchor_email_id: anchorId, author_id: a?.author_id ?? null, domain_host: host, publication: host, terms: { placement_type: "inclusion" }, original_ask: a?.original_ask ?? r.theirPrice ?? null, agreed_price: agreed, currency: camp.currency });
+      if (prospect) await updateProspect(prospect.id, { status: "deal" });
+      const ask = a?.original_ask ?? r.theirPrice;
+      await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "deal_agreed", engine: r.draft?.engine === "model" ? "model" : "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: agreed > 0 ? `Deal with ${host} at $${agreed}${ask && ask > agreed ? ` (they asked $${ask} — saved $${ask - agreed})` : ""}` : `Deal with ${host} — free editorial inclusion`, detail: { deal_id: deal.id, agreed, original_ask: ask } });
+    }
+    return r;
+  }
+  if (r.statusHint === "declined") {
+    if (prospect) await updateProspect(prospect.id, { status: "lost" });
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "declined", engine: "model", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `${host} declined ${quote} — closed politely, won't contact again`, detail: { intent: r.intent } });
+    return r;
+  }
+  if (r.statusHint === "stalled") {
+    await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "stalled", engine: "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Wound down the thread with ${host} — no progress after ${camp.demo_mode ? "several" : "several"} rounds` });
+    return r;
+  }
+  // negotiating
+  if (prospect) await updateProspect(prospect.id, { status: "negotiating" });
+  const offer = r.draft?.suggestedOffer;
+  const line = r.theirPrice != null && offer != null && offer < r.theirPrice ? `Countered $${offer} against ${who}'s $${r.theirPrice} ask at ${host}` : r.theirPrice == null ? `Replied to ${who} at ${host} — asked what they charge` : `Replied to ${who} at ${host} (they mentioned $${r.theirPrice})`;
+  await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "counter_sent", engine: r.draft?.engine === "model" ? "model" : "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: line, detail: { intent: r.intent, their_price: r.theirPrice, our_offer: offer, ceiling: r.ceiling, body: r.draft?.body } });
+  return r;
+}
+
+export interface RepliesTick { detected: number; handled: number; needs_human: number; deals: number; errors: string[] }
+
+/** One bounded monitoring unit: sweep inbound (demo injects, real IMAP), then answer up to `limit` threads. */
+export async function processReplies(camp: Campaign, limit: number): Promise<RepliesTick> {
+  const out: RepliesTick = { detected: 0, handled: 0, needs_human: 0, deals: 0, errors: [] };
+  if (camp.demo_mode) {
+    out.detected = await injectDemoReplies(camp.id, camp.what_you_sell ?? camp.name);
+    if (out.detected) await recordEvent({ campaign_id: camp.id, agent: "inbox", action: "replies_received", engine: "fixture", human: `${out.detected} editor ${out.detected === 1 ? "reply" : "replies"} arrived (simulated)`, detail: { simulated: true } });
+  } else {
+    try {
+      const { runReplyDetection } = await import("@/lib/email/imap");
+      const r = await runReplyDetection();
+      out.detected = r.repliesFound ?? 0;
+      if (out.detected) await recordEvent({ campaign_id: camp.id, agent: "inbox", action: "replies_received", engine: "system", human: `${out.detected} new ${out.detected === 1 ? "reply" : "replies"} found in the inbox`, detail: { accounts: r.accountsChecked } });
+    } catch (e: any) { out.errors.push(`reply detection: ${e?.message}`); }
+  }
+  const threads = await listCampaignThreads(camp.id);
+  let n = 0;
+  for (const th of threads) {
+    if (n >= limit) break;
+    if (!th.replied_at || th.reply_kind === "auto") continue;
+    if (["agreed", "declined", "needs_human", "stalled"].includes(th.negotiation_status ?? "")) continue;
+    const { data: last } = await supabaseAdmin.from("outreach_emails").select("sent_at").eq("parent_id", th.id).eq("kind", "negotiation").eq("status", "sent").order("sent_at", { ascending: false }).limit(1);
+    const lastAnswer = (last as any[])?.[0]?.sent_at as string | undefined;
+    if (lastAnswer && lastAnswer >= th.replied_at) continue; // already answered — never answer twice
+    n++;
+    try {
+      const r = await handleThread(camp, th.id);
+      out.handled++;
+      if (r.persistedAs === "needs_human") out.needs_human++;
+      if (r.statusHint === "agreed") out.deals++;
+    } catch (e: any) {
+      out.errors.push(e?.message ?? String(e));
+      await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "negotiation_error", engine: "system", level: "error", thread_id: th.id, human: `Could not handle a reply from ${th.to_email?.split("@")[1] ?? "an editor"}: ${e?.message ?? e}`, detail: { kind: e instanceof NebiusError ? e.kind : "unknown" } });
+      if (e instanceof NebiusError && (e.kind === "auth" || e.kind === "not_configured" || e.kind === "budget")) throw e;
     }
   }
-  const total = Number(camp.budget_total ?? 0);
-  const used = Number(camp.budget_used ?? 0);
-  if (total > 0 && total - used < 5) {
-    // Effectively exhausted (< $5 headroom): nothing further can close autonomously.
-    const { count } = await supabaseAdmin
-      .from("deals").select("id", { count: "exact", head: true }).eq("campaign_id", campaignId);
-    await setCampaignPhase(campaignId, "completed", "budget_exhausted");
-    await emitEvent(campaignId, "campaign_manager", "campaign_completed", { detail: { reason: "budget_exhausted", deals: count } });
+  return out;
+}
+
+/** A human answered a card: record it, resume the same thread with their words as context. */
+export async function answerIntervention(id: string, answer: string, by: string): Promise<{ ok: boolean; result?: NegotiationResult; error?: string }> {
+  const iv = await resolveIntervention(id, answer, by, "answered");
+  if (!iv) return { ok: false, error: "intervention not open" };
+  const camp = await getCampaign(iv.campaign_id);
+  if (!camp) return { ok: false, error: "campaign not found" };
+  await recordEvent({ campaign_id: camp.id, agent: "you", action: "intervention_answered", engine: "system", thread_id: iv.anchor_email_id, prospect_id: iv.prospect_id, human: `You answered: “${answer.slice(0, 100)}${answer.length > 100 ? "…" : ""}” — resuming the thread` });
+  if (!iv.anchor_email_id) return { ok: true };
+  if (iv.prospect_id) await updateProspect(iv.prospect_id, { status: "negotiating" });
+  if (iv.type === "budget_exception") {
+    // The answer may raise the ceiling for this thread ("approve 280" / a number).
+    const n = Number((answer.match(/\d[\d,]*/)?.[0] ?? "").replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) await supabaseAdmin.from("outreach_emails").update({ max_offer: n }).eq("id", iv.anchor_email_id);
+  }
+  const result = await handleThread(camp, iv.anchor_email_id, { assistInput: answer });
+  return { ok: true, result };
+}
+
+export async function dismissIntervention(id: string, by: string, takeOver = false): Promise<boolean> {
+  const iv = await resolveIntervention(id, "", by, takeOver ? "taken_over" : "dismissed");
+  if (!iv) return false;
+  if (iv.anchor_email_id) await supabaseAdmin.from("outreach_emails").update({ negotiation_status: takeOver ? "handoff" : "stalled", ai_managed: !takeOver }).eq("id", iv.anchor_email_id);
+  await recordEvent({ campaign_id: iv.campaign_id, agent: "you", action: takeOver ? "thread_taken_over" : "intervention_dismissed", engine: "system", thread_id: iv.anchor_email_id, prospect_id: iv.prospect_id, human: takeOver ? "You took over this thread — the agent will leave it alone" : "You dismissed this request — the thread is closed" });
+  return true;
+}
+
+// ─── Completion (deterministic) ──────────────────────────────────────────────
+
+export async function checkCompletion(camp: Campaign): Promise<{ completed: boolean; reason?: string }> {
+  if (!["monitoring", "outreaching", "resolving_contacts"].includes(camp.phase)) return { completed: false };
+  const deals = (await getDeals(camp.id)).filter((d) => d.status !== "cancelled").length;
+  if (deals >= camp.desired_deals) {
+    await setPhase(camp.id, "completed", "goal_reached");
+    await recordEvent({ campaign_id: camp.id, agent: "manager", action: "campaign_completed", engine: "policy", human: `Done — ${deals} of ${camp.desired_deals} placements agreed. $${camp.budget_used} of $${camp.budget_total} committed.`, detail: { reason: "goal_reached", deals } });
+    return { completed: true, reason: "goal_reached" };
+  }
+  if (camp.budget_total > 0 && camp.budget_total - camp.budget_used < 5) {
+    await setPhase(camp.id, "completed", "budget_exhausted");
+    await recordEvent({ campaign_id: camp.id, agent: "manager", action: "campaign_completed", engine: "policy", human: `Stopped — the budget is spent ($${camp.budget_used} of $${camp.budget_total}) with ${deals} deals.`, detail: { reason: "budget_exhausted", deals } });
     return { completed: true, reason: "budget_exhausted" };
   }
   return { completed: false };

@@ -1,13 +1,13 @@
+// Who is calling an API route.
+//   owner  — signed in with Google and on the OWNER_EMAILS allow-list (or any @domain in ALLOWED_DOMAINS)
+//   guest  — a signed guest cookie; may only create demo campaigns (DB-enforced)
+//   cron   — Bearer CRON_SECRET (GitHub Actions scheduler)
+//   null   — nobody
 import type { NextRequest } from "next/server";
+import { GUEST_COOKIE, verifyGuestToken } from "./guest";
 
-/**
- * Who is allowed to call an API route: a signed-in person, or a trusted machine.
- *
- * When GOOGLE_CLIENT_ID is not set (demo mode), returns a synthetic demo user —
- * no OAuth needed, no login screen, full access.
- */
+export type Caller = { kind: "owner"; email: string } | { kind: "guest"; id: string } | { kind: "cron" } | null;
 
-/** Constant-time string compare. Returns false on any length mismatch without scanning further. */
 function safeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -15,93 +15,45 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export type Caller =
-  | { kind: "user"; email: string }
-  | { kind: "cron" }
-  | { kind: "agent" }
-  | null;
+export function ownerAllowed(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const e = email.toLowerCase();
+  const owners = (process.env.OWNER_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const domains = (process.env.ALLOWED_DOMAINS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return owners.includes(e) || domains.includes(e.split("@")[1] ?? "");
+}
 
-/**
- * Identify the caller, or null if unauthenticated.
- *
- * When GOOGLE_CLIENT_ID is not set (demo mode), returns a synthetic demo user —
- * no OAuth needed, no login screen, full access.
- *
- * Prefers the machine credentials because they are a cheap string compare, where `auth()` is a
- * round trip — an agent making forty tool calls should not pay for forty session lookups.
- */
+/** Local dev without Google OAuth: the developer is the owner. Never in production. */
+export function devOwnerBypass(): boolean {
+  return !process.env.GOOGLE_CLIENT_ID?.trim() && process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1";
+}
+
 export async function identifyCaller(req: NextRequest): Promise<Caller> {
-  // Demo mode: no OAuth configured → everyone is a demo user
-  if (!process.env.GOOGLE_CLIENT_ID?.trim()) return { kind: "user", email: "demo@local" };
-
   const header = req.headers.get("authorization") ?? "";
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
-
-  const hermes = process.env.HERMES_TOKEN?.trim();
-  if (hermes && bearer && safeEqual(bearer, hermes)) return { kind: "agent" };
-
   const cron = process.env.CRON_SECRET?.trim();
-  if (cron) {
-    const viaQuery = req.nextUrl.searchParams.get("key") ?? "";
-    if ((bearer && safeEqual(bearer, cron)) || (viaQuery && safeEqual(viaQuery, cron))) {
-      return { kind: "cron" };
-    }
-  }
-
+  if (cron && bearer && safeEqual(bearer, cron)) return { kind: "cron" };
+  if (devOwnerBypass()) return { kind: "owner", email: "dev@local" };
   try {
     const { auth } = await import("@auth");
     const session = await auth().catch(() => null);
     const email = session?.user?.email;
-    return email ? { kind: "user", email } : null;
-  } catch {
-    return null;
-  }
+    if (email && ownerAllowed(email)) return { kind: "owner", email };
+  } catch { /* auth not configured */ }
+  const gid = verifyGuestToken(req.cookies.get(GUEST_COOKIE)?.value);
+  if (gid) return { kind: "guest", id: gid };
+  return null;
 }
 
-/** True when the caller is anyone we trust. The common case for a read or a routine action. */
-export async function isAuthorized(req: NextRequest): Promise<boolean> {
-  return (await identifyCaller(req)) !== null;
+/** Scope for data queries: owner sees their campaigns; guest sees theirs; cron sees everything. */
+export function scopeOf(c: Caller): { owner_email?: string; guest_id?: string } {
+  if (!c) return { guest_id: "nobody" };
+  if (c.kind === "owner") return { owner_email: c.email };
+  if (c.kind === "guest") return { guest_id: c.id };
+  return {};
 }
 
-/**
- * True when the caller may read admin-only data — today that means the adoption report, which is
- * per-person activity for every named colleague.
- *
- * The agent is NOT admin by default, and that is a deliberate choice rather than an oversight. Hermes
- * answers whoever holds its inbound token, so granting it admin would quietly widen who can read how
- * much each teammate used the tool. Management information about real people should not become
- * readable as a side effect of deploying an agent.
- *
- * `HERMES_ALLOW_ADMIN=1` turns it on for whoever decides that trade is fine. Cron is never admin: no
- * scheduled job needs per-person data, and a report it could read is a report it could leak into a
- * log or a notification.
- */
-export async function isAdminCaller(req: NextRequest): Promise<{ ok: true; caller: Caller } | { ok: false; status: 401 | 403; reason: string }> {
-  const caller = await identifyCaller(req);
-  if (!caller) return { ok: false, status: 401, reason: "unauthorized" };
-
-  if (caller.kind === "agent") {
-    return process.env.HERMES_ALLOW_ADMIN === "1"
-      ? { ok: true, caller }
-      : { ok: false, status: 403, reason: "The agent is not allowed to read per-person activity. Set HERMES_ALLOW_ADMIN=1 to permit it." };
-  }
-  if (caller.kind === "cron") return { ok: false, status: 403, reason: "forbidden" };
-
-  const { isAdminEmail } = await import("@/lib/auth/admin");
-  return isAdminEmail(caller.email)
-    ? { ok: true, caller }
-    : { ok: false, status: 403, reason: "forbidden" };
-}
-
-/**
- * The email to attribute an action to.
- *
- * Machine callers have no email, so they get a stable synthetic one. This matters: `created_by` and
- * `sent_by_email` feed the adoption report, and an agent's work showing up as a null owner would
- * silently under-count activity, while showing up as a real person's would over-count theirs.
- */
-export function actorFor(caller: Caller): string | null {
-  if (!caller) return null;
-  if (caller.kind === "user") return caller.email;
-  return caller.kind === "agent" ? "hermes@agent" : "cron";
+export function actorFor(c: Caller): string {
+  if (!c) return "anonymous";
+  return c.kind === "owner" ? c.email : c.kind === "guest" ? `guest:${c.id}` : "cron";
 }

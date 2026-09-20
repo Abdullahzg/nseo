@@ -1,29 +1,24 @@
+// Reply classification + negotiation drafting on Nemotron.
+//
+// Division of labour (the whole point of the design):
+//   MODEL  decides what the editor meant (intent, price, what they're asking for) and writes the
+//          words of a counter-offer.
+//   CODE   owns every number and every safety rule: ceilings/floors, the strong-cue escalations
+//          (a call, an NDA, an invoice → a human), the fabrication guard, thread length, and the
+//          three "policy closings" (decline politely, accept an in-bounds price, wind down).
+//
+// Nothing here has a fallback. A failed model call throws NebiusError and the caller records it.
 import type { NegotiationSettings } from "./settings";
-import { llmText } from "@/lib/ai/gemini";
+import { json as nebiusJson, text as nebiusText, type LLMMeta } from "@/lib/ai/nebius";
+import { MODELS, NEGOTIATION_ULTRA_CAP } from "@/lib/ai/models";
 
-// Centralized LLM call (Gemini primary per GEMINI_MODEL; OpenRouter fallback).
-// Previously this module called OpenRouter directly — model choice now lives in one place.
-async function llm(prompt: string, maxTokens = 400, temperature = 0.4): Promise<string | null> {
-  const out = await llmText(prompt, { maxTokens, temperature });
-  return out?.text ?? null;
-}
-
-// Enforce "no em/en dashes" (and tidy spacing) on every generated email, regardless of what
-// the model returns. em dash and en dash become commas; stray doubles get cleaned up.
 export function sanitizeBody(s: string): string {
   return s
-    // Replace em/en dashes used as separators (surrounded by spaces or at line boundaries)
-    .replace(/\s+[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+\s+/g, ", ")
-    .replace(/^[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+\s+/g, "")
-    .replace(/\s+[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+$/g, "")
-    // Replace standalone dashes (not within words)
-    .replace(/(?<![a-zA-Z])[\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uFF0D]+(?![a-zA-Z])/g, ", ")
-    .replace(/ ,/g, ",")
-    .replace(/,\s*,/g, ",")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .replace(/\s+[‐‑‒–—―−－]+\s+/g, ", ")
+    .replace(/^[‐‑‒–—―−－]+\s+/g, "")
+    .replace(/\s+[‐‑‒–—―−－]+$/g, "")
+    .replace(/(?<![a-zA-Z])[‐‑‒–—―−－]+(?![a-zA-Z])/g, ", ")
+    .replace(/ ,/g, ",").replace(/,\s*,/g, ",").replace(/[ \t]{2,}/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 const AGGRESSION: Record<string, string> = {
@@ -32,133 +27,109 @@ const AGGRESSION: Record<string, string> = {
   firm: "Be firm. Hold close to your opening number, concede minimally and slowly, and only approach the ceiling when the placement is clearly high value.",
 };
 
-export type ReplyIntent =
-  | "interested" | "counter_offer" | "accept" | "question"
-  | "hard_no" | "unsubscribe" | "auto" | "irrelevant" | "needs_human";
+export type ReplyIntent = "interested" | "counter_offer" | "accept" | "question" | "hard_no" | "unsubscribe" | "auto" | "irrelevant" | "needs_human";
+export const REPLY_INTENTS: ReplyIntent[] = ["interested", "counter_offer", "accept", "question", "hard_no", "unsubscribe", "auto", "irrelevant", "needs_human"];
 
-// The finite set of "why a human is needed" categories. Kept broad; the classifier maps any
-// real-world ask to the closest one, and "other" is the adaptive catch-all so new asks still route.
 export type InterventionType =
-  | "asset_request" | "identity_verification" | "sync_contact" | "scheduling" | "redirect"
-  | "process_portal" | "legal_contract" | "payment_details" | "factual_question"
-  | "over_policy" | "inbound_attachment" | "other_channel" | "other";
+  | "asset_request" | "identity_verification" | "sync_contact" | "scheduling" | "redirect" | "process_portal"
+  | "legal_contract" | "payment_details" | "factual_question" | "over_policy" | "inbound_attachment" | "other_channel" | "other";
+export const INTERVENTION_TYPES: InterventionType[] = ["asset_request", "identity_verification", "sync_contact", "scheduling", "redirect", "process_portal", "legal_contract", "payment_details", "factual_question", "over_policy", "inbound_attachment", "other_channel", "other"];
 
 export interface ReplyClassification {
   intent: ReplyIntent;
-  priceMentioned: number | null; // a $ figure they named, if any
+  priceMentioned: number | null;
   reason: string;
-  sentiment?: "positive" | "neutral" | "negative"; // emotional tone of the reply
-  interventionType?: InterventionType; // set only when intent === "needs_human"
-  interventionAsk?: string;            // short "what they literally asked for", shown to the human
-  assistable?: boolean;                // true = a human input lets the AI continue; false = full handoff
+  sentiment: "positive" | "neutral" | "negative";
+  interventionType?: InterventionType;
+  interventionAsk?: string;
+  assistable?: boolean;
+  /** How the final label was reached — the model's answer, or a code rule that overrode it. */
+  decided_by: "model" | "policy:strong_cue" | "policy:price_demotion";
+  llm: LLMMeta;
 }
 
-// Classify an inbound reply so the AI knows how to respond (and so hard-no / unsubscribe /
-// automated messages get pulled OUT of the negotiation queue). Falls back to a keyword
-// heuristic when no LLM key is set — never throws.
+const CLASSIFY_SCHEMA = {
+  name: "reply_classification",
+  schema: {
+    type: "object",
+    properties: {
+      intent: { type: "string", enum: REPLY_INTENTS },
+      priceMentioned: { type: ["number", "null"] },
+      reason: { type: "string" },
+      sentiment: { type: "string", enum: ["positive", "neutral", "negative"] },
+      interventionType: { type: ["string", "null"], enum: [...INTERVENTION_TYPES, null] },
+      interventionAsk: { type: ["string", "null"] },
+      assistable: { type: ["boolean", "null"] },
+    },
+    required: ["intent", "priceMentioned", "reason", "sentiment", "interventionType", "interventionAsk", "assistable"],
+    additionalProperties: false,
+  },
+};
+
+interface ClassifyOut { intent: ReplyIntent; priceMentioned: number | null; reason: string; sentiment: "positive" | "neutral" | "negative"; interventionType: InterventionType | null; interventionAsk: string | null; assistable: boolean | null }
+const isClassifyOut = (v: unknown): v is ClassifyOut => {
+  const o = v as any;
+  return !!o && REPLY_INTENTS.includes(o.intent) && (o.priceMentioned === null || typeof o.priceMentioned === "number") && typeof o.reason === "string" && ["positive", "neutral", "negative"].includes(o.sentiment);
+};
+
+/** Classify an inbound reply. Nano, thinking off, json_schema. Throws on model failure. */
 export async function classifyReplyIntent(replyText: string, subject = ""): Promise<ReplyClassification> {
   const text = `${subject}\n${replyText}`.trim().slice(0, 4000);
-  const out = await llm(
-    `Classify this inbound reply to a media-outreach email. Return ONLY compact JSON:
-{"intent": one of ["interested","counter_offer","accept","question","hard_no","unsubscribe","auto","irrelevant","needs_human"], "priceMentioned": number or null, "reason": "<=12 words", "interventionType": one of ["asset_request","identity_verification","sync_contact","scheduling","redirect","process_portal","legal_contract","payment_details","factual_question","over_policy","inbound_attachment","other_channel","other"] or null, "interventionAsk": "<=15 words: what they literally asked for" or null, "assistable": true or false}
+  const r = await nebiusJson<ClassifyOut>({
+    role: "fast", thinking: false, max_tokens: 300, schema: CLASSIFY_SCHEMA, validate: isClassifyOut,
+    messages: [
+      { role: "system", content: "You classify replies to a media-outreach email on behalf of an email-only AI agent that cannot attach files, join calls, share calendars, sign contracts, or state facts it was not given. Answer with JSON only." },
+      { role: "user", content: `Classify this inbound reply.
 
-Definitions:
+intent, one of:
 - interested: open to featuring/including us, positive, wants to talk.
 - counter_offer: names their own price or terms.
 - accept: agrees to our proposal/price.
-- question: a simple info question you can answer from the negotiation itself (not a factual company stat).
-- hard_no: clearly declines / not interested / "we don't do this".
-- unsubscribe: asks to stop emailing / remove them.
-- auto: automated out-of-office / autoresponder / no-reply.
+- question: a simple question answerable from the negotiation itself (not a factual company stat).
+- hard_no: clearly declines / not interested.
+- unsubscribe: asks to stop emailing.
+- auto: automated out-of-office / autoresponder.
 - irrelevant: spam or unrelated.
-- needs_human: asks for something an EMAIL-ONLY AI cannot do or must not fabricate. This is the priority label whenever it applies. Set interventionType, interventionAsk, and assistable when you use it. It covers: sending/attaching a file (one-pager, deck, media kit, samples, portfolio, logo, images) [asset_request, assistable]; connecting on LinkedIn or proving the company is real (website, registration, references) [identity_verification, assistable]; jumping on a call/Zoom/phone/meeting [sync_contact, usually NOT assistable]; sharing availability or a calendar link [scheduling, assistable]; being redirected to another contact / "email my editor X" / "I've left the company" [redirect, assistable]; submitting via a form/portal or creating an account [process_portal, NOT assistable]; signing an NDA/contract/MSA [legal_contract, usually NOT assistable]; invoice/PO/bank/tax details [payment_details, assistable]; a factual question about traffic/DAU/do-follow/permanence/turnaround/exclusivity/deliverables the AI must not invent [factual_question, assistable]; a commitment above our price ceiling or a retainer/long-term/exclusivity deal [over_policy, assistable]; reviewing a file THEY attached [inbound_attachment, NOT assistable]; moving to WhatsApp/Telegram/phone/text [other_channel, NOT assistable]; anything else needing a real-world action or knowledge the AI lacks [other].
+- needs_human: asks for something an EMAIL-ONLY AI cannot do or must not invent. Priority label when it applies. Then set interventionType: asset_request (send a file/deck/media kit), identity_verification (LinkedIn/proof), sync_contact (a call/Zoom/meeting/"tell me more about your tool on a call"), scheduling (availability/calendar link), redirect (email someone else), process_portal (submit via form/portal), legal_contract (NDA/contract), payment_details (invoice/PO/bank), factual_question (traffic/DAU/do-follow/turnaround facts), over_policy (retainer/exclusivity/long-term), inbound_attachment (they attached a file), other_channel (WhatsApp/phone), other. interventionAsk = what they literally asked for (<=15 words). assistable = true if a human's one-line answer lets the AI continue.
+
+priceMentioned: the number they named in currency, else null. reason: <=12 words. sentiment: their tone.
 
 Reply:
-"""${text}"""`,
-    260, 0
-  );
-  if (out) {
-    const m = out.match(/\{[\s\S]*\}/);
-    if (m) {
-      try {
-        const j = JSON.parse(m[0]);
-        const intent: ReplyIntent = ["interested", "counter_offer", "accept", "question", "hard_no", "unsubscribe", "auto", "irrelevant", "needs_human"].includes(j.intent) ? j.intent : "interested";
-        const price = typeof j.priceMentioned === "number" ? j.priceMentioned : null;
-        const base: ReplyClassification = { intent, priceMentioned: price, reason: String(j.reason ?? "").slice(0, 80) };
-        if (intent === "needs_human") {
-          const IT: InterventionType[] = ["asset_request", "identity_verification", "sync_contact", "scheduling", "redirect", "process_portal", "legal_contract", "payment_details", "factual_question", "over_policy", "inbound_attachment", "other_channel", "other"];
-          const hh = classifyInterventionHeuristic(text.toLowerCase());
-          const STRONG = new Set<InterventionType>(["sync_contact", "other_channel", "legal_contract", "process_portal", "payment_details", "inbound_attachment"]);
-          if ((!hh || !STRONG.has(hh.type)) && price != null) {
-            // Free-model drift guard (mirror of the strong-cue override below): a reply that
-            // names a price and trips NO capability cue is a normal negotiation turn, never
-            // a human case — otherwise weak models park every counteroffer forever.
-            return { intent: "counter_offer", priceMentioned: price, reason: `demoted from needs_human/${j.interventionType ?? "other"} (no capability cue)` };
-          }
-          if (hh) {
-            base.interventionType = hh.type;
-            base.interventionAsk = hh.ask;
-            base.assistable = hh.assistable;
-          } else {
-            base.interventionType = IT.includes(j.interventionType) ? j.interventionType : "other";
-            base.interventionAsk = String(j.interventionAsk ?? "").slice(0, 140) || "asked for something the AI cannot do";
-            base.assistable = j.assistable !== false; // default assistable unless the model says otherwise
-          }
-          return base;
-        }
-        // Deterministic override: the LLM sometimes labels a reply positively ("interested") even
-        // when it contains an unambiguous "AI literally cannot do this" cue (a call, WhatsApp, an
-        // NDA, a portal signup, an invoice, an attachment they sent). Force needs_human for those.
-        if (["interested", "question", "counter_offer", "accept"].includes(intent)) {
-          const hh = classifyInterventionHeuristic(text.toLowerCase());
-          const STRONG = new Set<InterventionType>(["sync_contact", "other_channel", "legal_contract", "process_portal", "payment_details", "inbound_attachment"]);
-          if (hh && STRONG.has(hh.type)) return { intent: "needs_human", priceMentioned: price, reason: `cue: ${hh.type}`, interventionType: hh.type, interventionAsk: hh.ask, assistable: hh.assistable };
-        }
-        return base;
-      } catch { /* fall through */ }
+"""${text}"""` },
+    ],
+  });
+  const j = r.data;
+  const base: ReplyClassification = {
+    intent: j.intent, priceMentioned: j.priceMentioned, reason: j.reason.slice(0, 120), sentiment: j.sentiment, decided_by: "model", llm: r.meta,
+  };
+  const cue = strongCue(text.toLowerCase());
+  if (j.intent === "needs_human") {
+    if (!cue && j.priceMentioned != null) {
+      // Policy: a reply that names a price and trips no capability cue is a normal negotiation turn.
+      return { ...base, intent: "counter_offer", decided_by: "policy:price_demotion", reason: `demoted from needs_human/${j.interventionType ?? "other"}: no capability cue` };
     }
+    return {
+      ...base,
+      interventionType: cue?.type ?? (j.interventionType && INTERVENTION_TYPES.includes(j.interventionType) ? j.interventionType : "other"),
+      interventionAsk: cue?.ask ?? (j.interventionAsk?.slice(0, 140) || "asked for something the AI cannot do"),
+      assistable: cue ? cue.assistable : j.assistable !== false,
+    };
   }
-  // Heuristic fallback (no LLM key configured).
-  return classifyReplyIntentHeuristicOnly(replyText, subject);
+  if (cue && ["interested", "question", "counter_offer", "accept"].includes(j.intent)) {
+    // Policy: an unambiguous "AI literally cannot do this" cue always parks the thread.
+    return { ...base, intent: "needs_human", decided_by: "policy:strong_cue", interventionType: cue.type, interventionAsk: cue.ask, assistable: cue.assistable, reason: `strong cue: ${cue.type}` };
+  }
+  return base;
 }
 
-// Heuristic-only classifier: pure deterministic rules, no LLM call. Used directly by
-// demo campaigns so scripted arcs can never be derailed by a flaky model endpoint.
-export function classifyReplyIntentHeuristicOnly(replyText: string, subject = ""): ReplyClassification {
-  const text = `${subject}\n${replyText}`.trim().slice(0, 4000);
-  const t = text.toLowerCase();
-  const price = (t.match(/\$\s?(\d[\d,]{1,6})/) || [])[1];
-  const priceMentioned = price ? Number(price.replace(/,/g, "")) : null;
-
-  // Sentiment analysis
-  const positiveWords = /\b(thanks?|thank you|great|awesome|love|excited|interested|perfect|wonderful|fantastic|happy|glad|appreciate|absolutely|definitely|yes|sounds good|looks good|impressed)\b/i;
-  const negativeWords = /\b(sorry|unfortunately|no thanks?|not interested|can'?t|won'?t|decline|pass|stop|remove|unsubscribe|busy|not a fit|wrong person|already have|not now|later|never)\b/i;
-  const sentiment = positiveWords.test(t) ? "positive" : negativeWords.test(t) ? "negative" : "neutral";
-
-  if (/\b(unsubscribe|remove me|stop emailing|do not contact)\b/.test(t)) return { intent: "unsubscribe", priceMentioned, reason: "heuristic", sentiment };
-  if (/\b(not interested|no thank|we don'?t|won'?t be able|pass\b|decline)\b/.test(t)) return { intent: "hard_no", priceMentioned, reason: "heuristic", sentiment };
-  if (/out of office|auto(-| )?reply|automatic reply|do-not-reply|noreply/.test(t)) return { intent: "auto", priceMentioned, reason: "heuristic", sentiment };
-  const hh = classifyInterventionHeuristic(t);
-  if (hh) return { intent: "needs_human", priceMentioned, reason: "heuristic", sentiment, interventionType: hh.type, interventionAsk: hh.ask, assistable: hh.assistable };
-  if (priceMentioned) return { intent: "counter_offer", priceMentioned, reason: "heuristic", sentiment };
-  if (/\?\s*$|how much|what.*cost|tell me more|can you/.test(t)) return { intent: "question", priceMentioned, reason: "heuristic", sentiment };
-  return { intent: "interested", priceMentioned, reason: "heuristic", sentiment };
-}
-
-// Deterministic backstop for the needs_human categories when there is no LLM. Order = priority.
-function classifyInterventionHeuristic(t: string): { type: InterventionType; ask: string; assistable: boolean } | null {
+/** Deterministic escalation cues. These are safety rules, not a classifier substitute. */
+export function strongCue(t: string): { type: InterventionType; ask: string; assistable: boolean } | null {
   const R: Array<[RegExp, InterventionType, string, boolean]> = [
     [/\b(call|zoom|google meet|g[- ]?meet|hop on|jump on|phone call|dial|ring you)\b/i, "sync_contact", "wants a call / video meeting", false],
     [/\b(whatsapp|telegram|\bsms\b|text me|signal app|dm me)\b/i, "other_channel", "wants to move to another channel", false],
     [/\b(nda|contract|agreement|msa|docusign|terms (and|&) conditions)\b/i, "legal_contract", "wants a contract / NDA signed", false],
     [/\b(invoice|purchase order|\bpo\b|\bw-?9\b|tax (form|id)|bank (details|account)|iban|swift|billing (details|info))\b/i, "payment_details", "wants invoice / PO / bank / tax details", true],
-    [/\b(submit (via|through|using|our)|fill (out|in) (this|the) form|vendor portal|create an account|sign up|submission (system|portal)|apply (here|via))\b/i, "process_portal", "wants submission via a form/portal", false],
-    [/(i(?:'ve| have) (left|moved on)|no longer (with|at)|contact (my|our)|reach out to|forward(ed)? (this|you) to|wrong person|not the right)/i, "redirect", "redirect to another contact", true],
-    [/\b(one[- ]?pager|media[- ]?kit|rate[- ]?card|deck|slides?|presentation|case stud(y|ies)|portfolio|samples?|logo|hi[- ]?res|screenshots?|brand assets?|press photos?)\b/i, "asset_request", "asked for a document / assets", true],
-    [/\b(linkedin|connect on li\b|your website|are you legit|company (registration|number)|references?)\b/i, "identity_verification", "wants LinkedIn / proof of legitimacy", true],
-    [/\b(availabilit|calendly|cal\.com|book a (time|slot|call)|what times|your calendar)\b/i, "scheduling", "wants availability / a calendar link", true],
-    [/\b(do-?follow|permanent|exclusiv|turnaround|monthly traffic|how (much|many) (traffic|visitors|readers)|dau|mau|editorial (policy|guidelines))\b/i, "factual_question", "factual question needing a real answer", true],
-    [/\b(retainer|long[- ]?term|per month|ongoing|package|minimum (is|of))\b/i, "over_policy", "wants terms beyond our policy/ceiling", true],
+    [/\b(submit (via|through|using|our)|fill (out|in) (this|the) form|vendor portal|create an account|submission (system|portal))\b/i, "process_portal", "wants submission via a form/portal", false],
     [/\b(attach(ed|ing)|see the (attached|doc)|find (attached|enclosed)|pfa)\b/i, "inbound_attachment", "sent a file for us to review", false],
   ];
   for (const [re, type, ask, assistable] of R) if (re.test(t)) return { type, ask, assistable };
@@ -169,165 +140,117 @@ export interface ThreadMessage { from: "us" | "them"; body: string }
 
 export interface DraftInput {
   settings: NegotiationSettings;
-  thread: ThreadMessage[];   // full conversation, oldest first
+  thread: ThreadMessage[];
   authorName: string;
   publication: string;
-  ceiling: number | null;    // max we may offer this thread (from pricing tier / override); null = placement-only, no paid offer
-  floor: number;             // never below this
+  ceiling: number | null;
+  floor: number;
   lastIntent: ReplyIntent;
-  theirPrice?: number | null; // a $ figure they just named (from classification), if any
-  senderName?: string;       // who signs the email
-  productName?: string;      // our product name (replaces hardcoded "ImagineArt")
-  assistInput?: string | null;    // human-provided real info (link/availability/fact/redirect) — safe to quote
-  assistHasAttachment?: boolean;  // a real file is being attached to this send, so promising an attachment is truthful
+  theirPrice?: number | null;
+  senderName?: string;
+  productName?: string;
+  assistInput?: string | null;
+  /** Ultra calls already spent on this campaign — past NEGOTIATION_ULTRA_CAP we draft on Super. */
+  ultraCallsUsed?: number;
 }
 
 export interface DraftResult {
   body: string;
   suggestedOffer: number | null;
-  shouldStop: boolean;       // true = stop the thread (declined / done / over length)
+  shouldStop: boolean;
   statusHint: "negotiating" | "agreed" | "declined" | "stalled";
-  needsHuman?: boolean;             // post-generation guard tripped: route to a human instead of sending
+  needsHuman?: boolean;
   interventionType?: InterventionType;
   interventionAsk?: string;
+  /** "model" when Nemotron wrote it; "policy" for the three deterministic closings. */
+  engine: "model" | "policy";
+  llm: LLMMeta | null;
 }
 
-// The draft must never PROMISE a capability the email agent lacks (attach a file, hop on a call,
-// share a calendar/LinkedIn, quote a hard stat) unless the human actually supplied it. This regex
-// is the last-line enforcement: if a generated body claims one of these and no assist input backs
-// it, we discard the draft and route to a human rather than sending a hollow promise.
 const FABRICATION_RE = /\b(attach(ed|ing|ment)?|enclosed|i(?:'ve| have|'ll| will) (attached|enclosed|sent|share[d]?|include[d]?)|one[- ]?pager|media[- ]?kit|deck|slide[- ]?deck|pitch deck|hop on|jump on|(schedule|set ?up|arrange) a (call|meeting|zoom)|calendar|calendly|cal\.com|linkedin|our (portfolio|case stud))/i;
 
-// Draft the next negotiation reply, obeying the handbook, tone, thread-length limit, and the
-// price floor/ceiling (with anti-highball behaviour). Returns null only if no LLM is available.
-export async function draftNegotiationReply(input: DraftInput): Promise<DraftResult | null> {
+export async function draftNegotiationReply(input: DraftInput): Promise<DraftResult> {
   const { settings, thread, authorName, publication, ceiling, floor, lastIntent } = input;
   const first = (authorName || "there").trim().split(/\s+/)[0] || "there";
-  const signer = input.senderName || "Abdullah";
+  const signer = input.senderName || "the team";
   const product = input.productName || "our product";
   const usCount = thread.filter((m) => m.from === "us").length;
   const overLength = usCount >= settings.max_thread_length;
-
-  if (lastIntent === "hard_no" || lastIntent === "unsubscribe") {
-    return {
-      body: sanitizeBody(`Hi ${first},\n\nTotally understand, thanks for letting me know and no worries at all. If anything changes down the line, my door is open. Wishing you well.\n\nBest,\n${signer}`),
-      suggestedOffer: null, shouldStop: true, statusHint: "declined",
-    };
-  }
-
-  // Close on acceptance: if they accepted a concrete price we can pay, take the deal at THAT
-  // number. Lowballing happens while negotiating (counter_offer), not after a yes, so we never
-  // talk ourselves out of a good deal. If their accepted price is above the ceiling, fall
-  // through and let the model counter down instead of agreeing.
   const theirPrice = input.theirPrice ?? null;
+
+  // Policy closing 1: they said no. Nothing to negotiate; a polite, fixed sign-off.
+  if (lastIntent === "hard_no" || lastIntent === "unsubscribe") {
+    return { body: sanitizeBody(`Hi ${first},\n\nTotally understand, thanks for letting me know and no worries at all. I will not follow up. Wishing you well.\n\nBest,\n${signer}`), suggestedOffer: null, shouldStop: true, statusHint: "declined", engine: "policy", llm: null };
+  }
+  // Policy closing 2: they accepted a price inside our bounds. Confirm at THEIR number.
   if (lastIntent === "accept" && theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling)) {
-    return {
-      // Promise only a text blurb the email can actually carry — never "assets"/attachments.
-      body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${theirPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`),
-      suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed",
-    };
+    return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${theirPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`), suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
   }
-  // Accept with no explicit price in THIS message: scan thread for a prior price context.
-  // Do NOT invent a price — if no mutually established price exists, ask for confirmation.
   if (lastIntent === "accept" && theirPrice == null) {
-    // Look backwards through the thread for the most recent price mentioned by either side.
     let lastKnownPrice: number | null = null;
-    for (let i = thread.length - 1; i >= 0; i--) {
-      const msg = thread[i];
-      const priceMatch = msg.body.match(/\$\s?(\d[\d,]{1,6})/);
-      if (priceMatch) {
-        lastKnownPrice = Number(priceMatch[1].replace(/,/g, ""));
-        break;
-      }
-    }
-    // If a prior price exists in thread context and is within bounds, accept at that price.
+    for (let i = thread.length - 1; i >= 0; i--) { const m = thread[i].body.match(/\$\s?(\d[\d,]{1,6})/); if (m) { lastKnownPrice = Number(m[1].replace(/,/g, "")); break; } }
     if (lastKnownPrice != null && lastKnownPrice >= floor && (ceiling == null || lastKnownPrice <= ceiling)) {
-      return {
-        body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${lastKnownPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`),
-        suggestedOffer: lastKnownPrice, shouldStop: true, statusHint: "agreed",
-      };
+      return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${lastKnownPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. Thanks ${first}, glad to be included.\n\nBest,\n${signer}`), suggestedOffer: lastKnownPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
     }
-    // No prior price found, or prior price out of bounds: ask for confirmation.
-    // Keep negotiation active — do NOT close a deal without an explicit number.
-    return {
-      body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works! Just to confirm, could you let me know your rate for this placement so I can get things moving on our end?\n\nBest,\n${signer}`),
-      suggestedOffer: null, shouldStop: false, statusHint: "negotiating",
-    };
+    return { body: sanitizeBody(`Hi ${first},\n\nGreat, glad it works! Just to confirm, could you let me know your rate for this placement so I can get things moving on our end?\n\nBest,\n${signer}`), suggestedOffer: null, shouldStop: false, statusHint: "negotiating", engine: "policy", llm: null };
   }
-
-  // Hard rule: thread length exceeded → stop, do not rely on LLM for this.
+  // Policy closing 3: thread too long. Wind down rather than nag.
   if (overLength) {
-    return {
-      body: sanitizeBody(`Hi ${first},\n\nThanks for the back-and-forth — I think we've explored this enough for now. I'll keep the door open and check in if things change on our end. Wishing you well.\n\nBest,\n${signer}`),
-      suggestedOffer: null, shouldStop: true, statusHint: "stalled",
-    };
+    return { body: sanitizeBody(`Hi ${first},\n\nThanks for the back-and-forth, I think we've explored this enough for now. I'll keep the door open and check in if things change on our end. Wishing you well.\n\nBest,\n${signer}`), suggestedOffer: null, shouldStop: true, statusHint: "stalled", engine: "policy", llm: null };
   }
 
-  const convo = thread.map((m) => `${m.from === "us" ? "US" : publication.toUpperCase() || "THEM"}: ${m.body}`).join("\n\n===\n\n");
+  const convo = thread.map((m) => `${m.from === "us" ? "US" : (publication || "THEM").toUpperCase()}: ${m.body}`).join("\n\n===\n\n");
   const aggr = AGGRESSION[settings.aggressiveness] ?? AGGRESSION.balanced;
-  // ASK-FIRST pricing: never propose our own number before the writer names theirs. We only put
-  // a figure on the table once THEY have quoted one, then negotiate against the ceiling. This
-  // stops the agent from opening with an unprompted number (e.g. $30) before knowing their rate.
-  const theyNamedPrice = theirPrice != null;
   const priceGuidance = ceiling == null
-    ? `This site is below our paid tiers, so DO NOT offer or mention money. Push for a free or editorial inclusion only (relevance, a useful tool for their readers, we can provide a short written blurb and quote text inline).`
-    : !theyNamedPrice
-      ? `We have NOT heard their pricing yet, so DO NOT propose, name, or even hint at any dollar amount. First, naturally ASK what they typically charge (their rate or fee) for this kind of sponsored or included placement so we can evaluate on our end. One clear, collaborative ask. We only put a number on the table AFTER they give theirs. (Internal cap for later, NEVER reveal or imply: ${settings.currency} ${ceiling}.)`
-      : `They named ${settings.currency} ${theirPrice}. You may go up to ${settings.currency} ${ceiling} MAXIMUM, never more, and never below ${settings.currency} ${floor}. If their number is at or under the cap, negotiate gently DOWN from it and aim to land under it; if it is above the cap, counter down toward the cap without exceeding it. ${aggr} ${settings.anti_highball}`;
-
+    ? `This site is below our paid tiers, so DO NOT offer or mention money. Push for a free or editorial inclusion only.`
+    : theirPrice == null
+      ? `We have NOT heard their pricing yet, so DO NOT propose, name, or hint at any amount. Naturally ASK what they typically charge for this kind of placement. (Internal cap, NEVER reveal: ${settings.currency} ${ceiling}.)`
+      : `They named ${settings.currency} ${theirPrice}. You may go up to ${settings.currency} ${ceiling} MAXIMUM, never more, and never below ${settings.currency} ${floor}. If their number is at or under the cap, negotiate gently DOWN from it; if above, counter down toward the cap without exceeding it. ${aggr} ${settings.anti_highball}`;
   const assist = input.assistInput?.trim();
-  const assistBlock = assist
-    ? `\nASSIST CONTEXT (human-provided, real, safe to quote verbatim): ${assist}\nUse it to answer the writer's request truthfully — include the link/detail/answer exactly as given.${input.assistHasAttachment ? " A real file IS attached to this email, so you MAY say it is attached." : ""}\n`
-    : "";
+  const assistBlock = assist ? `\nASSIST CONTEXT (human-provided, real, safe to quote verbatim): ${assist}\nUse it to answer the writer's request truthfully.\n` : "";
 
-  const out = await llm(
-    `You are negotiating on behalf of ${product} via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).
+  // A counter-offer against a named price is the one place "serious reasoning" pays: Ultra, capped.
+  const useUltra = theirPrice != null && (input.ultraCallsUsed ?? 0) < NEGOTIATION_ULTRA_CAP;
+  const model = useUltra ? MODELS.negotiation : MODELS.negotiation_fallback;
 
-NEGOTIATION BRIEF (obey): ${settings.handbook}
+  const r = await nebiusText({
+    role: "negotiation", model, thinking: true, max_tokens: 1500, temperature: 0.4, timeout_ms: 45_000,
+    messages: [
+      { role: "system", content: `You are negotiating on behalf of ${product} via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).` },
+      { role: "user", content: `NEGOTIATION BRIEF (obey): ${settings.handbook}
 TONE: ${settings.tone}
 PRICING: ${priceGuidance}
-${overLength ? "You have already sent several messages, so if there is no clear progress, say you will follow up and wind down rather than nagging (do NOT propose a call)." : ""}
 ${assistBlock}
 HARD RULES:
-- Start with "Hi ${first},". End with "Best,\\n${signer}".
+- Start with "Hi ${first},". End with "Best,\n${signer}".
 - ${settings.style_rules}
 - 2 to 5 sentences. Human, specific, not pushy.
 - Never promise anything above the ${settings.currency} ${ceiling ?? 0} ceiling or below ${settings.currency} ${floor}.
-- Never promise to attach or send a file (one-pager, deck, media kit, portfolio, samples, logo), share a LinkedIn or calendar link, schedule or join a call/meeting, or state a specific traffic/turnaround/exclusivity/do-follow fact, UNLESS that exact thing is provided in an ASSIST CONTEXT block above. If none is present and the writer is asking for any of these, do NOT answer the request — reply only about what you can, or keep it brief; the system will route it to a human.
+- Never promise to attach or send a file, share a LinkedIn or calendar link, schedule a call, or state a specific traffic/turnaround/exclusivity fact, UNLESS it is in an ASSIST CONTEXT block above.
 
 CONVERSATION SO FAR:
 ${convo}
 
-After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none status=negotiating|agreed|declined|stalled>>`,
-    500, 0.5
-  );
-  if (!out) return null;
-
-  let body = out;
+After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none status=negotiating|agreed|declined|stalled>>` },
+    ],
+  });
+  let body = r.text;
   let suggestedOffer: number | null = null;
   let statusHint: DraftResult["statusHint"] = "negotiating";
-  const meta = out.match(/<<META\s+offer=(\S+)\s+status=(\w+)\s*>>/i);
+  const meta = body.match(/<<META\s+offer=(\S+)\s+status=(\w+)\s*>>/i);
   if (meta) {
-    body = out.slice(0, meta.index).trim();
+    body = body.slice(0, meta.index).trim();
     if (!/^none$/i.test(meta[1])) { const n = Number(meta[1].replace(/[^\d.]/g, "")); if (!isNaN(n)) suggestedOffer = n; }
     if (["negotiating", "agreed", "declined", "stalled"].includes(meta[2].toLowerCase())) statusHint = meta[2].toLowerCase() as any;
   }
-  // Enforce the ceiling/floor even if the model drifts.
+  // Code owns the numbers: clamp whatever the model said.
   if (suggestedOffer != null && ceiling != null) suggestedOffer = Math.min(suggestedOffer, ceiling);
   if (suggestedOffer != null) suggestedOffer = Math.max(suggestedOffer, floor);
-
+  // The model may only declare "agreed" at a price inside bounds that the editor actually named.
+  if (statusHint === "agreed" && !(theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling))) statusHint = "negotiating";
   body = sanitizeBody(body);
-
-  // Post-generation fabrication guard (defense in depth). If the model promised a capability the
-  // email agent lacks and the human did NOT supply the backing input/attachment, discard this
-  // draft and signal needs_human so run.ts routes it to a person instead of sending a hollow reply.
-  if (!assist && !input.assistHasAttachment && FABRICATION_RE.test(body)) {
-    return {
-      body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled",
-      needsHuman: true, interventionType: "other",
-      interventionAsk: "reply would require an asset/call/link the AI cannot provide",
-    };
+  if (!assist && FABRICATION_RE.test(body)) {
+    return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: "reply would require an asset/call/link the AI cannot provide", engine: "model", llm: r.meta };
   }
-
-  return { body, suggestedOffer, shouldStop: statusHint === "declined" || statusHint === "agreed", statusHint };
+  return { body, suggestedOffer, shouldStop: statusHint !== "negotiating", statusHint, engine: "model", llm: r.meta };
 }

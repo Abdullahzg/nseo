@@ -7,8 +7,8 @@ import { ImapFlow } from "imapflow";
 import { redis } from "@/lib/redis";
 import { decryptSecret } from "@/lib/crypto";
 import {
-  getUserAppPasswordEnc, getOutstandingSentForReplyCheck, updateOutreachEmail, markRepliesChecked, setAuthorDiscarded,
-  stopPendingFollowupsForAuthor, getEnabledSharedSenders, recordReplyOnAnchor,
+  getUserAppPasswordEnc, getOutstandingSentForReplyCheck, type OutstandingSentRow, updateOutreachEmail, markRepliesChecked, setAuthorDiscarded,
+  stopPendingFollowupsForAuthor, recordReplyOnAnchor,
 } from "@/lib/db/queries";
 
 const normId = (s: string) => s.replace(/[<>]/g, "").trim().toLowerCase();
@@ -201,7 +201,6 @@ export async function runReplyDetection(opts: { backfillDays?: number; minMinute
   // follow-up or a test send that landed back in a scanned mailbox is not a prospect reply).
   const ownAddresses = new Set<string>();
   for (const s of bySender.keys()) if (s) ownAddresses.add(s.toLowerCase());
-  for (const s of await getEnabledSharedSenders().catch(() => [])) if (s.email) ownAddresses.add(s.email.toLowerCase());
   if (process.env.SMTP_USER) ownAddresses.add(process.env.SMTP_USER.toLowerCase());
   if (process.env.SMTP_FROM_EMAIL) ownAddresses.add(process.env.SMTP_FROM_EMAIL.toLowerCase());
 
@@ -216,19 +215,13 @@ export async function runReplyDetection(opts: { backfillDays?: number; minMinute
 
     try {
       result.accountsChecked++;
-      const authorById = new Map(list.map((o) => [o.id, o.author_id]));
-      const rowById = new Map(list.map((o) => [o.id, o]));
+      const authorById = new Map(list.map((o: OutstandingSentRow) => [o.id, o.author_id]));
+      const rowById = new Map(list.map((o: OutstandingSentRow) => [o.id, o]));
       const matches = await detectReplies(account, pass, list, ownAddresses);
       for (const [id, m] of matches) {
         const meta = { reply_kind: m.kind, reply_from: m.from || null, reply_subject: m.subject || null, reply_excerpt: m.excerpt || null };
         if (m.kind === "reply") {
-          // Tone (sentiment) + next-action (intent) of a genuine reply, best-effort, in
-          // parallel — both surface in the inbox for triage.
-          const { analyzeSentiment, classifyReplyIntent } = await import("@/lib/email/inbox");
-          const [sentiment, intent] = await Promise.all([
-            analyzeSentiment(m.excerpt || m.subject).catch(() => null),
-            classifyReplyIntent(m.excerpt || m.subject).catch(() => null),
-          ]);
+          // Intent classification happens in the negotiation step (Nemotron), not here.
           // Attribute the reply to the THREAD ANCHOR (the initial), never to our own follow-up
           // or negotiation row — otherwise one real reply gets stamped onto both the initial and
           // our follow-up (the "FOLLOW-UP + REPLIED" double badge). recordReplyOnAnchor is
@@ -241,7 +234,7 @@ export async function runReplyDetection(opts: { backfillDays?: number; minMinute
           // same reply yields the same date, so replied_at never advances past our last send and
           // the "already answered" guard holds.
           const replyAt = m.date && m.date <= nowIso ? m.date : nowIso;
-          const isNew = await recordReplyOnAnchor(anchorId, { ...meta, reply_sentiment: sentiment, reply_intent: intent }, replyAt);
+          const isNew = await recordReplyOnAnchor(anchorId, meta, replyAt);
           if (isNew) {
             result.repliesFound++;
             // They replied — immediately stop any follow-up already scheduled to them, so a
@@ -283,7 +276,7 @@ export async function runReplyDetection(opts: { backfillDays?: number; minMinute
           }
         }
       }
-      await markRepliesChecked(list.map((o) => o.id));
+      await markRepliesChecked(list.map((o: OutstandingSentRow) => o.id));
     } catch (e: any) {
       result.errors.push(`${account}: ${e?.message ?? "imap error"}`);
     }

@@ -1,4 +1,4 @@
-// Provider-agnostic web search. Real search APIs (not HTML scraping) so they don't get
+// Web search via Tavily (the runtime Tavily call for the Best Use of Tavily bonus). Real search APIs (not HTML scraping) so they don't get
 // bot-blocked or return junk like DuckDuckGo/Bing do from a server. Uses whichever key is
 // configured, in order of preference. All have a genuinely free tier:
 //   TAVILY_API_KEY        — 1,000/mo, no card, renews (recommended)
@@ -10,10 +10,6 @@ export interface SearchHit { url: string; title: string; snippet: string }
 
 export function searchProvider(): string | null {
   if (process.env.TAVILY_API_KEY) return "tavily";
-  if (process.env.GOOGLE_CSE_KEY && process.env.GOOGLE_CSE_CX) return "google";
-  if (process.env.BRAVE_SEARCH_API_KEY) return "brave";
-  if (process.env.SERPER_API_KEY) return "serper";
-  if (process.env.GEMINI_API_KEY) return "gemini"; // google_search grounding — real results, no extra key
   return null;
 }
 
@@ -39,8 +35,8 @@ export async function webSearch(query: string, count = 8, signal?: AbortSignal, 
         void trackTavilyCall(); // count toward the global monthly-usage tally (per-key done at reserve)
         const res = await fetch("https://api.tavily.com/search", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ api_key: active.key, query, max_results: count, search_depth: "basic" }),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${active.key}` },
+          body: JSON.stringify({ query, max_results: count, search_depth: "basic" }),
           signal: sig,
         });
         if (res.ok) {
@@ -60,75 +56,6 @@ export async function webSearch(query: string, count = 8, signal?: AbortSignal, 
       onError?.("Tavily: all keys exhausted");
       return [];
     }
-
-    if (provider === "google") {
-      const params = new URLSearchParams({ key: process.env.GOOGLE_CSE_KEY!, cx: process.env.GOOGLE_CSE_CX!, q: query, num: String(Math.min(count, 10)) });
-      const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`, { signal: sig });
-      if (!res.ok) { fail(res); return []; }
-      const d = await res.json();
-      return (d.items ?? []).map((r: any) => ({ url: r.link, title: r.title ?? "", snippet: (r.snippet ?? "").slice(0, 300) })).filter((h: SearchHit) => h.url?.startsWith("http"));
-    }
-
-    if (provider === "brave") {
-      const params = new URLSearchParams({ q: query, count: String(Math.min(count, 20)) });
-      const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
-        headers: { Accept: "application/json", "X-Subscription-Token": process.env.BRAVE_SEARCH_API_KEY! },
-        signal: sig,
-      });
-      if (!res.ok) { fail(res); return []; }
-      const d = await res.json();
-      return (d.web?.results ?? []).map((r: any) => ({ url: r.url, title: r.title ?? "", snippet: (r.description ?? "").slice(0, 300) })).filter((h: SearchHit) => h.url?.startsWith("http"));
-    }
-
-    if (provider === "serper") {
-      const res = await fetch("https://google.serper.dev/search", {
-        method: "POST",
-        headers: { "X-API-KEY": process.env.SERPER_API_KEY!, "Content-Type": "application/json" },
-        body: JSON.stringify({ q: query, num: count }),
-        signal: sig,
-      });
-      if (!res.ok) { fail(res); return []; }
-      const d = await res.json();
-      return (d.organic ?? []).map((r: any) => ({ url: r.link, title: r.title ?? "", snippet: (r.snippet ?? "").slice(0, 300) })).filter((h: SearchHit) => h.url?.startsWith("http"));
-    }
-
-    if (provider === "gemini") {
-      // Gemini google_search grounding: real Google-backed results using only GEMINI_API_KEY.
-      // Citations come back in groundingMetadata.groundingChunks[].web.
-      const key = process.env.GEMINI_API_KEY!;
-      const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `List web pages: ${query}` }] }],
-              tools: [{ google_search: {} }],
-            }),
-            signal: AbortSignal.timeout(25_000),
-          }
-        );
-        if (!res.ok) { fail(res); return []; }
-        const d = await res.json();
-        const chunks = d?.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-        const seen = new Set<string>();
-        const hits: SearchHit[] = [];
-        for (const c of chunks) {
-          const w = c?.web;
-          if (!w?.uri?.startsWith("http") || seen.has(w.uri)) continue;
-          seen.add(w.uri);
-          hits.push({ url: w.uri, title: w.title ?? "", snippet: "" });
-          if (hits.length >= count) break;
-        }
-        return hits;
-      } catch (e: any) {
-        onError?.(e?.name === "TimeoutError" ? "gemini search timed out" : (e?.message ?? "gemini search error"));
-        return [];
-      }
-    }
-
     return [];
   } catch (e: any) {
     onError?.(e?.name === "TimeoutError" ? "search timed out" : (e?.message ?? "search network error"));

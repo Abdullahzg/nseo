@@ -1,28 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/db/supabase";
+import { ping } from "@/lib/ai/nebius";
+import { MODELS } from "@/lib/ai/models";
+import { tokensUsedToday, NEBIUS_DAILY_TOKEN_BUDGET } from "@/lib/campaign/guard";
 
-export async function GET() {
-  const checks: Record<string, string> = {};
+export const dynamic = "force-dynamic";
 
-  // Supabase connectivity
-  try {
-    const { error } = await supabaseAdmin.from("domains").select("id").limit(1);
-    checks.supabase = error ? `error: ${error.message}` : "ok";
-  } catch (e: any) {
-    checks.supabase = `error: ${e?.message}`;
+/** /api/health — liveness. ?deep=1 also checks the DB, Nebius model routing and today's token use. */
+export async function GET(req: NextRequest) {
+  const deep = req.nextUrl.searchParams.get("deep") === "1";
+  const out: Record<string, unknown> = { ok: true, ts: new Date().toISOString(), models: MODELS };
+  if (deep) {
+    const [db, nb, tokens] = await Promise.all([
+      supabaseAdmin.from("app_state").select("key").limit(1).then((r) => (r.error ? `error: ${r.error.message}` : "ok")),
+      ping(),
+      tokensUsedToday().catch(() => -1),
+    ]);
+    out.db = db; out.nebius = nb; out.tokens_today = tokens; out.token_budget = NEBIUS_DAILY_TOKEN_BUDGET;
+    out.ok = db === "ok" && nb.ok;
   }
-
-  // LLM
-  checks.llm = process.env.OPENROUTER_API_KEY ? "configured" : "not configured (using templates)";
-  checks.playwright = process.env.PLAYWRIGHT_ENABLED === "true" ? "enabled" : "disabled";
-  checks.brave = process.env.BRAVE_SEARCH_API_KEY ? "configured" : "not configured";
-
-  const allOk = checks.supabase === "ok";
-
-  return NextResponse.json({
-    status: allOk ? "ok" : "degraded",
-    version: "1.0.0",
-    timestamp: new Date().toISOString(),
-    checks,
-  }, { status: allOk ? 200 : 503 });
+  return NextResponse.json(out, { status: out.ok ? 200 : 503 });
 }
