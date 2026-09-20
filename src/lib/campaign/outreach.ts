@@ -30,6 +30,15 @@ interface OutreachDraft { subject: string; body: string }
 const DRAFT_SCHEMA = { name: "outreach_email", schema: { type: "object", properties: { subject: { type: "string" }, body: { type: "string" } }, required: ["subject", "body"], additionalProperties: false } };
 const isDraft = (v: unknown): v is OutreachDraft => { const o = v as any; return !!o && typeof o.subject === "string" && o.subject.trim().length > 4 && typeof o.body === "string" && o.body.trim().length > 40; };
 
+/** "restoria.app" → "Restoria": the name the model may call us when the owner gave only a URL. */
+export function productName(camp: Campaign): string {
+  try {
+    const host = new URL(camp.website_url ?? "").hostname.replace(/^www\./, "");
+    const label = host.split(".")[0] || host;
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch { return camp.name; }
+}
+
 export async function draftOutreachEmail(p: Prospect, camp: Campaign, signer: string): Promise<{ draft: OutreachDraft; meta: import("@/lib/ai/nebius").LLMMeta }> {
   const q = p.qualification ?? ({} as NonNullable<Prospect["qualification"]>);
   const editorFirst = (p.contact_name ?? "").split(/\s+/)[0] || "there";
@@ -42,10 +51,11 @@ Publication: ${p.domain_host}
 Their article: "${q.title ?? p.title ?? ""}"
 Why it fits (from our analysis): ${q.why_fit ?? ""}
 Suggested angle: ${q.placement_angle ?? ""}
-Our product: ${camp.what_you_sell ?? camp.name} — ${camp.website_url ?? ""}
+Our product (what we sell): ${camp.what_you_sell ?? camp.name}
+Our product name: ${productName(camp)} (${camp.website_url ?? ""}). Refer to us only by this name or as "our tool". The publication (${p.domain_host}) is NOT us; never present its name as ours.
 Sign-off name: ${signer}
 
-Write: a subject under 60 chars that references their article, and a body of 4-6 sentences: one genuine specific line about their article, what we make in one sentence, a clear ask (include us in that piece or a similar one), and ask what they typically charge for an inclusion. End with "Best,\n${signer}".` },
+Write: a subject under 60 chars that references their article, and a body of 4-6 sentences: one genuine specific line about their article, what we make in one sentence, a clear ask (include us in that piece or a similar one), and ask what they typically charge for an inclusion. Start with "Hi ${editorFirst},". End with "Best,\n${signer}".` },
     ],
   });
   return { draft: { subject: r.data.subject.trim().slice(0, 120), body: sanitizeBody(r.data.body) }, meta: r.meta };

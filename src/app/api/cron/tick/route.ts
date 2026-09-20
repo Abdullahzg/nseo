@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { identifyCaller } from "@/lib/auth/service";
 import { listDueCampaigns } from "@/lib/campaign/queries";
 import { tick } from "@/lib/campaign/orchestrator";
+import { processDueEmails, type ProcessResult } from "@/lib/email/processor";
 
 export const maxDuration = 300;
 
 // GitHub Actions calls this every 5 minutes with Bearer CRON_SECRET. Each due campaign is ticked
-// once; the per-campaign lock and next_tick_after make overlapping calls harmless.
+// once; the per-campaign lock and next_tick_after make overlapping calls harmless. Then the
+// real-mode transport runs: replies are read over IMAP and every due email is sent — so one
+// scheduler drives the whole loop (decide → send → read → decide).
 async function run(req: NextRequest) {
   const caller = await identifyCaller(req);
   if (caller?.kind !== "cron") return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -17,7 +20,8 @@ async function run(req: NextRequest) {
     if (Date.now() > deadline) break;
     results.push(await tick(c.id, { via: "cron" }).catch((e: any) => ({ campaign_id: c.id, ok: false, error: e?.message })));
   }
-  return NextResponse.json({ due: due.length, ticked: results.length, results });
+  const mail: ProcessResult = await processDueEmails(Math.max(20_000, deadline - Date.now())).catch((e: any) => ({ skipped: `transport error: ${e?.message}` }));
+  return NextResponse.json({ due: due.length, ticked: results.length, results, mail: { skipped: mail.skipped, sent: mail.sent, failed: mail.failed, replies: mail.replies } });
 }
 export const GET = run;
 export const POST = run;
