@@ -164,7 +164,16 @@ export interface JsonResult<T> { data: T; meta: LLMMeta; raw: string }
  */
 export async function json<T>(opts: Omit<ChatOptions, "json_schema" | "tools" | "tool_choice"> & { schema: { name: string; schema: Record<string, unknown> }; validate: (v: unknown) => v is T }): Promise<JsonResult<T>> {
   const { schema, validate, ...rest } = opts;
-  const r = await chat({ ...rest, json_schema: schema });
+  let r: ChatResult;
+  try {
+    r = await chat({ ...rest, json_schema: schema });
+  } catch (e) {
+    // Nano occasionally degenerates into a runaway on JSON mode (~1 in 12 calls, RESEARCH.md).
+    // Retry ONCE on the other fast Nemotron. Same provider, and the feed shows which model answered.
+    if (e instanceof NebiusError && e.kind === "truncated" && rest.role === "fast" && !rest.model) {
+      r = await chat({ ...rest, model: MODELS.fast_alt, json_schema: schema });
+    } else throw e;
+  }
   const parsed = extractJson(r.content);
   if (parsed == null || !validate(parsed)) {
     throw new NebiusError("invalid_output", `Nebius (${r.meta.model}) returned JSON that failed validation for ${schema.name}`, { raw: r.content.slice(0, 400) });
@@ -174,7 +183,15 @@ export async function json<T>(opts: Omit<ChatOptions, "json_schema" | "tools" | 
 
 /** Plain text call (openers, negotiation bodies). Empty output is an error. */
 export async function text(opts: Omit<ChatOptions, "json_schema" | "tools" | "tool_choice">): Promise<{ text: string; meta: LLMMeta }> {
-  const r = await chat(opts);
+  let r: ChatResult;
+  try {
+    r = await chat(opts);
+  } catch (e) {
+    // A thinking model can spend its whole budget reasoning. Retry ONCE with double the budget (capped).
+    if (e instanceof NebiusError && e.kind === "truncated" && opts.thinking) {
+      r = await chat({ ...opts, max_tokens: Math.min(6000, (opts.max_tokens ?? 1500) * 2) });
+    } else throw e;
+  }
   const out = r.content.trim();
   if (!out) throw new NebiusError("invalid_output", `Nebius (${r.meta.model}) returned empty content`, { raw: JSON.stringify(r.assistant_message).slice(0, 300) });
   return { text: out, meta: r.meta };

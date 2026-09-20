@@ -71,7 +71,7 @@ export function nextPhase(i: PolicyInput): { phase: CampaignPhase; reason: strin
       return null;
     case "qualifying":
       if (c("discovered") === 0 && (c("qualified") > 0 || c("ready") > 0)) return { phase: "resolving_contacts", reason: "all prospects evaluated" };
-      if (c("discovered") === 0 && pool > 0 && c("qualified") === 0 && c("ready") === 0 && inFlight === 0) return { phase: "completed", reason: "nothing_qualified" };
+      if (c("discovered") === 0 && c("qualified") === 0 && c("resolving_contact") === 0 && c("ready") === 0 && inFlight === 0 && c("rejected") > 0) return { phase: "completed", reason: "nothing_qualified" };
       return null;
     case "resolving_contacts":
       if (i.actionableQualified === 0 && c("resolving_contact") === 0) {

@@ -60,7 +60,7 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
 
   const { data: initial } = await supabaseAdmin
     .from("outreach_emails")
-    .select("id, workflow_id, campaign_id, author_id, subject, to_email, sender_email, sent_by_email, message_id, max_offer, original_ask, negotiation_status, author:authors!outreach_emails_author_id_fkey(full_name, domain:domains(host, name, dr, organic_traffic, us_traffic_share))")
+    .select("id, workflow_id, campaign_id, author_id, prospect_id, subject, to_email, sender_email, sent_by_email, message_id, max_offer, original_ask, negotiation_status, author:authors!outreach_emails_author_id_fkey(full_name, domain:domains(host, name, dr, organic_traffic, us_traffic_share)), prospect:campaign_prospects(contact_name, domain_host)")
     .eq("id", anchorId).maybeSingle();
   if (!initial) return { ...base, error: "thread anchor not found" };
 
@@ -122,16 +122,18 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
 
   // Sign as the person whose inbox this goes out from.
   const senderCfg = (initial as any).sender_email ? await getUserEmailConfig((initial as any).sender_email).catch(() => null) : null;
-  const senderName = senderCfg?.from_name?.trim().split(/\s+/)[0] || firstNameFromEmail((initial as any).sender_email) || "the team";
+  let senderName = senderCfg?.from_name?.trim().split(/\s+/)[0] || firstNameFromEmail((initial as any).sender_email);
   let productName = "our product";
   if ((initial as any).campaign_id) {
-    const { data: camp } = await supabaseAdmin.from("campaigns").select("website_url, name, what_you_sell").eq("id", (initial as any).campaign_id).maybeSingle();
+    const { data: camp } = await supabaseAdmin.from("campaigns").select("website_url, name, what_you_sell, owner_email").eq("id", (initial as any).campaign_id).maybeSingle();
     productName = (camp as any)?.what_you_sell || (camp as any)?.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") || (camp as any)?.name || productName;
+    if (!senderName) senderName = firstNameFromEmail((camp as any)?.owner_email) || "the team";
   }
+  senderName = senderName || "the team";
 
   // 3) MODEL (or a policy closing): write the next email.
   const draft = await draftNegotiationReply({
-    settings, thread, authorName: (initial as any).author?.full_name ?? "there", publication: dom?.name ?? dom?.host ?? "",
+    settings, thread, authorName: (initial as any).prospect?.contact_name || (initial as any).author?.full_name || "there", publication: dom?.name ?? dom?.host ?? (initial as any).prospect?.domain_host ?? "",
     ceiling, floor: settings.min_price, lastIntent: cls.intent, theirPrice, senderName, productName,
     assistInput: assisting ? opts.assistInput : null, ultraCallsUsed: opts.ultraCallsUsed ?? 0,
   });

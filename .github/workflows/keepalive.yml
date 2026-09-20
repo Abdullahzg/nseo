@@ -1,0 +1,17 @@
+# Keeps the free Supabase project from pausing (it pauses after ~7 days idle) and proves the
+# deployment is alive. Fails loudly if /api/health?deep=1 is not 200 — you get a GitHub email.
+name: keepalive
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: deep health (DB + Nebius + token budget)
+        run: |
+          code=$(curl -sS -o /tmp/h.json -w "%{http_code}" --max-time 60 "${{ secrets.APP_URL }}/api/health?deep=1")
+          cat /tmp/h.json; echo
+          test "$code" = "200"

@@ -1,158 +1,140 @@
-# Summit — Autonomous SEO Deal Acquisition Workforce
+# Geseo — an outreach agent that only comes back when it needs you
 
-**AWS Agents for Humans Hackathon 2026 · Professional Agents track**
+**Nebius × NVIDIA Global AI Hackathon 2026 · Best Apps and Agents track**
 
-Give an agent workforce an objective, constraints, and a budget — it autonomously researches
-editorial opportunities, identifies the right human at each publication, runs personalized
-outreach, negotiates commercial terms inside hard policy ceilings, and returns with structured
-deals. Humans are involved only when policy or capability genuinely requires them, through
-durable, resumable interventions.
+Tell it what you sell and what you can spend. It finds publications about your keywords, judges
+which ones are worth it, finds a human editor at each, writes them, reads their replies, negotiates a
+price under your ceiling, records the deal — and parks a conversation for you only when it hits
+something an email-only agent must not decide alone: a call, a contract, a price above your limit, a
+factual question about your business.
 
-## Problem
+Every decision is made by **NVIDIA Nemotron 3** models served on **Nebius Token Factory**, and every
+one of them is visible in the product: tap any line of the activity feed to see which model decided
+it, the tokens it used, how long it took, and its reasoning.
 
-Acquiring high-quality backlinks/editorial placements is brutally manual: search dozens of
-queries, open hundreds of pages, judge site quality, find the author, hunt for their email,
-verify it, write outreach, send, watch the inbox, classify replies, ask prices, counteroffer,
-follow up, track budget, close. Days of fragmented work per deal.
+**Live demo:** _(URL in the Devpost submission)_ — open it, press **See the plan**, press **Launch demo**,
+watch a campaign run to a deal in about three minutes. No account needed. Nothing is sent anywhere.
 
-## Solution
+---
 
-One click: **Start campaign**.
+## What it looks like
 
-```
-User:  "Acquire 3 quality placements. Budget $1,000. Keywords: AI photo editor…"
-Agent: plans → discovers 47 candidate pages → qualifies → resolves contacts →
-       sends outreach → reads replies → negotiates ($350 → $275 → $230 accepted,
-       under the $240 ceiling) → parks ONE thread for a human when a publisher asks
-       for a call → records structured deals → reports savings.
-```
+Four screens. Nothing else.
 
-The primary UI is not a chat window. It is a **live workforce view**: agents' current actions,
-a granular event timeline, funnel counters, budget burn, deals with negotiated savings, and a
-human-decisions queue.
-
-## Why this is agentic (not a chatbot)
-
-- **Multi-step autonomous workflow** — planning → discovery → qualification → contact
-  intelligence → outreach → reply triage → negotiation → deal recording, executed without
-  step-by-step instruction.
-- **Real tools** — web search providers, Ahrefs DR API, article fetch/extraction, a nine-step
-  contact-enrichment cascade, SMTP/IMAP email transport.
-- **Persistent state & async execution** — bounded idempotent ticks; every action recorded to an
-  append-only timeline; work survives restarts and continues across hours/days.
-- **Policy-bounded autonomy** — Gemini reasons; deterministic code owns money math, send safety,
-  ceilings, and completion conditions. The model cannot overspend or over-promise.
-- **Honest HITL** — meeting requests, contracts, invoices, over-ceiling terms park that one
-  negotiation as a structured intervention; your answer resumes the same thread mid-flight.
-
-## AWS technologies
-
-| Tech | Role |
+| Screen | What it is for |
 |---|---|
-| **Strands Agents SDK** | The orchestration brain: Campaign Manager root agent + 7 specialist sub-agents, @tool-decorated functions, agents-as-tools delegation, FileSessionManager |
-| **Amazon Bedrock** (`anthropic.claude-sonnet-4-20250514-v1:0`) | Strategy, article understanding, relevance scoring, reply classification, negotiation language |
-| **Vercel / Cloud Run** | Hosts the Next.js app and agent service |
+| **Setup** | Six fields, under a minute. Before launch, Nemotron 3 Nano writes the plan in plain English. Demo is the default and pre-filled. |
+| **Campaign** | One true sentence of current state ("Negotiating with 2 editors. 2 deals agreed, $240 of $800 committed. 2 things need you."), four numbers, a budget bar, and a human-readable feed — newest first, one line per decision, expandable to the model's reasoning. |
+| **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
+| **Deals** | Publication, what they asked, what you pay, what you saved. |
 
-## Architecture (short version)
+Real mode is the same product with real email: it runs for days from a scheduler, and the **Needs you**
+badge is how you find out it wants you.
+
+## Which Nemotron model makes which decision, and why
+
+| Decision | Model | Mode | Why this model |
+|---|---|---|---|
+| **Which action to take this step** (search, evaluate, find editors, email, answer replies) | `nvidia/nemotron-3-super-120b-a12b` | thinking on, tool call | One planning turn per busy step needs judgment across the whole funnel; Super's reasoning is cheap enough to run every step and its `reasoning_content` is shown in the feed. |
+| Search angles, **publication relevance & editorial quality**, outreach subject/body, **reply classification**, follow-ups, the plan preview | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (falls over to `nvidia/Nemotron-3_5-Lightning` on a truncation) | thinking off, `json_schema` | The high-volume calls. With `chat_template_kwargs.enable_thinking=false` Nano answers a structured judgment in 60–110 tokens, ~0.5 s, at $0.06/$0.24 per M. |
+| **Counter-offers** against a named price | `nvidia/Nemotron-3-Ultra-550b-a55b` | thinking on | The one place "serious reasoning" changes money. Hard-capped at 20 calls per campaign, then Super. |
+
+Code owns everything that must be true regardless of what a model says: price ceilings and floors,
+budget commits (an atomic Postgres function), send safety, the escalation cues (a call, an NDA, an
+invoice, a traffic question → a human), phase transitions, completion, and the status sentence.
+See [`docs/LEDGER.md`](docs/LEDGER.md) for a run's full decision ledger — 38 model decisions, 8 policy
+rules, zero heuristics, $0.005.
+
+## Where Token Factory accelerated the workflow
+
+- One adapter, [`src/lib/ai/nebius.ts`](src/lib/ai/nebius.ts), one OpenAI-compatible endpoint, four
+  models routed by role ([`src/lib/ai/models.ts`](src/lib/ai/models.ts)). Swapping the orchestrator
+  from Super to Ultra is an environment variable.
+- `response_format: json_schema` on every structured call means the app validates the model's answer
+  and **throws** if it is wrong — no fabricated scores, no canned fallbacks.
+- Thinking on/off per call let us spend reasoning where it matters (planning, counter-offers) and
+  run the rest at Nano speed. A whole demo campaign — 12 publications evaluated, 8 editors emailed,
+  8 replies negotiated, 2 deals — costs about half a cent.
+- `GET /v1/models` is checked at `/api/health?deep=1`; the app pauses with a visible banner if a
+  routed model disappears or the key fails.
+
+## Where Tavily is called at runtime
+
+Real-mode discovery searches the web with Tavily (`POST https://api.tavily.com/search`, Bearer auth)
+in [`src/lib/search/webSearch.ts`](src/lib/search/webSearch.ts), called from
+[`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with queries Nano planned.
+Demo mode uses fixture publications instead so a public demo cannot burn search credits.
+
+## Architecture
 
 ```
-Browser ─ Next.js ─ /api/agent/* tool gateway ──► Strands Agent Service
-                     │                              campaign_manager (root, Bedrock)
-                     │◄────────── tool calls over HTTP ──── 7 specialist agents
-             Proven engine (unchanged):                    (agents-as-tools delegation)
-             discovery pipeline · enrichment cascade ·
-             guarded SMTP/IMAP · negotiation policy engine
-                     │
-             Supabase Postgres (campaigns, prospects, deals, interventions,
-             agent_events timeline, budget ledger)
+Browser ── Next.js 16 (Vercel Hobby) ──┬── /api/campaigns/:id/tick   one bounded step (≤45 s, locked, capped)
+                                       │       └─ policy.ts: what is available?  none → no model call
+                                       │       └─ Nemotron 3 Super picks ONE action (tool call)
+                                       │       └─ tools.ts / outreach.ts execute it, writing the feed
+                                       ├── /api/cron/tick  ← GitHub Actions every 5 min (real campaigns)
+                                       ├── /api/interventions  ← Needs-you answers resume threads
+                                       └── /api/emails/process  ← owner-only real SMTP + IMAP sweep
+Supabase Postgres: campaigns · campaign_prospects · outreach_emails · deals · interventions · agent_events
+Nebius Token Factory: Nemotron 3 Nano / Super / Ultra (+ 3.5 Lightning)   Tavily: web search (real mode)
 ```
 
-Full diagram + authority model: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Agent design details: [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md).
+**Demo mode rule:** fixture data is fake, every decision is real. The publications, editors and
+scripted replies are fixtures; relevance, classification, outreach wording, counter-offers and deal
+recording are genuine Nemotron calls or the same policy rules as real mode. Only the email transport
+is simulated.
 
-## How Strands Agents Is Used
+**Guests** can run demos only, and that is enforced in the database, not in a permissions check: a
+`CHECK` constraint forbids a guest campaign from being real, and a trigger forbids scheduling real
+email on any demo or guest campaign. Caps: 2 concurrent / 5 per day per guest, 20 per day globally,
+60 steps per demo, and a global daily Nebius token budget that pauses everything with a banner.
 
-Summit's autonomous campaign layer is built entirely on **Strands Agents SDK**:
-
-- **8 genuine Strands Agent objects**: `campaign_manager` (root), `strategy_agent`, `discovery_agent`, `qualification_agent`, `contact_agent`, `outreach_agent`, `negotiation_agent`, `intervention_agent`
-- **9 @tool-decorated functions**: `get_campaign_state`, `plan_discovery`, `run_discovery_batch`, `run_qualification_batch`, `run_contact_resolution`, `queue_outreach_batch`, `run_negotiation_tick`, `list_open_interventions`, `complete_campaign`
-- **Agents-as-tools delegation**: The `campaign_manager` exposes all 7 specialist agents as tools via `agent.as_tool()`, enabling genuine multi-agent reasoning
-- **@tool(context=True)**: Tools receive `invocation_state` containing the `campaign_id`, so the model never needs to pass infrastructure identifiers explicitly
-- **Session management**: `FileSessionManager` with campaign-scoped session IDs (`campaign-{id}`) persists agent conversation history across ticks
-- **Model provider**: Amazon Bedrock (`anthropic.claude-sonnet-4-20250514-v1:0`) as primary, with Groq/Gemini as dev fallbacks
-- **HACKATHON_MODE**: When enabled, campaigns MUST use the Strands agent service. If unavailable, the system fails visibly (503) — no silent TypeScript fallback
-- **Observability**: Each tick records `framework`, `model_provider`, `run_id`, `agent`, `action`, `duration_ms` to the `agent_events` timeline, proving Strands execution in the UI
-
-## What was pre-existing vs. built for the hackathon
-
-This repo began as a production-used SEO-outreach platform. All proven machinery (discovery,
-enrichment, email transport, negotiation engine) is **pre-existing** and reused deliberately;
-the autonomous campaign layer, Strands agent service, observability UI, demo mode, tests and
-deployment assets are new. Full disclosure: [`docs/PREEXISTING_WORK.md`](docs/PREEXISTING_WORK.md).
-
-## Setup
-
-Prereqs: Node 20+, Python 3.10+, a free Supabase project, a Google OAuth client, an AWS account (for Bedrock) or a Groq API key.
+## Run it yourself (from zero)
 
 ```bash
+git clone <this repo> && cd geseo
 npm install
-cp .env.example .env.local          # fill in values (names documented inline)
-npx supabase init && npx supabase start   # OR use your cloud Supabase project
-node scripts/run-migrations.mjs     # idempotent; creates core + agentic schema
-npm run dev
+cp .env.example .env.local        # fill NEBIUS_API_KEY (tokenfactory.nebius.com → API keys); that's the only required key for the demo
+
+# Database — either local:
+npx supabase start                 # needs Docker; prints anon/service keys → paste into .env.local
+#   (the schema in supabase/migrations/0001_schema.sql is applied automatically)
+# …or a free hosted project: create one at supabase.com, then
+npx supabase link --project-ref <ref> && npx supabase db push
+
+npm run dev                        # http://localhost:3000 — you are the owner locally (no Google needed)
 ```
 
-Optional full-agent mode (Strands service):
+Then open **Setup**, press **See the plan**, press **Launch demo**. `npm test` runs the unit and
+database-wall tests (`DATABASE_URL` in `.env.local` enables the latter); `npm run e2e` drives the
+deployed demo (`E2E_BASE_URL`).
 
-```bash
-python -m venv .venv && .venv/Scripts/pip install -r agents/requirements.txt
-set MODEL_PROVIDER=groq & set GROQ_API_KEY=... & set AGENT_SERVICE_TOKEN=REDACTED & set AGENT_BASE_URL=http://localhost:3000
-uvicorn seo_workforce.main:app --port 8104   # from agents/
-set AGENT_SERVICE_URL=http://localhost:8104  # for Next.js
+Real mode additionally needs: Google OAuth (`GOOGLE_CLIENT_ID/SECRET`, `OWNER_EMAILS`), a Gmail app
+password entered in Settings, `TAVILY_API_KEY`, and the scheduler (see [`DEPLOY.md`](DEPLOY.md)).
+
+## Repository map
+
+```
+src/lib/ai/nebius.ts          the adapter (reasoning_content | reasoning, thinking on/off, json_schema, tools, NebiusError)
+src/lib/ai/models.ts          model routing + official prices
+src/lib/campaign/policy.ts    deterministic: available actions, transitions, tick interval, status sentence
+src/lib/campaign/orchestrator.ts  one tick: guards → policy → Super chooses → execute bounded → transition
+src/lib/campaign/tools.ts     discover (Tavily / fixtures), qualify (Nano), resolve contacts
+src/lib/campaign/outreach.ts  draft (Nano), send/queue, replies → negotiation → deals & interventions
+src/lib/negotiation/agent.ts  classify (Nano) · strong-cue escalations · counter-offers (Ultra) · policy closings
+src/lib/negotiation/run.ts    one negotiation step with persistence
+src/lib/campaign/guard.ts     tick lock, daily caps, global token budget
+supabase/migrations/0001_schema.sql   the whole schema, including the guest walls
+src/app/(app)/{setup,campaigns/[id],needs-you,deals,settings}   the screens
+docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.md · FEEDBACK.md
 ```
 
-Without `AGENT_SERVICE_URL` the identical tick policy runs in-process (TypeScript fallback),
-so the product is fully functional either way.
+## Honesty notes a judge should know
 
-### Key environment variables
+- Domain Rating comes from Ahrefs in real mode. Without a key it is stored and shown as **unverified**,
+  and the score is marked *relevance only* in the data model. Demo fixtures carry labelled DR values.
+- The activity feed hides nothing: model errors, truncations, refusals and retries are lines in it.
+- Runtime logs on Vercel Hobby last an hour; `agent_events` is the durable record.
+- Hobby is non-commercial. This deployment is a hackathon demo.
 
-See [`.env.example`](.env.example) for every name with inline notes. Core:
-`NEXT_PUBLIC_SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY`, `DATABASE_URL`, `AUTH_SECRET`,
-`GOOGLE_CLIENT_ID/SECRET`, `ALLOWED_DOMAINS`, `CRON_SECRET`, `GEMINI_API_KEY`,
-`GEMINI_MODEL`, `AGENT_SERVICE_TOKEN`. Everything else degrades gracefully when absent —
-missing provider keys never block the workflow (capability detection throughout).
-
-## Run locally (demo path)
-
-1. Sign in → **Autonomous Campaigns** → *New campaign*
-2. Enter website, keywords, budget $1,000, desired placements 3 → toggle **Demo mode**
-3. Press **Start**, then watch the live timeline: discovery batches → qualification scores →
-   contacts → simulated outreach → persona replies → an autonomous negotiation closing at $230
-   under a $240 ceiling → one meeting-request intervention → resolve it → resume.
-4. Inspect everything: events, deals, budget ledger, audit trail. Pause/stop/take-over anytime.
-
-Details + the exact scripted scenario: [`docs/DEMO.md`](docs/DEMO.md).
-
-## Deploy
-
-```bash
-export GCP_PROJECT=your-project GCP_REGION=us-central1
-# plus secrets per script header
-bash deploy/deploy.sh
-```
-
-Provisions Cloud Run services, secrets, scheduler; prints both service URLs.
-Guide: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-
-## Tests
-
-```bash
-npx vitest run        # legacy edge-case regression suite (negotiation policy, filters, gates)
-```
-
-The suite encodes real-world failures from the previous implementation so they can never
-regress — catalogued in [`docs/LEGACY_EDGE_CASES.md`](docs/LEGACY_EDGE_CASES.md).
-
-## Hackathon requirements checklist
-
-Live checklist: [`docs/HACKATHON_REQUIREMENTS.md`](docs/HACKATHON_REQUIREMENTS.md).
+MIT — see [`LICENSE`](LICENSE).

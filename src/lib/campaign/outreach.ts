@@ -78,7 +78,8 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   }
 
   const senderCfg = camp.owner_email ? await getUserEmailConfig(camp.owner_email).catch(() => null) : null;
-  const signer = senderCfg?.from_name?.trim() || (camp.owner_email ? camp.owner_email.split("@")[0] : "the team");
+  const local = (camp.owner_email ?? "").split("@")[0].split(/[._+-]/)[0];
+  const signer = senderCfg?.from_name?.trim() || (local ? local.charAt(0).toUpperCase() + local.slice(1) : "the team");
   const { draft, meta } = await draftOutreachEmail(p, camp, signer);
   const workflowId = await ensureWorkflow(camp);
   if (demo) await assignDemoPersona(prospectId);

@@ -18,6 +18,7 @@ export function sanitizeBody(s: string): string {
     .replace(/^[‐‑‒–—―−－]+\s+/g, "")
     .replace(/\s+[‐‑‒–—―−－]+$/g, "")
     .replace(/(?<![a-zA-Z])[‐‑‒–—―−－]+(?![a-zA-Z])/g, ", ")
+    .replace(/[–—―]+/g, ", ")
     .replace(/ ,/g, ",").replace(/,\s*,/g, ",").replace(/[ \t]{2,}/g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -131,6 +132,8 @@ export function strongCue(t: string): { type: InterventionType; ask: string; ass
     [/\b(invoice|purchase order|\bpo\b|\bw-?9\b|tax (form|id)|bank (details|account)|iban|swift|billing (details|info))\b/i, "payment_details", "wants invoice / PO / bank / tax details", true],
     [/\b(submit (via|through|using|our)|fill (out|in) (this|the) form|vendor portal|create an account|submission (system|portal))\b/i, "process_portal", "wants submission via a form/portal", false],
     [/\b(attach(ed|ing)|see the (attached|doc)|find (attached|enclosed)|pfa)\b/i, "inbound_attachment", "sent a file for us to review", false],
+    [/\b(do-?follow|nofollow|permanent link|monthly traffic|how (much|many) (traffic|visitors|readers)|\bdau\b|\bmau\b|domain (rating|authority))\b/i, "factual_question", "asks a fact about your site the agent must not invent", true],
+    [/\b(retainer|long[- ]?term (deal|contract)|per month|monthly fee|exclusiv(e|ity))\b/i, "over_policy", "wants terms beyond a one-off placement", true],
   ];
   for (const [re, type, ask, assistable] of R) if (re.test(t)) return { type, ask, assistable };
   return null;
@@ -214,7 +217,7 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
   const model = useUltra ? MODELS.negotiation : MODELS.negotiation_fallback;
 
   const r = await nebiusText({
-    role: "negotiation", model, thinking: true, max_tokens: 1500, temperature: 0.4, timeout_ms: 45_000,
+    role: "negotiation", model, thinking: true, max_tokens: 3000, temperature: 0.4, timeout_ms: 60_000,
     messages: [
       { role: "system", content: `You are negotiating on behalf of ${product} via email. Write ONLY the next email body (a reply in an ongoing thread, so do not re-introduce yourself fully).` },
       { role: "user", content: `NEGOTIATION BRIEF (obey): ${settings.handbook}

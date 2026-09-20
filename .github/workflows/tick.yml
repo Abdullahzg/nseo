@@ -1,0 +1,18 @@
+# Steps every active campaign. Vercel Hobby cron is once-a-day only, so the scheduler lives here.
+# GitHub's minimum is 5 minutes; runs can be delayed at the top of the hour.
+# NOTE: GitHub disables scheduled workflows after 60 days without repository activity — see DEPLOY.md.
+name: tick
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: POST /api/cron/tick
+        run: |
+          curl -sS --max-time 290 -X POST "${{ secrets.APP_URL }}/api/cron/tick" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" | head -c 2000

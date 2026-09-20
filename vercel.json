@@ -1,11 +1,4 @@
 {
-  "git": {
-    "deploymentEnabled": false
-  },
-  "crons": [
-    {
-      "path": "/api/emails/process",
-      "schedule": "0 13 * * *"
-    }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [{ "path": "/api/health?deep=1", "schedule": "0 5 * * *" }]
 }

@@ -5,15 +5,9 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
-    // Pure-function tests must run with NO provider keys so the deterministic
-    // fallback paths are what get exercised.
-    env: { GEMINI_API_KEY: "", OPENROUTER_API_KEY: "" },
+    testTimeout: 30_000,
+    // Unit tests mock fetch; integration tests self-skip without DATABASE_URL / NEBIUS_API_KEY.
+    setupFiles: ["tests/setup.ts"],
   },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@auth": path.resolve(__dirname, "./auth.ts"),
-      "@config/*": path.resolve(__dirname, "./config/*"),
-    },
-  },
+  resolve: { alias: { "@": path.resolve(__dirname, "./src"), "@auth": path.resolve(__dirname, "./auth.ts") } },
 });

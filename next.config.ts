@@ -7,10 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "**" },
     ],
   },
-  experimental: {
-    serverActions: { bodySizeLimit: "10mb" },
-  },
-  serverExternalPackages: ["playwright", "playwright-core", "jsdom", "@mozilla/readability"],
+  serverExternalPackages: ["playwright", "linkedom", "@mozilla/readability", "imapflow", "nodemailer"],
 };
 
 export default nextConfig;
