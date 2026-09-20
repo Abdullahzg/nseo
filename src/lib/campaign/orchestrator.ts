@@ -12,7 +12,10 @@ import { availableActions, nextPhase, nextTickDelayMs, type ActionKey, type Poli
 import { planDiscoveryQueries, discoverBatch, qualifyBatch, contactBatch } from "./tools";
 import { outreachBatch, processReplies, scheduleFollowups, checkCompletion } from "./outreach";
 import { countDueDemoReplies } from "./demo";
+import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
+import { withKeys } from "@/lib/ai/context";
+import { getOwnerKeys } from "@/lib/db/queries";
 import type { Campaign } from "./types";
 
 export const TICK_BUDGET_MS = Number(process.env.TICK_BUDGET_MS ?? 45_000);
@@ -46,6 +49,7 @@ async function policyInput(camp: Campaign): Promise<PolicyInput> {
     sendableReady: ready.filter((p) => !!p.contact_email).length,
     actionableQualified: qualified.filter((p) => (p.contact_attempts ?? 0) < 3).length,
     dueDemoReplies,
+    canSearch: camp.demo_mode ? true : camp.search_web !== false && !!searchProvider(),
   };
 }
 
@@ -58,13 +62,22 @@ const TOOL_DESCRIPTIONS: Record<ActionKey, string> = {
   schedule_followups: "Check the inbox and schedule polite follow-ups for unanswered emails.",
 };
 
+/**
+ * Public entry: every model and search call inside the tick runs under the campaign owner's own
+ * keys (Settings). Guests' demo campaigns run on the platform key.
+ */
 export async function tick(campaignId: string, opts: { via?: string } = {}): Promise<TickResult> {
   const t0 = Date.now();
+  const camp0 = await getCampaign(campaignId);
+  if (!camp0) return { ok: false, campaign_id: campaignId, phase_before: "?", phase_after: "?", action: "error", decided_by: null, error: "campaign not found", duration_ms: Date.now() - t0 };
+  return withKeys(await getOwnerKeys(camp0.owner_email), () => tickInner(camp0, opts, t0));
+}
+
+async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): Promise<TickResult> {
+  const campaignId = camp0.id;
   installUsageSink();
   const done = (r: Omit<TickResult, "duration_ms" | "campaign_id">): TickResult => ({ ...r, campaign_id: campaignId, duration_ms: Date.now() - t0 });
 
-  const camp0 = await getCampaign(campaignId);
-  if (!camp0) return done({ ok: false, phase_before: "?", phase_after: "?", action: "error", decided_by: null, error: "campaign not found" });
   const before = camp0.phase;
   if (!["planning", "discovering", "qualifying", "resolving_contacts", "outreaching", "monitoring"].includes(before)) return done({ ok: true, phase_before: before, phase_after: before, action: "noop", decided_by: null, summary: `phase ${before} is not active` });
   if (camp0.paused) return done({ ok: true, phase_before: before, phase_after: before, action: "paused", decided_by: null, summary: camp0.paused_reason ?? "paused" });
@@ -131,8 +144,9 @@ export async function tick(campaignId: string, opts: { via?: string } = {}): Pro
     const details: Record<string, unknown> = { chosen: chosen.key, decided_by: decidedBy };
     switch (chosen.key) {
       case "run_discovery": {
-        // Demo mode loads fixtures; planning search queries there would be a model call with no purpose.
-        const queries = camp.demo_mode ? [] : (await planDiscoveryQueries(camp)).queries;
+        // Demo mode loads fixtures; without a search provider only the owner's seeds load. Planning
+        // queries in either case would be a model call with no purpose.
+        const queries = camp.demo_mode || camp.search_web === false || !searchProvider() ? [] : (await planDiscoveryQueries(camp)).queries;
         details.discovery = await discoverBatch(camp, queries, 8);
         break;
       }

@@ -2,6 +2,7 @@
 // specific lives in src/lib/campaign/queries.ts. Only functions with a live caller are here.
 import { supabaseAdmin } from "./supabase";
 import type { Author, Article, Contact, Domain, OutreachEmail, UserEmailConfig } from "@/lib/types";
+import { decryptSecret } from "@/lib/crypto";
 import { registrableDomain } from "@/lib/util/domain";
 import { isRoleEmail } from "@/lib/email/roleEmail";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
@@ -259,10 +260,26 @@ export async function getUserEmailConfig(userEmail: string): Promise<UserEmailCo
     gap_minutes: data?.gap_minutes ?? DEFAULT_USER_CONFIG.gap_minutes,
     daily_cap: data?.daily_cap ?? DEFAULT_USER_CONFIG.daily_cap,
     hasPassword: !!data?.app_password_enc,
+    hasNebiusKey: !!data?.nebius_api_key_enc,
+    hasTavilyKey: !!data?.tavily_api_key_enc,
+    nebiusKeyHint: keyHint(data?.nebius_api_key_enc),
+    tavilyKeyHint: keyHint(data?.tavily_api_key_enc),
   };
 }
 
-export async function upsertUserEmailConfig(userEmail: string, data: { app_password_enc?: string; from_name?: string; timezone?: string; send_hour_start?: number; send_hour_end?: number; gap_minutes?: number; daily_cap?: number }): Promise<void> {
+function keyHint(enc: string | null | undefined): string | undefined {
+  const k = decryptSecret(enc);
+  return k ? `…${k.slice(-4)}` : undefined;
+}
+
+/** The owner's own API keys, decrypted, for one request (see src/lib/ai/context.ts). */
+export async function getOwnerKeys(userEmail: string | null | undefined): Promise<{ nebius: string | null; tavily: string | null; owner: string | null }> {
+  if (!userEmail) return { nebius: null, tavily: null, owner: null };
+  const { data } = await supabaseAdmin.from("user_email_config").select("nebius_api_key_enc, tavily_api_key_enc").eq("user_email", userEmail).maybeSingle();
+  return { nebius: decryptSecret(data?.nebius_api_key_enc), tavily: decryptSecret(data?.tavily_api_key_enc), owner: userEmail };
+}
+
+export async function upsertUserEmailConfig(userEmail: string, data: { app_password_enc?: string; nebius_api_key_enc?: string | null; tavily_api_key_enc?: string | null; from_name?: string; timezone?: string; send_hour_start?: number; send_hour_end?: number; gap_minutes?: number; daily_cap?: number }): Promise<void> {
   const { error } = await supabaseAdmin.from("user_email_config").upsert({ user_email: userEmail, ...data, updated_at: new Date().toISOString() }, { onConflict: "user_email" });
   if (error) throw error;
 }

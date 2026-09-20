@@ -57,11 +57,17 @@ export interface DiscoverResult { found: number; created: number; duplicates: nu
 
 export async function discoverBatch(camp: Campaign, queries: string[], maxPerQuery = 8): Promise<DiscoverResult> {
   if (camp.demo_mode) return discoverFixtures(camp);
-  const provider = searchProvider();
-  if (!provider) throw new Error("No search provider configured (TAVILY_API_KEY)");
   const { data: existing } = await supabaseAdmin.from("campaign_prospects").select("domain_host").eq("campaign_id", camp.id);
   const known = new Set(((existing ?? []) as any[]).map((r) => r.domain_host));
-  const res: DiscoverResult = { found: 0, created: 0, duplicates: 0, suppressed: 0, provider };
+
+  // Publications the owner already knows come first — no search credit spent, no model call to find them.
+  const seeded = await loadSeeds(camp, known);
+  const provider = camp.search_web === false ? null : searchProvider();
+  if (!provider) {
+    if (seeded > 0 || (camp.seed_contacts?.length ?? 0) > 0) return { found: seeded, created: seeded, duplicates: 0, suppressed: 0, provider: "seed" };
+    throw new Error("No search provider: add a Tavily key in Settings, or list publications you already know");
+  }
+  const res: DiscoverResult = { found: seeded, created: seeded, duplicates: 0, suppressed: 0, provider };
   const errors: string[] = [];
   for (const query of queries.slice(0, 6)) {
     const t0 = Date.now();
@@ -83,6 +89,22 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
   }
   if (res.found === 0 && errors.length) throw new Error(`Search failed: ${errors[0]}`);
   return res;
+}
+
+/** Owner-supplied publications → prospects with provenance "seed". Returns how many were new. */
+async function loadSeeds(camp: Campaign, known: Set<string>): Promise<number> {
+  let created = 0;
+  for (let i = 0; i < (camp.seed_contacts ?? []).length; i++) {
+    const seed = camp.seed_contacts[i];
+    const host = hostOf(seed.url);
+    if (!host || known.has(host)) continue;
+    const { id, created: isNew } = await upsertProspect({ campaign_id: camp.id, domain_host: host, prospect_url: seed.url, title: null, provenance: { source: "seed", query: "provided by owner", position: i + 1, discovered_at: new Date().toISOString() } });
+    if (!isNew) continue;
+    known.add(host); created++;
+    await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "prospect_found", engine: "system", prospect_id: id, human: `Added ${host} — a publication you named${seed.email ? " (with the editor's address)" : ""}`, detail: { host, url: seed.url, seed: true, has_email: !!seed.email } });
+  }
+  if (created) await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "search_batch", engine: "system", human: `Loaded ${created} publication${created === 1 ? "" : "s"} you already know — they are evaluated like any other`, detail: { seed: true, created } });
+  return created;
 }
 
 async function discoverFixtures(camp: Campaign): Promise<DiscoverResult> {
@@ -229,10 +251,15 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
     p = (await getProspect(prospectId)) ?? p;
     let result: ContactResult | null = null;
 
+    const host = p.domain_host;
+    const seedEmail = (camp.seed_contacts ?? []).find((s) => hostOf(s.url) === host && s.email)?.email ?? null;
     if (camp.demo_mode) {
       const c = demoContactFor(p.domain_host);
       steps.push("demo: simulated editor assigned (a fixture has no real address)");
       result = { ok: true, email: c.email, name: c.name, source: "demo-simulated", confidence: 100, steps };
+    } else if (seedEmail) {
+      steps.push("address provided by the owner at setup");
+      result = { ok: true, email: seedEmail, name: null, source: "provided", confidence: 100, steps };
     } else {
       const { data: author } = await supabaseAdmin.from("authors").select("id, full_name").eq("id", authorId).maybeSingle();
       const cascade = author ? await resolveEmailCascade(
@@ -249,7 +276,7 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
       }
     }
 
-    if (result?.ok && result.email && !isRoleEmail(result.email) && !isPlaceholderEmail(result.email)) {
+    if (result?.ok && result.email && (result.source === "provided" || (!isRoleEmail(result.email) && !isPlaceholderEmail(result.email)))) {
       await upsertContact({ author_id: authorId, type: "mailto", value: `mailto:${result.email}`, confidence: Math.min(1, (result.confidence ?? 60) / 100), source: result.source ?? "campaign" } as any).catch(() => {});
       await updateProspect(prospectId, { status: "ready", contact_email: result.email, contact_name: result.name ?? null, contact_source: result.source, contact_confidence: result.confidence ?? null });
       await recordEvent({ campaign_id: camp.id, agent: "contact", action: "contact_resolved", engine: camp.demo_mode ? "fixture" : "system", prospect_id: prospectId, human: `Found ${result.name ? `${result.name} ` : "an editor "}at ${p.domain_host}${camp.demo_mode ? " (simulated)" : ` via ${result.source}`}`, detail: { source: result.source, confidence: result.confidence, steps } });

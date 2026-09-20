@@ -1,5 +1,6 @@
 // Who is calling an API route.
-//   owner  — signed in with Google and on the OWNER_EMAILS allow-list (or any @domain in ALLOWED_DOMAINS)
+//   owner  — signed in with Google. Any Google account is an owner unless OWNER_EMAILS / ALLOWED_DOMAINS
+//            restricts it (a private deployment). Owners bring their own keys (Settings).
 //   guest  — a signed guest cookie; may only create demo campaigns (DB-enforced)
 //   cron   — Bearer CRON_SECRET (GitHub Actions scheduler)
 //   null   — nobody
@@ -20,6 +21,7 @@ export function ownerAllowed(email: string | null | undefined): boolean {
   const e = email.toLowerCase();
   const owners = (process.env.OWNER_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   const domains = (process.env.ALLOWED_DOMAINS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (owners.length === 0 && domains.length === 0) return true; // open sign-up: bring your own keys
   return owners.includes(e) || domains.includes(e.split("@")[1] ?? "");
 }
 
@@ -33,7 +35,7 @@ export async function identifyCaller(req: NextRequest): Promise<Caller> {
   const bearer = header.startsWith("Bearer ") ? header.slice(7) : "";
   const cron = process.env.CRON_SECRET?.trim();
   if (cron && bearer && safeEqual(bearer, cron)) return { kind: "cron" };
-  if (devOwnerBypass()) return { kind: "owner", email: "dev@local" };
+  if (devOwnerBypass()) return { kind: "owner", email: (process.env.DEV_OWNER_EMAIL?.trim() || "dev@local").toLowerCase() };
   try {
     const { auth } = await import("@auth");
     const session = await auth().catch(() => null);

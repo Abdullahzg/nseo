@@ -10,6 +10,7 @@
 //
 // There is no fallback provider. If Nebius fails, we throw NebiusError and the caller records it.
 import { MODELS, type ModelRole } from "./models";
+import { resolveNebiusKey } from "./context";
 
 export const NEBIUS_BASE_URL = (process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1").replace(/\/$/, "");
 
@@ -80,7 +81,7 @@ export interface ChatResult {
 }
 
 export function nebiusConfigured(): boolean {
-  return !!process.env.NEBIUS_API_KEY?.trim();
+  return !!resolveNebiusKey();
 }
 
 /** Usage hook — the tick guard registers itself here so every call feeds the daily token budget. */
@@ -88,8 +89,8 @@ let usageSink: ((meta: LLMMeta) => Promise<void> | void) | null = null;
 export function setUsageSink(fn: typeof usageSink) { usageSink = fn; }
 
 export async function chat(opts: ChatOptions): Promise<ChatResult> {
-  const key = process.env.NEBIUS_API_KEY?.trim();
-  if (!key) throw new NebiusError("not_configured", "NEBIUS_API_KEY is not set");
+  const key = resolveNebiusKey();
+  if (!key) throw new NebiusError("not_configured", "No Nebius API key: add yours in Settings (or set NEBIUS_API_KEY)");
   const model = opts.model ?? MODELS[opts.role];
   const body: Record<string, unknown> = {
     model,
@@ -200,8 +201,8 @@ export async function text(opts: Omit<ChatOptions, "json_schema" | "tools" | "to
 }
 
 /** Liveness check used by /api/health and the Setup page: lists models and confirms routing. */
-export async function ping(): Promise<{ ok: boolean; models: number; missing: string[]; error?: string }> {
-  const key = process.env.NEBIUS_API_KEY?.trim();
+export async function ping(keyOverride?: string): Promise<{ ok: boolean; models: number; missing: string[]; error?: string }> {
+  const key = keyOverride ?? resolveNebiusKey();
   if (!key) return { ok: false, models: 0, missing: Object.values(MODELS), error: "NEBIUS_API_KEY not set" };
   try {
     const res = await fetch(`${NEBIUS_BASE_URL}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) });

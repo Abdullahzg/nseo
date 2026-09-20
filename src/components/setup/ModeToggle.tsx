@@ -1,9 +1,9 @@
 "use client";
 
-interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean }
+interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean; missing?: string[]; has_search?: boolean }
 
 export function ModeToggle({ demo, onChange, realAllowed, me }: { demo: boolean; onChange: (demo: boolean) => void; realAllowed: boolean; me: Me | null }) {
-  const reason = me?.kind === "guest" || me?.kind === "none" ? "Sign in as the owner to send real email." : me?.kind === "owner" && !me.can_send_real ? "Add a Gmail app password in Settings first." : null;
+  const reason = me?.kind === "guest" || me?.kind === "none" ? "Sign in with Google to run real campaigns on your own keys." : me?.kind === "owner" && !me.can_send_real ? `Add ${(me.missing ?? ["a Gmail app password"]).join(" and ")} in Settings first.` : null;
   return (
     <>
     <div className="card p-1.5 inline-flex gap-1" role="radiogroup" aria-label="Mode">

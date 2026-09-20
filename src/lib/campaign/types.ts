@@ -35,6 +35,10 @@ export interface Campaign {
   next_tick_after: string | null;
   ultra_calls: number;
   plan_text: string | null;
+  /** Real mode: publications the owner already knows, optionally with the editor's address. */
+  seed_contacts: { url: string; email?: string }[];
+  /** Real mode: false means "only the publications I listed" — no web search, no strangers. */
+  search_web: boolean;
   created_at: string;
   updated_at: string;
   completed_at: string | null;

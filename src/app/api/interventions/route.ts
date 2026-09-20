@@ -3,6 +3,8 @@ import { identifyCaller, scopeOf, actorFor } from "@/lib/auth/service";
 import { listInterventions, listCampaigns } from "@/lib/campaign/queries";
 import { answerIntervention, dismissIntervention } from "@/lib/campaign/outreach";
 import { ACTIVE_PHASES } from "@/lib/campaign/types";
+import { withKeys } from "@/lib/ai/context";
+import { getOwnerKeys } from "@/lib/db/queries";
 
 export const maxDuration = 60;
 
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest) {
   if (body?.take_over) return NextResponse.json({ ok: await dismissIntervention(id, by, true) });
   const answer = String(body?.answer ?? "").trim();
   if (!answer) return NextResponse.json({ error: "answer required" }, { status: 400 });
-  const r = await answerIntervention(id, answer, by);
+  const keys = await getOwnerKeys(caller.kind === "owner" ? caller.email : null);
+  const r = await withKeys(keys, () => answerIntervention(id, answer, by));
   return NextResponse.json(r, { status: r.ok ? 200 : 409 });
 }

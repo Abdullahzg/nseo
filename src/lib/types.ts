@@ -311,6 +311,10 @@ export interface UserEmailConfig {
   gap_minutes: number;
   daily_cap: number;
   hasPassword: boolean; // never expose the password itself to the client
+  hasNebiusKey: boolean; // owner's own Token Factory key (bring-your-own-keys)
+  hasTavilyKey: boolean;
+  nebiusKeyHint?: string; // last 4 chars, for the Settings screen
+  tavilyKeyHint?: string;
 }
 
 export interface EmailSendConfig {

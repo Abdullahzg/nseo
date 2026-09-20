@@ -13,6 +13,12 @@ export interface PolicyInput {
   sendableReady: number;                // ready prospects with a contact email
   actionableQualified: number;          // qualified prospects with < 3 contact attempts
   dueDemoReplies?: number;              // demo only: scripted editor replies waiting to arrive
+  canSearch?: boolean;                  // real only: a search provider exists and the owner allowed searching (default true)
+}
+
+/** Demo fixtures and seed-only campaigns load their whole pool in one go; searching campaigns fill to a target. */
+function loadsInOneGo(i: PolicyInput): boolean {
+  return i.camp.demo_mode || i.canSearch === false;
 }
 
 export interface AvailableAction { key: ActionKey; description: string; size: number }
@@ -33,7 +39,7 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
     case "planning":
     case "discovering":
       // Demo fixtures load in one go; real campaigns keep searching until the pool target is met.
-      if (camp.demo_mode ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? "Load the demo publications." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
+      if (loadsInOneGo(i) ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? "Load the demo publications." : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
       if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
       break;
     case "qualifying":
@@ -69,7 +75,7 @@ export function nextPhase(i: PolicyInput): { phase: CampaignPhase; reason: strin
   switch (camp.phase) {
     case "planning": return { phase: "discovering", reason: "plan ready" };
     case "discovering":
-      if (pool >= poolTarget(camp) || (pool > 0 && camp.demo_mode)) return { phase: "qualifying", reason: "pool filled" };
+      if (pool >= poolTarget(camp) || (pool > 0 && loadsInOneGo(i))) return { phase: "qualifying", reason: "pool filled" };
       return null;
     case "qualifying":
       if (c("discovered") === 0 && (c("qualified") > 0 || c("ready") > 0)) return { phase: "resolving_contacts", reason: "all prospects evaluated" };

@@ -14,7 +14,8 @@ const DEMO_DEFAULTS = {
   max_per_deal: 250,
 };
 
-interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean }
+interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean; missing?: string[]; has_search?: boolean }
+interface Seed { url: string; email: string }
 
 export function SetupForm() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export function SetupForm() {
   const [demo, setDemo] = useState(true);
   const [f, setF] = useState({ ...DEMO_DEFAULTS });
   const [kw, setKw] = useState("");
+  const [seeds, setSeeds] = useState<Seed[]>([]);
+  const [searchWeb, setSearchWeb] = useState(true);
   const [plan, setPlan] = useState<{ text: string; model: string; tokens: number; latency_ms: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -40,7 +43,7 @@ export function SetupForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const body = { ...f, demo_mode: demo };
+  const body = { ...f, demo_mode: demo, seed_contacts: demo ? [] : seeds.filter((s) => s.url.trim()), search_web: demo ? true : searchWeb };
   const addKw = () => { const k = kw.trim(); if (k && !f.keywords.includes(k) && f.keywords.length < 5) setF({ ...f, keywords: [...f.keywords, k] }); setKw(""); };
   const set = (k: keyof typeof f, v: any) => { setF({ ...f, [k]: v }); setPlan(null); };
 
@@ -106,6 +109,27 @@ export function SetupForm() {
             <input className="field mt-1.5" type="number" min={10} step={10} value={f.max_per_deal} onChange={(e) => set("max_per_deal", Number(e.target.value))} />
           </label>
         </div>
+
+        {!demo && (
+          <div className="card p-4 space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="label">Publications you already know <span className="font-normal normal-case text-ink-3">(optional)</span></span>
+              <button type="button" className="text-sm text-accent" onClick={() => { setSeeds([...seeds, { url: "", email: "" }]); setPlan(null); }}>+ Add one</button>
+            </div>
+            <p className="text-xs text-ink-3">A URL each, and the editor's address if you have it. These are evaluated like any other publication and contacted first — no search credit spent on them.</p>
+            {seeds.map((s, i) => (
+              <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input className="field !h-9 !text-sm" value={s.url} onChange={(e) => { const n = [...seeds]; n[i] = { ...s, url: e.target.value }; setSeeds(n); setPlan(null); }} placeholder="https://publication.com/article" aria-label="Publication URL" />
+                <input className="field !h-9 !text-sm" value={s.email} onChange={(e) => { const n = [...seeds]; n[i] = { ...s, email: e.target.value }; setSeeds(n); }} placeholder="editor@publication.com (optional)" aria-label="Editor email" />
+                <button type="button" className="btn btn-ghost !h-9" onClick={() => { setSeeds(seeds.filter((_, j) => j !== i)); setPlan(null); }} aria-label="Remove">×</button>
+              </div>
+            ))}
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={searchWeb && !!me?.has_search} onChange={(e) => { setSearchWeb(e.target.checked); setPlan(null); }} disabled={!me?.has_search} />
+              <span>Also search the web for more publications{!me?.has_search && <span className="text-ink-3"> — needs a Tavily key in Settings</span>}{me?.has_search && !searchWeb && <span className="text-ink-3"> — off: only the publications listed above will be contacted</span>}</span>
+            </label>
+          </div>
+        )}
 
         {error && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Could not continue.</span> {error}</div>}
 

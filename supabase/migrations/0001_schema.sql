@@ -94,6 +94,8 @@ create table campaigns (
   tick_lock_until timestamptz,
   ultra_calls integer not null default 0,
   plan_text text,
+  seed_contacts jsonb not null default '[]',      -- [{url, email?}] publications the owner already knows
+  search_web boolean not null default true,        -- false: contact only the seeded publications, never search
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   completed_at timestamptz,
@@ -309,9 +311,12 @@ create table negotiation_activity (
   created_at timestamptz default now()
 );
 
+-- Per-owner settings. Keys are the owner's own (bring-your-own-key), encrypted with AUTH_SECRET.
 create table user_email_config (
   user_email text primary key,
   app_password_enc text,
+  nebius_api_key_enc text,
+  tavily_api_key_enc text,
   from_name text,
   timezone text default 'America/New_York',
   send_hour_start integer default 9,
