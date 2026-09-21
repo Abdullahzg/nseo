@@ -19,6 +19,16 @@ export async function acquireTickLock(campaignId: string): Promise<boolean> {
   return data === true;
 }
 
+/** One negotiator per thread: a Needs-you answer, an inbox reply and a tick can all arrive at once. */
+export async function acquireThreadLock(emailId: string, seconds = 90): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc("acquire_thread_lock", { p_email: emailId, p_seconds: seconds });
+  if (error) throw new Error(`thread lock: ${error.message}`);
+  return data === true;
+}
+export async function releaseThreadLock(emailId: string): Promise<void> {
+  await supabaseAdmin.from("outreach_emails").update({ thread_lock_until: null }).eq("id", emailId);
+}
+
 export async function releaseTickLock(campaignId: string): Promise<void> {
   await supabaseAdmin.from("campaigns").update({ tick_lock_until: null }).eq("id", campaignId);
 }

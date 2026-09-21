@@ -12,6 +12,7 @@ import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
 import { addressHasOtherSentInitial, createFollowupRow, getUserEmailConfig } from "@/lib/db/queries";
 import { getCampaign, getProspect, updateProspect, reserveBudget, createDeal, getDealByAnchor, createIntervention, resolveIntervention, listProspects, listCampaignThreads, recordEvent, updateCampaign, setPhase, getDeals, setActivity } from "./queries";
 import { assignDemoPersona, injectDemoReplies } from "./demo";
+import { acquireThreadLock, releaseThreadLock } from "./guard";
 import type { Campaign, Prospect } from "./types";
 
 // ─── Workflow binding (the email engine groups sends by workflow) ─────────────
@@ -173,7 +174,17 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
   const host = prospect?.domain_host ?? a?.to_email?.split("@")[1] ?? "the publication";
   const who = prospect?.contact_name ?? "the editor";
 
-  const r = await negotiateThread(anchorId, { assistInput: opts.assistInput ?? null, demo: !!camp.demo_mode, ultraCallsUsed: camp.ultra_calls ?? 0 });
+  // Whoever got here second waits for the next step: two answers to one editor is the one thing
+  // that must never happen, whichever screen or scheduler triggered them.
+  if (!(await acquireThreadLock(anchorId))) {
+    return { ok: false, anchorId, intent: null, classification: null, draft: null, ceiling: null, theirPrice: null, statusHint: "negotiating", persistedAs: "skipped", llm: [], error: "another reply to this editor is being written right now" };
+  }
+  let r: NegotiationResult;
+  try {
+    r = await negotiateThread(anchorId, { assistInput: opts.assistInput ?? null, demo: !!camp.demo_mode, ultraCallsUsed: camp.ultra_calls ?? 0 });
+  } finally {
+    await releaseThreadLock(anchorId).catch(() => {});
+  }
   if (r.llm.some((m) => /ultra/i.test(m.model))) await updateCampaign(camp.id, { ultra_calls: (camp.ultra_calls ?? 0) + 1 });
   if (!r.ok) {
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "negotiation_error", engine: "system", level: "error", thread_id: anchorId, prospect_id: prospect?.id, human: `Could not handle ${who}'s reply from ${host}: ${r.error}`, llm: r.llm });

@@ -211,7 +211,7 @@ export async function getDueEmails(limit = 25): Promise<Array<OutreachEmail & { 
   const { data, error } = await supabaseAdmin
     .from("outreach_emails")
     .select("*, campaign:campaigns!inner(id, demo_mode, guest_id), author:authors(id, full_name, contacts(type, value, source))")
-    .eq("status", "scheduled").lte("scheduled_at", nowIso)
+    .or(`status.eq.scheduled,and(status.eq.sending,claimed_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()})`).lte("scheduled_at", nowIso)
     .eq("campaign.demo_mode", false).is("campaign.guest_id", null)
     .order("scheduled_at", { ascending: true }).limit(limit);
   if (error) throw error;

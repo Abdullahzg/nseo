@@ -11,6 +11,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { acquireLock, releaseLock, incrDailyCount } from "@/lib/redis";
 import { isPlaceholderEmail } from "@/lib/enrich/personFilter";
 import { recordEvent } from "@/lib/campaign/queries";
+import { supabaseAdmin } from "@/lib/db/supabase";
 
 // Burst-send tuning. No spacing, no daily-cap throttle (by design — one optimal time, send
 // everything). Concurrency is high enough to clear ~1500 on one account inside a single run,
@@ -85,6 +86,10 @@ export async function processDueEmails(timeBudgetMs = 255_000): Promise<ProcessR
     let placeholderSkipped = 0;
 
     const sendOne = async (email: any): Promise<void> => {
+      // Claim the row: only the run that flips scheduled → sending may send it. Without this, two
+      // overlapping scheduler runs (Hobby has no Redis lock) would both pick the same due rows.
+      const { data: claimed } = await supabaseAdmin.from("outreach_emails").update({ status: "sending", claimed_at: new Date().toISOString() }).eq("id", email.id).in("status", ["scheduled", "sending"]).or(`status.eq.scheduled,claimed_at.lt.${new Date(Date.now() - 10 * 60_000).toISOString()}`).select("id");
+      if (!claimed || claimed.length === 0) { results.push({ id: email.id, ok: false, error: "claimed by another run" }); return; }
       if (!email.recipient) {
         await updateOutreachEmail(email.id, { status: "failed", error: "No recipient email address" });
         failed++; results.push({ id: email.id, ok: false, error: "no recipient" });

@@ -64,6 +64,31 @@ d("database walls", () => {
     } finally { await Promise.all(clients.map((k) => k.end())); }
   });
 
+  it("acquire_thread_lock admits exactly one negotiator per thread (Needs-you answer vs inbox reply vs tick)", async () => {
+    const id = await mkCampaign();
+    const { rows } = await c.query("insert into outreach_emails (campaign_id, kind, subject, body, status) values ($1, 'initial', 's', 'b', 'sent') returning id", [id]);
+    const emailId = rows[0].id;
+    const clients = await Promise.all(Array.from({ length: 5 }, async () => { const k = new pg.Client({ connectionString: URL }); await k.connect(); return k; }));
+    try {
+      const results = await Promise.all(clients.map((k) => k.query("select acquire_thread_lock($1, 60) as ok", [emailId]).then((r) => r.rows[0].ok as boolean)));
+      expect(results.filter(Boolean).length).toBe(1);
+      await c.query("update outreach_emails set thread_lock_until = null where id=$1", [emailId]);
+      expect((await c.query("select acquire_thread_lock($1, 60) as ok", [emailId])).rows[0].ok).toBe(true);
+    } finally { await Promise.all(clients.map((k) => k.end())); }
+  });
+
+  it("a send run claims a row atomically: only one of two concurrent runs may send it", async () => {
+    const id = await mkCampaign();
+    await c.query("update campaigns set demo_mode=false, guest_id=null, owner_email='o@x' where id=$1", [id]);
+    const { rows } = await c.query("insert into outreach_emails (campaign_id, kind, subject, body, status, scheduled_at) values ($1, 'initial', 's', 'b', 'scheduled', now()) returning id", [id]);
+    const emailId = rows[0].id;
+    const clients = await Promise.all(Array.from({ length: 4 }, async () => { const k = new pg.Client({ connectionString: URL }); await k.connect(); return k; }));
+    try {
+      const results = await Promise.all(clients.map((k) => k.query("update outreach_emails set status='sending', claimed_at=now() where id=$1 and status='scheduled' returning id", [emailId]).then((r) => r.rowCount ?? 0)));
+      expect(results.reduce((s, n) => s + n, 0)).toBe(1);
+    } finally { await Promise.all(clients.map((k) => k.end())); }
+  });
+
   it("add_tokens accumulates the daily total", async () => {
     const key = `tokens:test-${Date.now()}`;
     await c.query("select add_tokens($1, 100)", [key]);

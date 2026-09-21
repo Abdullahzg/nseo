@@ -156,7 +156,7 @@ create table outreach_emails (
   to_email text,
   sender_email text,
   sent_by_email text,
-  status text not null default 'draft',       -- draft | ready | scheduled | sent | failed
+  status text not null default 'draft',       -- draft | ready | scheduled | sending | sent | failed
   scheduled_at timestamptz,
   sent_at timestamptz,
   message_id text,
@@ -180,6 +180,8 @@ create table outreach_emails (
   max_offer numeric(10,2),
   agreed_price numeric(10,2),
   negotiation_status text,                    -- negotiating | agreed | declined | needs_human | stalled | handoff | withdrawn (campaign finished)
+  thread_lock_until timestamptz,              -- acquire_thread_lock(): one negotiator per thread at a time
+  claimed_at timestamptz,                     -- set when a send run flips scheduled → sending; a stale claim (>10 min) is retried
   intervention_type text,
   intervention_ask text,
   intervention_reason text,
@@ -356,6 +358,16 @@ begin
 end $$;
 
 -- One tick at a time per campaign.
+-- One negotiator per thread at a time (a Needs-you answer, an inbox reply and a tick can collide).
+create or replace function acquire_thread_lock(p_email uuid, p_seconds integer) returns boolean language plpgsql as $$
+declare n integer;
+begin
+  update outreach_emails set thread_lock_until = now() + make_interval(secs => p_seconds)
+   where id = p_email and (thread_lock_until is null or thread_lock_until < now());
+  get diagnostics n = row_count;
+  return n = 1;
+end $$;
+
 create or replace function acquire_tick_lock(p_campaign uuid, p_seconds integer) returns boolean language plpgsql as $$
 declare n integer;
 begin
