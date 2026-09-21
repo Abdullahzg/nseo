@@ -138,7 +138,7 @@ export async function listDealsForScope(scope: { owner_email?: string | null; gu
 
 // ─── Interventions ───────────────────────────────────────────────────────────
 
-export async function createIntervention(input: { campaign_id: string; anchor_email_id: string | null; prospect_id?: string | null; type: string; editor_quote: string | null; agent_plan: string; agent_needs: string; assistable: boolean }) {
+export async function createIntervention(input: { campaign_id: string; anchor_email_id: string | null; prospect_id?: string | null; type: string; editor_quote: string | null; agent_plan: string; agent_needs: string; assistable: boolean; draft?: string | null }) {
   // One open card per thread.
   if (input.anchor_email_id) {
     const { data: open } = await supabaseAdmin.from("interventions").select("id").eq("anchor_email_id", input.anchor_email_id).eq("status", "open").maybeSingle();

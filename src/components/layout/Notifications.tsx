@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "@/components/ui/motion";
+import { pointAt } from "@/lib/ui/focus";
 
 // Bottom-right pop-ups for the moments that matter while you are anywhere in the app: a deal, a
 // card that needs you, an editor's reply, a finished campaign, a failed send. They stack above the
@@ -10,6 +11,7 @@ import { motion, AnimatePresence } from "@/components/ui/motion";
 
 interface N { id: number; campaign_id: string; campaign_name: string; action: string; human: string; level: string; href: string; created_at: string }
 const TITLE: Record<string, string> = { deal_agreed: "Deal", intervention_created: "Needs you", demo_reply_written: "Reply", replies_received: "Replies", campaign_completed: "Finished", send_failed: "Send failed", tick_error: "Step failed", thread_withdrawn: "Closed", counter_sent: "Counter sent", outreach_sent: "Email sent" };
+const OPEN: Record<string, string> = { deal_agreed: "Open the deal", intervention_created: "Answer it", demo_reply_written: "Open the conversation", replies_received: "Open the conversations", campaign_completed: "Read the story", counter_sent: "Open the conversation", thread_withdrawn: "Open the conversation", outreach_sent: "Open the conversation", send_failed: "See what happened", tick_error: "See what happened" };
 const TTL_MS = 14_000;
 
 export function Notifications() {
@@ -45,9 +47,10 @@ export function Notifications() {
       <AnimatePresence initial={false}>
         {items.map((n) => (
           <motion.div key={n.id} layout initial={{ opacity: 0, x: 40, scale: 0.98 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, x: 40 }} transition={{ duration: 0.35 }}>
-            <Link href={n.href} onClick={() => setItems((prev) => prev.filter((x) => x.id !== n.id))} className={`card shadow-lg block px-3.5 py-2.5 hover:border-ink-2 transition-colors border-l-4 ${n.action === "deal_agreed" ? "border-l-accent" : n.action === "intervention_created" ? "border-l-attention" : n.level === "error" || n.action === "send_failed" ? "border-l-danger" : "border-l-model"}`}>
+            <Link href={n.href} onClick={(e) => { setItems((prev) => prev.filter((x) => x.id !== n.id)); if (pointAt(n.href)) e.preventDefault(); }} className={`card shadow-lg block px-3.5 py-2.5 hover:border-ink-2 hover:-translate-y-px transition-all border-l-4 ${n.action === "deal_agreed" ? "border-l-accent" : n.action === "intervention_created" ? "border-l-attention" : n.level === "error" || n.action === "send_failed" ? "border-l-danger" : "border-l-model"}`}>
               <div className="flex items-center justify-between gap-2 text-[11px]"><span className="label">{TITLE[n.action] ?? n.action.replace(/_/g, " ")}</span><span className="text-ink-3 truncate">{n.campaign_name}</span></div>
               <div className="text-sm mt-0.5 leading-snug">{n.human.length > 150 ? n.human.slice(0, 150) + "…" : n.human}</div>
+              <div className="text-[11px] text-model mt-1">{OPEN[n.action] ?? "Open"} →</div>
             </Link>
           </motion.div>
         ))}

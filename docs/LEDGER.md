@@ -4,6 +4,24 @@ Three demo campaigns and one real-mode campaign run on **2026-09-20** against li
 read back from `agent_events` (the append-only feed every decision writes to). Numbers are the
 database's, not estimates.
 
+## Two things a reader of the conversations found (2026-09-21, morning)
+The owner opened a demo thread with experte.com and saw two agent emails in a row and only the
+editor's last line. Two real faults behind that screen:
+
+1. **Only the latest editor reply was stored** (`reply_excerpt` on the anchor was overwritten), so
+   earlier editor messages vanished from the conversation — on screen, on the Needs-you card, and
+   in what the Negotiator itself read. Fixed: every reply is kept (`reply_history`, oldest first),
+   and one thread builder (`src/lib/negotiation/thread.ts`) serves the Negotiator, the demo editors,
+   the Conversations tab and the cards. Existing demo threads were backfilled from the ledger's
+   `demo_reply_written` events (33 anchors).
+2. **The model was allowed to haggle a second time over a price we could pay.** The editor asked
+   $280 (ceiling $250) → the Negotiator countered $240 (right) → the editor came down to "$200,
+   which is as low as I can go this month" → the model countered $190, then $185 against "I'm
+   willing to consider $200, please send the blurb". Now a code rule: an in-bounds price is
+   countered at most once; after our counter, or on a floor signal ("as low as I can go", "lowest",
+   "final", "firm"), an in-bounds number is taken at their number by policy, no model call
+   (`tests/negotiation-policy.test.ts`).
+
 ## Concurrency check (2026-09-21)
 Two fresh guests (separate cookies) launched demos at the same second: distinct campaigns, both at
 "qualifying" with 4 ticks and 19 pages found after 90 s. Five parallel `POST /tick` on one campaign:

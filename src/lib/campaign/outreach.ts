@@ -230,7 +230,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       other: [r.interventionAsk ? `The agent stopped itself: ${r.interventionAsk}.` : "The agent hit something it should not decide alone.", "What should it say? (Your line goes into its next reply.)"],
     };
     const [plan, needs] = PLAN[t] ?? PLAN.other;
-    await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: plan, agent_needs: needs, assistable: r.classification?.assistable !== false });
+    await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: plan, agent_needs: needs, assistable: r.classification?.assistable !== false, draft: r.withheldDraft ?? null });
     await notifyOwner(camp, `Nseo needs you: ${who} at ${host} — ${t.replace(/_/g, " ")}`, `${who} wrote:\n\n"${r.editorQuote ?? ""}"\n\n${plan}\n${needs}\n\nAnswer in a line here: ${appUrl()}/needs-you`);
     if (prospect) await updateProspect(prospect.id, { status: "escalated" });
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "intervention_created", engine: r.classification?.decided_by === "model" ? "model" : "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Needs you: ${who} at ${host} ${quote} — ${r.interventionReason ?? "a person is needed"}`, detail: { type: r.interventionType, ask: r.interventionAsk, intent: r.intent, decided_by: r.classification?.decided_by } });

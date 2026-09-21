@@ -58,6 +58,21 @@ describe("policy closings (no model call)", () => {
     const d = await draftNegotiationReply({ ...base, lastIntent: "accept", theirPrice: null });
     expect(d.statusHint).toBe("negotiating"); expect(d.suggestedOffer).toBeNull();
   });
+  it("an in-bounds price after our counter → taken at THEIR number (we counter once, never twice)", async () => {
+    const thread = [{ from: "us" as const, body: "hi" }, { from: "them" as const, body: "our rate is $280" }, { from: "us" as const, body: "Would $240 work?" }, { from: "them" as const, body: "I can do $200." }];
+    const d = await draftNegotiationReply({ ...base, thread, lastIntent: "counter_offer", theirPrice: 200 });
+    expect(d.statusHint).toBe("agreed"); expect(d.suggestedOffer).toBe(200); expect(d.engine).toBe("policy");
+  });
+  it("an in-bounds price with a floor signal → taken even on the first counter", async () => {
+    const thread = [{ from: "us" as const, body: "hi" }, { from: "them" as const, body: "$200 is as low as I can go this month." }];
+    const d = await draftNegotiationReply({ ...base, thread, lastIntent: "counter_offer", theirPrice: 200 });
+    expect(d.statusHint).toBe("agreed"); expect(d.suggestedOffer).toBe(200);
+  });
+  it("an in-bounds price after our counter but ABOVE the ceiling is not taken", async () => {
+    const thread = [{ from: "us" as const, body: "hi" }, { from: "them" as const, body: "$300" }, { from: "us" as const, body: "Would $240 work?" }, { from: "them" as const, body: "$280 is my floor." }];
+    const d = await draftNegotiationReply({ ...base, thread, lastIntent: "counter_offer", theirPrice: 280 }).catch((e) => ({ statusHint: "model", engine: "model", error: e }));
+    expect(d.statusHint).not.toBe("agreed");
+  });
   it("thread over max length → winds down, stalled", async () => {
     const thread = Array.from({ length: DEFAULT_NEGOTIATION_SETTINGS.max_thread_length }, () => ({ from: "us" as const, body: "x" }));
     const d = await draftNegotiationReply({ ...base, thread, lastIntent: "interested" });

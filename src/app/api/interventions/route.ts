@@ -5,6 +5,7 @@ import { answerIntervention, dismissIntervention } from "@/lib/campaign/outreach
 import { ACTIVE_PHASES } from "@/lib/campaign/types";
 import { withKeys } from "@/lib/ai/context";
 import { getOwnerKeys } from "@/lib/db/queries";
+import { loadThread } from "@/lib/negotiation/thread";
 
 export const maxDuration = 60;
 
@@ -14,7 +15,9 @@ export async function GET(req: NextRequest) {
   if (!caller) return NextResponse.json({ error: "not signed in" }, { status: 401 });
   const scope = scopeOf(caller);
   const status = (req.nextUrl.searchParams.get("status") ?? "open") as "open" | "resolved" | "dismissed";
-  const [items, camps] = await Promise.all([listInterventions({ ...scope, status }), listCampaigns(scope)]);
+  const [items0, camps] = await Promise.all([listInterventions({ ...scope, status }), listCampaigns(scope)]);
+  // Each card carries the whole conversation so far, so you can see what was said before you answer.
+  const items = await Promise.all(items0.map(async (iv: any) => ({ ...iv, thread: iv.anchor_email_id ? await loadThread(iv.anchor_email_id) : [] })));
   const openCount = status === "open" ? items.length : (await listInterventions({ ...scope, status: "open" })).length;
   return NextResponse.json({ interventions: items, open_count: openCount, campaigns_in_progress: camps.filter((c) => ACTIVE_PHASES.includes(c.phase)).length });
 }

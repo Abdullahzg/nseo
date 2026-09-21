@@ -65,6 +65,13 @@ dated and unsquashed.
   from the plan, updating as the plan is edited. A **first-run tour** (three coach marks, once per
   browser) and **moments** — first reply, first deal, goal reached — shown as they happen with the
   story so far.
+- **2026-09-21 (mid-morning)** — From reading a demo conversation: every editor reply is now kept
+  (only the latest had been stored, so earlier messages vanished from the thread and from what the
+  Negotiator read); the Negotiator counters an in-bounds price at most once and takes a floor
+  ("as low as I can go") at their number — a $10 haggle was losing placements. Needs-you cards show
+  the whole conversation and, when the agent held its own draft back, the draft it wanted to send.
+  Pop-ups point at the exact thing — the thread, the card, the deal — which opens, scrolls into
+  view and glows; each says what clicking it does.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before

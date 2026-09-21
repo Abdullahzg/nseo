@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "@/components/ui/motion";
+import { useFocus } from "@/lib/ui/focus";
 import Link from "next/link";
 import { money, ago } from "@/lib/ui/format";
 import { downloadCsv } from "@/lib/ui/csv";
@@ -17,6 +18,8 @@ function DealRow({ x, onChange }: { x: Deal; onChange: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [liveUrl, setLiveUrl] = useState(x.terms?.live_url ?? "");
   const [msg, setMsg] = useState<string | null>(null);
+  const { focused, glow } = useFocus(x.id);
+  useEffect(() => { if (focused) setOpen(true); }, [focused]);
   const ask = x.original_ask ?? null, paid = x.agreed_price ?? 0, saved = ask != null ? Math.max(0, ask - paid) : null;
   async function advance() {
     setBusy("advance"); setMsg(null);
@@ -34,7 +37,7 @@ function DealRow({ x, onChange }: { x: Deal; onChange: () => void }) {
   }
   return (
     <>
-      <tr className="border-b border-rule last:border-0 cursor-pointer hover:bg-paper-2/40" onClick={() => setOpen(!open)}>
+      <tr className={`border-b border-rule last:border-0 cursor-pointer hover:bg-paper-2/40 ${glow ? "glow" : ""}`} data-focus={x.id} onClick={() => setOpen(!open)}>
         <td className="p-3"><div className="font-medium">{x.publication ?? x.domain_host}</div><Link href={`/campaigns/${x.campaign.id}?tab=conversations`} className="text-xs text-ink-3 hover:text-ink" onClick={(e) => e.stopPropagation()}>{x.campaign.name}{x.campaign.demo_mode ? " · demo" : ""}</Link></td>
         <td className="p-3 text-ink-2">{x.terms?.placement_type ?? "inclusion"}</td>
         <td className="p-3 text-right mono">{ask != null ? money(ask, x.currency) : <span className="text-ink-3">—</span>}</td>

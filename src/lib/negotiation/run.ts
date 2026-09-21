@@ -1,6 +1,7 @@
 // One negotiation step for a thread: classify the latest reply → apply policy → draft → persist
 // (and send, in real mode). The anchor row (the initial email) carries the thread's state.
 import { supabaseAdmin } from "@/lib/db/supabase";
+import { threadFromRows } from "./thread";
 import { getNegotiationSettings } from "./settings";
 import { maxOfferFor } from "./pricing";
 import { classifyReplyIntent, draftNegotiationReply, type ThreadMessage, type ReplyClassification, type DraftResult } from "./agent";
@@ -47,6 +48,8 @@ export interface NegotiationResult {
   interventionType?: string;
   interventionAsk?: string;
   interventionReason?: string;
+  /** The reply the model wrote but code held back (fabrication guard), so the owner can see what it wanted to say. */
+  withheldDraft?: string | null;
   editorQuote?: string | null;
   agreedPrice?: number | null;
   replyRowId?: string | null;
@@ -67,16 +70,13 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
 
   const { data: rowsRaw } = await supabaseAdmin
     .from("outreach_emails")
-    .select("id, kind, body, subject, created_at, reply_excerpt, reply_subject, replied_at, sent_at, status")
+    .select("id, kind, body, subject, created_at, reply_excerpt, reply_subject, reply_from, reply_history, replied_at, sent_at, status")
     .or(`id.eq.${anchorId},parent_id.eq.${anchorId}`)
     .order("created_at", { ascending: true });
   const rows = (rowsRaw ?? []) as any[];
-  const thread: ThreadMessage[] = [];
-  let latestReply: any = null;
-  for (const r of rows) {
-    if (r.body && r.status !== "draft") thread.push({ from: "us", body: r.body });
-    if (r.reply_excerpt) { thread.push({ from: "them", body: r.reply_excerpt }); latestReply = r; }
-  }
+  // Every message both ways, in time order: the editor's earlier replies are part of the conversation too.
+  const thread: ThreadMessage[] = threadFromRows(rows).map((m) => ({ from: m.from, body: m.body }));
+  const latestReply: any = rows.find((r) => r.kind === "initial" && r.reply_excerpt) ?? null;
   if (!latestReply) return { ...base, error: "no reply on thread" };
 
   const settings0 = await getNegotiationSettings();
@@ -98,10 +98,10 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   });
   const withCls = { ...base, intent: cls.intent, classification: cls, ceiling, theirPrice, editorQuote };
 
-  const park = async (type: string, ask: string, reason?: string): Promise<NegotiationResult> => {
+  const park = async (type: string, ask: string, reason?: string, withheldDraft?: string | null): Promise<NegotiationResult> => {
     await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", anchorId).eq("kind", "negotiation").eq("status", "draft");
     await updateOutreachEmail(anchorId, { negotiation_status: "needs_human", intervention_type: type, intervention_ask: ask, intervention_reason: reason ?? INTERVENTION_REASON[type] ?? INTERVENTION_REASON.other, intervention_at: new Date().toISOString() });
-    return { ...withCls, ok: true, statusHint: "needs_human", persistedAs: "needs_human", interventionType: type, interventionAsk: ask, interventionReason: reason ?? INTERVENTION_REASON[type] ?? INTERVENTION_REASON.other };
+    return { ...withCls, ok: true, statusHint: "needs_human", persistedAs: "needs_human", interventionType: type, interventionAsk: ask, interventionReason: reason ?? INTERVENTION_REASON[type] ?? INTERVENTION_REASON.other, withheldDraft: withheldDraft ?? null };
   };
 
   // 2) POLICY gates (code-owned).
@@ -149,7 +149,7 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
     assistInput: assisting ? opts.assistInput : standing ?? (plan.facts ? `Facts the owner has approved you to state if relevant: ${plan.facts}` : null), ultraCallsUsed: opts.ultraCallsUsed ?? 0,
   });
   if (draft.llm) llm.push(draft.llm);
-  if (draft.needsHuman) return park(draft.interventionType ?? "other", draft.interventionAsk ?? "reply would need something the AI cannot provide");
+  if (draft.needsHuman) return park(draft.interventionType ?? "other", draft.interventionAsk ?? "reply would need something the AI cannot provide", undefined, draft.withheldDraft ?? null);
   // The owner may already have approved a figure for THIS thread (a Needs-you budget card answered
   // with a number raises the thread's max_offer). Accepting at or under it must not ask again.
   let approvalThreshold = settings.human_approval_above ?? Infinity;

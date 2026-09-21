@@ -5,6 +5,7 @@
 // the model role-playing an editor with a stance. Without any search key, the fixture publications
 // below stand in for the web so the demo still runs offline; they are labelled as such.
 import { supabaseAdmin } from "@/lib/db/supabase";
+import { threadFromRows } from "@/lib/negotiation/thread";
 import { recordReplyOnAnchor } from "@/lib/db/queries";
 import { listCampaignThreads, getProspect, updateProspect, recordEvent } from "./queries";
 import { searchProvider } from "@/lib/search/webSearch";
@@ -175,9 +176,8 @@ export async function injectDemoReplies(campaignId: string, product: string): Pr
     if (!ourSentAfter) continue; // wait until we've answered
     if (REPLY_DELAY_MS && Date.now() - new Date(ourSentAfter).getTime() < REPLY_DELAY_MS) continue;
     // The thread as the editor sees it (our sends and their earlier replies), for the role-play.
-    const { data: rows } = await supabaseAdmin.from("outreach_emails").select("kind, body, status, reply_excerpt, sent_at, replied_at").or(`id.eq.${th.id},parent_id.eq.${th.id}`).order("created_at", { ascending: true });
-    const thread: { from: "us" | "them"; body: string }[] = [];
-    for (const r of (rows ?? []) as any[]) { if (r.body && r.status === "sent") thread.push({ from: "us", body: r.body }); if (r.kind === "initial" && r.reply_excerpt) thread.push({ from: "them", body: r.reply_excerpt }); }
+    const { data: rows } = await supabaseAdmin.from("outreach_emails").select("kind, body, subject, status, reply_excerpt, reply_history, reply_from, reply_subject, sent_at, replied_at, created_at").or(`id.eq.${th.id},parent_id.eq.${th.id}`).order("created_at", { ascending: true });
+    const thread: { from: "us" | "them"; body: string }[] = threadFromRows((rows ?? []) as any[]).map((m) => ({ from: m.from, body: m.body }));
     const editorName = prospect.contact_name || demoContactFor(prospect.domain_host).name;
     const editorEmail = prospect.contact_email || demoContactFor(prospect.domain_host).email;
     let msg: Awaited<ReturnType<typeof writeEditorReply>>;

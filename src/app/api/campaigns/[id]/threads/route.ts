@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canSee } from "@/lib/campaign/access";
 import { supabaseAdmin } from "@/lib/db/supabase";
+import { repliesOf } from "@/lib/negotiation/thread";
 import { recordReplyOnAnchor } from "@/lib/db/queries";
 import { demoContactFor } from "@/lib/campaign/demo";
 import { updateProspect, recordEvent } from "@/lib/campaign/queries";
@@ -26,7 +27,7 @@ export interface ThreadView {
 async function threadsFor(campaignId: string): Promise<ThreadView[]> {
   const [{ data: rows }, { data: ivs }, { data: campRow }] = await Promise.all([
     supabaseAdmin.from("outreach_emails")
-      .select("id, kind, parent_id, subject, body, status, sent_at, replied_at, reply_excerpt, reply_from, negotiation_status, prospect:campaign_prospects(domain_host, contact_name, demo_persona)")
+      .select("id, kind, parent_id, subject, body, status, sent_at, replied_at, reply_excerpt, reply_from, reply_subject, reply_history, negotiation_status, prospect:campaign_prospects(domain_host, contact_name, demo_persona)")
       .eq("campaign_id", campaignId).in("kind", ["initial", "negotiation", "followup"]).neq("status", "draft").order("created_at", { ascending: true }),
     supabaseAdmin.from("interventions").select("anchor_email_id, type, status, answer, created_at").eq("campaign_id", campaignId).order("created_at", { ascending: false }),
     supabaseAdmin.from("campaigns").select("activity").eq("id", campaignId).maybeSingle(),
@@ -46,7 +47,7 @@ async function threadsFor(campaignId: string): Promise<ThreadView[]> {
     if (!t) continue;
     if (r.status === "sent" && r.body) t.messages.push({ from: "us", body: r.body, at: r.sent_at });
     if (r.kind !== "initial" && r.status === "awaiting_approval") t.pending = { id: r.id, subject: r.subject ?? "", body: r.body ?? "" };
-    if (r.kind === "initial" && r.reply_excerpt) t.messages.push({ from: "them", body: r.reply_excerpt, at: r.replied_at });
+    if (r.kind === "initial") for (const h of repliesOf(r)) t.messages.push({ from: "them", body: h.body, at: h.at || r.replied_at });
   }
   // Their reply belongs after the send it answers: order by time.
   for (const t of byAnchor.values()) {

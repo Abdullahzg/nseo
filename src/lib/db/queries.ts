@@ -130,13 +130,17 @@ export async function recordReplyOnAnchor(
   meta: { reply_kind?: string | null; reply_from?: string | null; reply_subject?: string | null; reply_excerpt?: string | null; reply_sentiment?: string | null; reply_intent?: string | null },
   replyAtIso: string,
 ): Promise<boolean> {
-  const { data } = await supabaseAdmin.from("outreach_emails").select("replied_at, reply_excerpt").eq("id", anchorId).maybeSingle();
+  const { data } = await supabaseAdmin.from("outreach_emails").select("replied_at, reply_excerpt, reply_from, reply_subject, reply_history").eq("id", anchorId).maybeSingle();
   const existingAt = (data as any)?.replied_at as string | null;
   const prev = ((data as any)?.reply_excerpt ?? "").trim();
   const next = (meta.reply_excerpt ?? "").trim();
   if (existingAt && prev && prev === next) return false;
   if (existingAt && replyAtIso && new Date(replyAtIso).getTime() <= new Date(existingAt).getTime()) return false;
-  await supabaseAdmin.from("outreach_emails").update({ ...meta, replied_at: replyAtIso, bounced_at: null }).eq("id", anchorId);
+  // Every reply is kept, oldest first; rows from before the history existed get their latest reply backfilled.
+  const history: any[] = Array.isArray((data as any)?.reply_history) ? [...(data as any).reply_history] : [];
+  if (!history.length && prev && existingAt) history.push({ at: existingAt, from: (data as any).reply_from ?? null, subject: (data as any).reply_subject ?? null, body: prev });
+  if (next) history.push({ at: replyAtIso, from: meta.reply_from ?? null, subject: meta.reply_subject ?? null, body: next });
+  await supabaseAdmin.from("outreach_emails").update({ ...meta, replied_at: replyAtIso, bounced_at: null, reply_history: history }).eq("id", anchorId);
   return true;
 }
 

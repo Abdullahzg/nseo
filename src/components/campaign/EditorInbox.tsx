@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Face } from "@/components/ui/Face";
+import { focusParam, scrollToFocus } from "@/lib/ui/focus";
 import { Expand } from "@/components/ui/motion";
 
 // The simulated inbox of a demo campaign. Every thread the agent has emailed, both directions —
@@ -70,6 +71,16 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
   const [demo, setDemo] = useState(true);
   const [threads, setThreads] = useState<ThreadView[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [glowId, setGlowId] = useState<string | null>(null);
+  // A pop-up or a card can point at one thread: it opens, scrolls into view and glows.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const hit = (id: string) => { setOpenId(id); setGlowId(id); scrollToFocus(id); if (t) clearTimeout(t); t = setTimeout(() => setGlowId(null), 2600); };
+    const f = focusParam(); if (f) hit(f);
+    const on = (e: Event) => hit(String((e as CustomEvent).detail));
+    window.addEventListener("nseo:focus", on);
+    return () => { window.removeEventListener("nseo:focus", on); if (t) clearTimeout(t); };
+  }, []);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -113,7 +124,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
           const isOpen = openId === t.id;
           const last = t.messages[t.messages.length - 1];
           return (
-            <div key={t.id} className="p-4">
+            <div key={t.id} className={`p-4 ${glowId === t.id ? "glow" : ""}`} data-focus={t.id}>
               <button type="button" className="w-full text-left flex items-start gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent" onClick={() => { setOpenId(isOpen ? null : t.id); setResult(null); }} aria-expanded={isOpen}>
                 <Face kind="editor" seed={`${t.editor ?? "editor"}@${t.host}`} size={40} className="rounded-full mt-0.5" />
                 <div className="min-w-0 flex-1">

@@ -205,10 +205,15 @@ export interface DraftResult {
   needsHuman?: boolean;
   interventionType?: InterventionType;
   interventionAsk?: string;
+  /** The reply the model wrote but code held back, so the owner can read it on the card. */
+  withheldDraft?: string;
   /** "model" when Nemotron wrote it; "policy" for the three deterministic closings. */
   engine: "model" | "policy";
   llm: LLMMeta | null;
 }
+
+/** The editor says this is their floor: "as low as I can go", "lowest", "final", "firm", "can't go lower". */
+export const FLOOR_SIGNAL_RE = /\b(as low as (i|we) can|lowest (i|we|price|rate)|can(?:'|no)?t go (any )?lower|(final|best|last) (offer|price|rate)|best (i|we) can do|\bfirm\b|non[- ]?negotiable|rock[- ]?bottom|(my|our) (minimum|floor))\b/i;
 
 const FABRICATION_RE = /\b(attach(ed|ing|ment)?|enclosed|i(?:'ve| have|'ll| will|'d) (attached|enclosed|send (you|over|the|them|those|a|an|some)|share (the|a|our|some) (deck|kit|file|examples|samples|images|photos|screenshots))|one[- ]?pager|media[- ]?kit|deck|slide[- ]?deck|pitch deck|hop on|jump on|(schedule|set ?up|arrange) a (call|meeting|zoom)|calendar|calendly|cal\.com|linkedin|our (portfolio|case stud))/i;
 
@@ -229,7 +234,14 @@ export async function draftNegotiationReply(input: DraftInput): Promise<DraftRes
   // under auto_accept_below. Confirm at THEIR number; haggling under the line risks a deal for pennies.
   const autoAccept = Math.min(settings.auto_accept_below ?? Infinity, ceiling ?? Infinity);
   const inBounds = theirPrice != null && theirPrice >= floor && (ceiling == null || theirPrice <= ceiling);
-  if (theirPrice != null && inBounds && (lastIntent === "accept" || ((lastIntent === "counter_offer" || lastIntent === "interested" || lastIntent === "question") && theirPrice <= autoAccept))) {
+  // We counter an in-bounds price at most once. If they come back with a number inside our bounds
+  // after our counter, or they say this is their floor, we take it at their number: haggling a
+  // second time over a price we can pay is how a $10 saving loses a placement.
+  const lastTheirs = [...thread].reverse().find((m) => m.from !== "us")?.body ?? "";
+  const floorSignal = FLOOR_SIGNAL_RE.test(lastTheirs);
+  const weCountered = thread.some((m) => m.from === "us" && /\$\s?\d[\d,]{1,6}/.test(m.body));
+  const takeIt = theirPrice != null && inBounds && (lastIntent === "counter_offer" || lastIntent === "interested" || lastIntent === "question") && (floorSignal || weCountered);
+  if (theirPrice != null && inBounds && (lastIntent === "accept" || takeIt || ((lastIntent === "counter_offer" || lastIntent === "interested" || lastIntent === "question") && theirPrice <= autoAccept))) {
     return { body: sanitizeBody(`Hi ${first},\n\nPerfect, ${settings.currency} ${theirPrice} works. I'll follow up shortly with a short blurb and everything you need from our side. ${first === "there" ? "Thanks, glad to be included." : `Thanks ${first}, glad to be included.`}\n\nBest,\n${signer}`), suggestedOffer: theirPrice, shouldStop: true, statusHint: "agreed", engine: "policy", llm: null };
   }
   if (lastIntent === "accept" && theirPrice == null) {
@@ -316,7 +328,7 @@ After the email, on a NEW last line, output exactly: <<META offer=NUMBER_OR_none
   body = shapeEmail(body, first);
   const fabricated = !assist ? body.match(FABRICATION_RE)?.[0] : null;
   if (fabricated) {
-    return { body: "", suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: `the draft promised something the agent cannot deliver ("${fabricated}") — a file, a call or a link`, engine: "model", llm: r.meta };
+    return { body: "", withheldDraft: body, suggestedOffer: null, shouldStop: true, statusHint: "stalled", needsHuman: true, interventionType: "other", interventionAsk: `the draft promised something the agent cannot deliver ("${fabricated}") — a file, a call or a link`, engine: "model", llm: r.meta };
   }
   return { body, suggestedOffer, shouldStop: statusHint !== "negotiating", statusHint, engine: "model", llm: r.meta };
 }

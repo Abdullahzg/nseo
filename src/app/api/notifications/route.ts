@@ -19,9 +19,18 @@ export async function GET(req: NextRequest) {
   if (!ids.length) return NextResponse.json({ events: [], newest_id: 0 });
   const name = new Map(((camps ?? []) as any[]).map((c) => [c.id, c.name as string]));
   const after = Number(req.nextUrl.searchParams.get("after_id") ?? 0) || 0;
-  let q = supabaseAdmin.from("agent_events").select("id, campaign_id, agent, action, human, level, created_at").in("campaign_id", ids).in("action", NOTABLE).order("id", { ascending: false }).limit(20);
+  let q = supabaseAdmin.from("agent_events").select("id, campaign_id, agent, action, human, level, created_at, thread_id, detail").in("campaign_id", ids).in("action", NOTABLE).order("id", { ascending: false }).limit(20);
   if (after > 0) q = q.gt("id", after);
   const { data } = await q;
-  const events = ((data ?? []) as any[]).map((e) => ({ ...e, campaign_name: name.get(e.campaign_id) ?? "", href: e.action === "intervention_created" ? "/needs-you" : e.action === "deal_agreed" ? "/deals" : `/campaigns/${e.campaign_id}` }));
+  // Each pop-up points at the exact thing: the card, the deal, the thread — which opens and glows.
+  const hrefFor = (e: any) => {
+    const t = e.thread_id ? String(e.thread_id) : "";
+    if (e.action === "intervention_created") return `/needs-you${t ? `?focus=${t}` : ""}`;
+    if (e.action === "deal_agreed") return `/deals${e.detail?.deal_id ? `?focus=${e.detail.deal_id}` : ""}`;
+    if (e.action === "campaign_completed") return `/campaigns/${e.campaign_id}?tab=story`;
+    if (["demo_reply_written", "counter_sent", "thread_withdrawn", "outreach_sent", "replies_received"].includes(e.action)) return `/campaigns/${e.campaign_id}?tab=conversations${t ? `&focus=${t}` : ""}`;
+    return `/campaigns/${e.campaign_id}`;
+  };
+  const events = ((data ?? []) as any[]).map(({ detail, ...e }) => ({ ...e, campaign_name: name.get(e.campaign_id) ?? "", href: hrefFor({ ...e, detail }) }));
   return NextResponse.json({ events, newest_id: events[0]?.id ?? after });
 }

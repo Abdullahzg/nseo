@@ -4,9 +4,12 @@ import { useState } from "react";
 import { Face } from "@/components/ui/Face";
 import Link from "next/link";
 import { ago, INTERVENTION_LABEL } from "@/lib/ui/format";
+import { useFocus } from "@/lib/ui/focus";
 
 export interface Intervention {
-  id: string; campaign_id: string; type: string; editor_quote: string | null; agent_plan: string | null; agent_needs: string | null; assistable: boolean; status: string; created_at: string;
+  id: string; campaign_id: string; anchor_email_id?: string | null; type: string; editor_quote: string | null; agent_plan: string | null; agent_needs: string | null; assistable: boolean; status: string; created_at: string;
+  draft?: string | null;
+  thread?: { from: "us" | "them"; body: string; at: string | null }[];
   campaign: { id: string; name: string; demo_mode: boolean };
   prospect?: { contact_name: string | null; domain_host: string } | null;
 }
@@ -17,6 +20,12 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const thread = iv.thread ?? [];
+  const hidden = showAll ? 0 : Math.max(0, thread.length - 2);
+  const shown = thread.slice(hidden);
+  const editorName = iv.prospect?.contact_name ?? "The editor";
+  const { glow } = useFocus(iv.anchor_email_id ?? null);
 
   async function send(kind: "answer" | "dismiss" | "take_over") {
     setBusy(kind); setError(null);
@@ -34,7 +43,7 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
   }
 
   return (
-    <article className="card p-5 fade-in">
+    <article className={`card p-5 fade-in ${glow ? "glow" : ""}`} data-focus={iv.anchor_email_id ?? undefined}>
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
         <span className="chip chip-attention">{INTERVENTION_LABEL[iv.type] ?? iv.type}</span>
         <Link href={`/campaigns/${iv.campaign_id}`} className="hover:text-ink">{iv.campaign.name}</Link>
@@ -43,6 +52,30 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
       </div>
       {iv.editor_quote && (
         <blockquote className="mt-4 flex items-start gap-3"><Face kind="editor" seed={`${iv.prospect?.contact_name ?? "editor"}@${iv.prospect?.domain_host ?? ""}`} size={44} className="rounded-full mt-1" /><div className="border-l-2 border-rule pl-4 serif text-[17px] leading-relaxed flex-1 min-w-0">“{iv.editor_quote}”<div className="text-xs text-ink-3 mt-1 font-sans">— {iv.prospect?.contact_name ?? "the editor"}{iv.prospect?.domain_host ? `, ${iv.prospect.domain_host}` : ""}</div></div></blockquote>
+      )}
+      {thread.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <div className="label">The conversation so far <span className="font-normal normal-case text-ink-3">· {thread.length} message{thread.length === 1 ? "" : "s"}</span></div>
+            <Link href={`/campaigns/${iv.campaign_id}?tab=conversations${iv.anchor_email_id ? `&focus=${iv.anchor_email_id}` : ""}`} className="text-xs text-model underline">Open in Conversations →</Link>
+          </div>
+          {hidden > 0 && <button type="button" className="mt-2 text-xs text-ink-2 underline" onClick={() => setShowAll(true)}>Show {hidden} earlier message{hidden === 1 ? "" : "s"}</button>}
+          <div className="mt-2 space-y-2">
+            {shown.map((m, i) => (
+              <div key={hidden + i} className={`rounded-lg p-3 text-sm whitespace-pre-wrap break-words ${m.from === "us" ? "bg-paper-2" : "bg-model-soft/60"}`}>
+                <div className="label mb-1">{m.from === "us" ? "The agent wrote" : `${editorName} replied`}</div>
+                {m.body}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {iv.draft && (
+        <div className="mt-4 rounded-lg border border-attention-soft bg-attention-soft/30 p-3 text-sm">
+          <div className="label mb-1 text-attention">What the agent wanted to send — held back</div>
+          <div className="whitespace-pre-wrap break-words">{iv.draft}</div>
+          <div className="text-xs text-ink-3 mt-2">Code stopped it: an email-only agent must not promise a file, a call or a link. Your line below replaces the promise; the agent rewrites the reply around it.</div>
+        </div>
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
         <div><div className="label mb-1">What the agent wants to do</div><p>{iv.agent_plan}</p></div>

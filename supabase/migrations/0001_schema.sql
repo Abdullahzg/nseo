@@ -174,7 +174,8 @@ create table outreach_emails (
   reply_kind text,                            -- reply | bounce | auto
   reply_from text,
   reply_subject text,
-  reply_excerpt text,
+  reply_excerpt text,                         -- the latest reply
+  reply_history jsonb not null default '[]',  -- every reply: [{at, from, subject, body}] oldest first
   reply_sentiment text,
   reply_intent text,
   reply_price numeric(10,2),
@@ -253,6 +254,7 @@ create table interventions (
   assistable boolean not null default true,
   status text not null default 'open',        -- open | resolved | dismissed | taken_over
   answer text,
+  draft text,                                 -- what the agent wanted to send but held back (fabrication guard)
   resolved_by text,
   resolved_at timestamptz,
   created_at timestamptz default now()
