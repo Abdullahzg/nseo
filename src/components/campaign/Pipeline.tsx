@@ -5,6 +5,8 @@ import { AGENTS, type AgentKey } from "@/lib/campaign/agents";
 import type { CampaignState } from "./StatusHeader";
 import { Row, type FeedEvent } from "./ActivityFeed";
 import { money } from "@/lib/ui/format";
+import { Face } from "@/components/ui/Face";
+import { motion, Expand } from "@/components/ui/motion";
 
 // The agents as a pipeline: who is working right now (the pulsing card), who worked last (solid
 // green, so the place is never lost between steps), what each has done so far, what it runs on, and
@@ -59,12 +61,14 @@ export function Pipeline({ s }: { s: CampaignState }) {
           const [l1, l2] = tally(ag.key, s);
           const next = ag.handsTo === "you" ? "you" : ag.handsTo ? AGENTS.find((x) => x.key === ag.handsTo)?.name : null;
           return (
-            <li key={ag.key}>
+            <motion.li key={ag.key} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, scale: active ? 1.02 : 1 }} transition={{ duration: 0.35, delay: i * 0.04 }}>
               <button type="button" onClick={() => setOpen(isOpen ? null : ag.key)} aria-expanded={isOpen}
                 className={`card p-4 text-left w-full h-full flex flex-col cursor-pointer transition-colors hover:border-ink-2 hover:bg-paper-2/40 outline-none focus-visible:ring-2 focus-visible:ring-accent ${active ? "node-active" : wasLast ? "node-last" : ""} ${isOpen ? "border-ink" : ""}`}>
                 <div className="flex items-center gap-2">
+                  <motion.span animate={active ? { rotate: [0, -6, 6, -4, 0], y: [0, -2, 0] } : { rotate: 0, y: 0 }} transition={active ? { duration: 1.4, repeat: Infinity, repeatDelay: 0.6 } : { duration: 0.3 }} className="inline-flex">
+                    <Face kind="agent" seed={ag.key} size={36} className="rounded-lg" />
+                  </motion.span>
                   <span className="mono text-[11px] text-ink-3">{i + 1}</span>
-                  <span className={`inline-block w-2 h-2 shrink-0 rounded-full ${active || wasLast ? "" : ag.ownsMoney ? "bg-accent" : "bg-ink-3"}`} style={active || wasLast ? { background: "#76b900" } : undefined} />
                   <span className="font-semibold">{ag.name}</span>
                   {active && <span className="ml-auto text-[11px] font-medium" style={{ color: "#4e7a00" }}>working</span>}
                   {!active && wasLast && <span className="ml-auto text-[11px] font-medium text-ink-3">worked last</span>}
@@ -77,12 +81,13 @@ export function Pipeline({ s }: { s: CampaignState }) {
                   <span className="inline-flex items-center gap-1.5">{cost > 0 && <span className="mono">{cost < 0.0001 ? "<$0.0001" : `$${cost.toFixed(4)}`}</span>}<span aria-hidden="true" className={`inline-block transition-transform ${isOpen ? "rotate-90" : ""}`}>▸</span></span>
                 </div>
               </button>
-            </li>
+            </motion.li>
           );
         })}
       </ol>
+      <Expand open={!!spec}>
       {spec && (
-        <div className="card p-4 mt-3 fade-in grid gap-4 md:grid-cols-3">
+        <div className="card p-4 mt-3 grid gap-4 md:grid-cols-3">
           <div><div className="label">{spec.name} — what it does</div><div className="text-sm mt-1">{spec.role}</div></div>
           <div><div className="label">Runs on</div><div className="text-sm mt-1">{spec.engine}</div><div className="text-xs text-ink-3 mt-1">Tools: {spec.tools.join(" · ")}</div></div>
           <div><div className="label">Hands to</div><div className="text-sm mt-1">{spec.handsTo === "you" ? "You — the Deals screen" : spec.handsTo ? AGENTS.find((x) => x.key === spec.handsTo)?.name : "Whichever agent it picks: each step it chooses one action from what code says is available"}</div>
@@ -100,6 +105,7 @@ export function Pipeline({ s }: { s: CampaignState }) {
           </div>
         </div>
       )}
+      </Expand>
     </section>
   );
 }

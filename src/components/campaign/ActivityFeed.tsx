@@ -10,6 +10,8 @@ export interface FeedEvent {
 }
 
 import { AGENT_LABEL } from "@/lib/campaign/agents";
+import { Face } from "@/components/ui/Face";
+import { motion, Expand } from "@/components/ui/motion";
 
 function EngineChip({ e }: { e: FeedEvent }) {
   if (e.engine === "model") return <span className="chip chip-model">{modelShort(e.model) || "Nemotron"}</span>;
@@ -23,9 +25,10 @@ export function Row({ e }: { e: FeedEvent }) {
   const expandable = e.engine === "model" || Object.keys(e.detail ?? {}).length > 0;
   const tone = e.level === "error" ? "border-l-danger" : e.level === "warn" ? "border-l-attention" : e.action === "deal_agreed" ? "border-l-accent" : e.engine === "model" ? "border-l-model" : "border-l-rule";
   return (
-    <li className={`fade-in border-l-2 ${tone} pl-4 py-3`}>
+    <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-l-2 ${tone} pl-4 py-3`}>
       <button type="button" onClick={() => expandable && setOpen(!open)} className={`w-full text-left ${expandable ? "cursor-pointer" : "cursor-default"}`} aria-expanded={open}>
         <div className="flex items-start gap-3">
+          <Face kind={e.agent === "editor" ? "editor" : "agent"} seed={e.agent === "editor" ? String(e.detail?.editor ?? "editor") : e.agent} size={28} className="mt-0.5 rounded-lg" />
           <p className={`flex-1 leading-snug ${e.level === "error" ? "text-danger" : ""}`}>{e.human}</p>
           <span className="shrink-0 text-xs text-ink-3 mono pt-0.5">{ago(e.created_at)}</span>
         </div>
@@ -36,7 +39,7 @@ export function Row({ e }: { e: FeedEvent }) {
           {expandable && <span className="ml-auto inline-flex items-center gap-1">{open ? "hide" : e.engine === "model" ? "why?" : "details"}<span aria-hidden="true" className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>▸</span></span>}
         </div>
       </button>
-      {open && (
+      <Expand open={open}>
         <div className="mt-3 rounded-xl bg-paper-2/70 p-4 text-sm space-y-3">
           {e.engine === "model" && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -54,8 +57,8 @@ export function Row({ e }: { e: FeedEvent }) {
             <details><summary className="text-xs text-ink-3 cursor-pointer">raw details</summary><pre className="mono text-[11px] whitespace-pre-wrap mt-1 text-ink-2">{JSON.stringify(Object.fromEntries(Object.entries(e.detail).filter(([k]) => k !== "body")), null, 1)}</pre></details>
           )}
         </div>
-      )}
-    </li>
+      </Expand>
+    </motion.li>
   );
 }
 

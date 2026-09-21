@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Face } from "@/components/ui/Face";
+import { Expand } from "@/components/ui/motion";
 
 // The simulated inbox of a demo campaign. Every thread the agent has emailed, both directions —
 // and a box where YOU write the editor's next reply. Scripted replies keep the hands-off demo
@@ -113,6 +115,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
           return (
             <div key={t.id} className="p-4">
               <button type="button" className="w-full text-left flex items-start gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent" onClick={() => { setOpenId(isOpen ? null : t.id); setResult(null); }} aria-expanded={isOpen}>
+                <Face kind="editor" seed={`${t.editor ?? "editor"}@${t.host}`} size={40} className="rounded-full mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{t.editor ?? "Editor"}</span>

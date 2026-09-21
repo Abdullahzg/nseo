@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Face } from "@/components/ui/Face";
 import Link from "next/link";
 import { ago, INTERVENTION_LABEL } from "@/lib/ui/format";
 
@@ -41,7 +42,7 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
         <span className="ml-auto mono">{ago(iv.created_at)}</span>
       </div>
       {iv.editor_quote && (
-        <blockquote className="mt-4 border-l-2 border-rule pl-4 serif text-[17px] leading-relaxed">“{iv.editor_quote}”<div className="text-xs text-ink-3 mt-1 font-sans">— {iv.prospect?.contact_name ?? "the editor"}{iv.prospect?.domain_host ? `, ${iv.prospect.domain_host}` : ""}</div></blockquote>
+        <blockquote className="mt-4 flex items-start gap-3"><Face kind="editor" seed={`${iv.prospect?.contact_name ?? "editor"}@${iv.prospect?.domain_host ?? ""}`} size={44} className="rounded-full mt-1" /><div className="border-l-2 border-rule pl-4 serif text-[17px] leading-relaxed flex-1 min-w-0">“{iv.editor_quote}”<div className="text-xs text-ink-3 mt-1 font-sans">— {iv.prospect?.contact_name ?? "the editor"}{iv.prospect?.domain_host ? `, ${iv.prospect.domain_host}` : ""}</div></div></blockquote>
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
         <div><div className="label mb-1">What the agent wants to do</div><p>{iv.agent_plan}</p></div>

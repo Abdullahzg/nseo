@@ -41,6 +41,8 @@ export interface Campaign {
   /** Real mode: false means "only the publications I listed" — no web search, no strangers. */
   search_web: boolean;
   /** Live: which agent is doing what, while a step runs. Null between steps. */
+  story?: Record<string, unknown> | null;
+  share_token?: string | null;
   activity: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string; done?: boolean } | null;
   created_at: string;
   updated_at: string;

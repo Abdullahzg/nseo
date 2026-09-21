@@ -21,6 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const events = ((data ?? []) as any[]).filter((e) => !HIDDEN.has(e.action));
     return NextResponse.json({ events, newest_id: events[0]?.id ?? 0 });
   }
-  const events = (await listEvents(id, { after_id, before_id, limit: 60 })).filter((e) => all || !HIDDEN.has(e.action));
+  const limit = Math.min(500, Number(req.nextUrl.searchParams.get("limit") ?? 60) || 60);
+  const events = (await listEvents(id, { after_id, before_id, limit })).filter((e) => all || !HIDDEN.has(e.action));
   return NextResponse.json({ events, newest_id: events[0]?.id ?? after_id ?? 0 });
 }
