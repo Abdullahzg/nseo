@@ -45,8 +45,8 @@ export function activityLine(s: CampaignState, stepping: boolean): string {
   return `${last}${c.demo_mode ? "Next step in a few seconds." : "Next step when the scheduler runs (every 5 minutes)."}`;
 }
 
-export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, setAutoStep }: {
-  s: CampaignState; busy: string | null; onControl: (a: "pause" | "resume" | "stop") => void; onStep: () => void; stepping: boolean; autoStep: boolean; setAutoStep: (v: boolean) => void;
+export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, setAutoStep, onDelete }: {
+  s: CampaignState; busy: string | null; onControl: (a: "pause" | "resume" | "stop") => void; onStep: () => void; stepping: boolean; autoStep: boolean; setAutoStep: (v: boolean) => void; onDelete?: () => void;
 }) {
   const c = s.campaign;
   const pct = s.budget.total > 0 ? Math.min(100, (s.budget.used / s.budget.total) * 100) : 0;
@@ -110,6 +110,8 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         {!terminal && (c.paused ? <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => onControl("resume")}>Resume</button> : <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => onControl("pause")}>Pause</button>)}
         {!terminal && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => onControl("stop")}>Stop</button>}
         {terminal && <Link href="/deals" className="btn btn-ghost btn-sm">See deals →</Link>}
+        {terminal && <Link href={`/setup?from=${c.id}`} className="btn btn-ghost btn-sm">Run again</Link>}
+        {terminal && onDelete && <button className="btn btn-ghost btn-sm text-danger" disabled={!!busy} onClick={onDelete}>Delete</button>}
       </div>
     </section>
   );

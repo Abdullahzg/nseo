@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { StatusHeader, type CampaignState } from "@/components/campaign/StatusHeader";
 import { ActivityFeed, type FeedEvent } from "@/components/campaign/ActivityFeed";
 import { EditorInbox } from "@/components/campaign/EditorInbox";
@@ -13,6 +14,7 @@ const AUTO_STEP_MS = 12_000;
 
 export default function CampaignPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [state, setState] = useState<CampaignState | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [events, setEvents] = useState<FeedEvent[]>([]);
@@ -94,12 +96,20 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
     finally { setBusy(null); }
   }
 
+  async function remove() {
+    if (!confirm("Delete this campaign and everything it recorded (publications, conversations, deals)? This cannot be undone.")) return;
+    setBusy("delete");
+    const r = await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+    setBusy(null);
+    if (r.ok) router.push("/campaigns");
+  }
+
   if (notFound) return <div className="card p-6 max-w-xl"><div className="label mb-2">Not found</div><p>This campaign does not exist or belongs to someone else.</p></div>;
   if (!state) return <div className="space-y-4" aria-busy="true"><div className="skeleton h-4 w-1/3" /><div className="skeleton h-10 w-3/4" /><div className="grid grid-cols-4 gap-3"><div className="skeleton h-20" /><div className="skeleton h-20" /><div className="skeleton h-20" /><div className="skeleton h-20" /></div><div className="skeleton h-40" /></div>;
 
   return (
     <div className="space-y-10">
-      <StatusHeader s={state} busy={busy} onControl={control} onStep={step} stepping={stepping} autoStep={autoStep} setAutoStep={setAutoStep} />
+      <StatusHeader s={state} busy={busy} onControl={control} onStep={step} stepping={stepping} autoStep={autoStep} setAutoStep={setAutoStep} onDelete={remove} />
       {stepError && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Step failed.</span> {stepError}</div>}
       {note && <div className="text-sm text-ink-3 fade-in">{note}</div>}
 

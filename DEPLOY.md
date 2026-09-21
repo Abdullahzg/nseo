@@ -1,5 +1,37 @@
 # DEPLOY.md — free hosting that stays alive through judging (Dec 1–15, 2026)
 
+## The morning checklist (in this order, ~40 minutes)
+
+Everything below is prepared; these are the steps only the account owner can do.
+
+1. **Rotate the keys that were pasted in chat or in old env files** — Nebius (tokenfactory.nebius.com →
+   API keys), Tavily (app.tavily.com), the Gmail app password (Google Account → Security → App
+   passwords). Put the new values in `.env.local` and, later, in Vercel. Nothing in the code references
+   the old ones.
+2. **Publish the repo.** Create an empty public repo on GitHub (MIT license is in the tree), then either
+   push this repo as-is (`git remote add origin … && git push -u origin master:main`) — a full-history
+   scan on 2026-09-21 found no credential patterns (Google, Tavily, Nebius, Groq, OpenRouter, AWS,
+   GitHub, Slack, Hugging Face; the only JWTs are Supabase's public local demo keys) — or, to be
+   certain, run `scripts/publish-clean.sh git@github.com:<you>/nseo.git`, which clones into a temp
+   dir, scrubs any secret-shaped strings from every commit with git-filter-repo (dates and authorship
+   kept), verifies, and pushes. Your local repo is never modified.
+3. **Supabase** (§1): new free project → `npx supabase link` → `npx supabase db push`. Copy URL,
+   anon key, service-role key.
+4. **Vercel** (§2): import the public repo; paste the env block from §2; deploy; open
+   `https://<app>/api/health?deep=1` — it must say `ok: true` and list the four Nemotron models.
+5. **GitHub Actions** (§3): repository secrets `APP_URL` and `CRON_SECRET`; run `tick` once by hand
+   from the Actions tab and confirm it returns JSON.
+6. **Google OAuth** (§6) so real mode exists on the deployment; sign in, open Settings, save your
+   keys, press the three tests. Set `DEV_OWNER_EMAIL` only locally, never on Vercel.
+7. **Smoke test on the deployment:** open Setup as a guest (private window), Launch demo, watch it
+   reach three deals; sign in, run a real campaign against one publication you list with your own
+   address as the editor (Run D in `docs/LEDGER.md` is that test).
+8. **Record the video** from `SUBMISSION.md` (3:00), upload unlisted/public to YouTube.
+9. **Devpost:** description from `SUBMISSION.md`, the video, the repo, the deployment URL, the
+   `UPDATES.md` disclosure, the `FEEDBACK.md` text.
+10. **Calendar:** Nov 20 — push a trivial commit (GitHub disables schedules after 60 idle days);
+    check the Supabase project has not paused; check `/api/health?deep=1`.
+
 Stack: **Vercel Hobby** (app) · **Supabase Free** (Postgres) · **GitHub Actions** (scheduler + keepalive)
 · **Nebius Token Factory** (models) · optional **Upstash Redis Free** (send-processor lock, real mode only).
 Zero spend.
@@ -13,8 +45,21 @@ Zero spend.
 
 ## 2. Vercel (Hobby, personal account, Git-connected)
 1. Import the public repo (Hobby cannot connect to organisation repos).
-2. Environment variables (Production): everything in `.env.example` under Database, Nebius and
-   Secrets, plus `APP_URL`/`NEXT_PUBLIC_BASE_URL` = the deployment URL, `PLAYWRIGHT_ENABLED=false`.
+2. Environment variables (Production) — the complete list:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+   NEBIUS_API_KEY                      platform key: pays for guest demos (and owners, unless PLATFORM_KEY_FOR_OWNERS=false)
+   TAVILY_API_KEY                      platform key: guest demos search for real, capped by TAVILY_DAILY_BUDGET (150) and DEMO_SEARCH_QUERIES (3)
+   AUTH_SECRET, CRON_SECRET            openssl rand -base64 32 each
+   APP_URL, NEXT_PUBLIC_BASE_URL       https://<app>.vercel.app
+   AUTH_TRUST_HOST=true
+   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   (real mode; see §6)
+   NEBIUS_DAILY_TOKEN_BUDGET=2000000, NEGOTIATION_ULTRA_CAP=20, TICKS_PER_CAMPAIGN_PER_DAY=120, GUEST_MAX_TICKS=60, GUEST_CONCURRENT=2, GUEST_PER_DAY=5, GUEST_GLOBAL_PER_DAY=20
+   PLAYWRIGHT_ENABLED=false, DEMO_REPLY_DELAY_MS=0
+   ```
+   Leave `OWNER_EMAILS`/`ALLOWED_DOMAINS` empty for open sign-up (bring-your-own-keys), set them for
+   a private deployment. Never set `DEV_OWNER_EMAIL` on Vercel.
    Real mode adds Google OAuth (and `OWNER_EMAILS` only for a private deployment; by default any Google
    account is an owner who brings their own keys). `TAVILY_API_KEY`/`NEBIUS_API_KEY` on the server are
    platform defaults; set `PLATFORM_KEY_FOR_OWNERS=false` to make owners use their own Nebius key.

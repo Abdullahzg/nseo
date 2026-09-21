@@ -32,8 +32,23 @@ export function SetupForm() {
   const [previewing, setPreviewing] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => { fetch("/api/me").then((r) => r.json()).then(setMe).catch(() => setMe({ kind: "none" })); }, []);
+
+  // "Run again": prefill everything (fields, mode, seeds, the plan) from a previous campaign.
+  useEffect(() => {
+    let from = "";
+    try { from = new URLSearchParams(window.location.search).get("from") ?? ""; } catch { /* ignore */ }
+    if (!from) return;
+    fetch(`/api/campaigns/${from}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      const c = d?.campaign; if (!c) return;
+      setF({ website_url: c.website_url ?? "", what_you_sell: c.what_you_sell ?? "", keywords: c.keywords ?? [], desired_deals: c.desired_deals ?? 3, budget_total: Number(c.budget_total ?? 800), max_per_deal: Number(c.max_per_deal ?? 250) });
+      setDemo(!!c.demo_mode); setSeeds((c.seed_contacts ?? []).map((s: any) => ({ url: s.url ?? "", email: s.email ?? "" }))); setSearchWeb(c.search_web !== false);
+      setPlanSettings(c.plan ?? {}); setPlan(null);
+      setNote(`Prefilled from “${c.name}”. Press See the plan, then Launch.`);
+    }).catch(() => {});
+  }, []);
 
   // The demo is pre-filled, so the plan is generated on arrival: a visitor reads it and launches with
   // one click. Cached per browser session so reloads don't spend a model call.
@@ -139,6 +154,7 @@ export function SetupForm() {
           </div>
         )}
 
+        {note && <div className="text-sm text-ink-2 fade-in">{note}</div>}
         {plan && <PlanEditor plan={planSettings} onChange={setPlanSettings} demo={demo} maxPerDeal={f.max_per_deal} />}
 
         {error && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Could not continue.</span> {error}</div>}

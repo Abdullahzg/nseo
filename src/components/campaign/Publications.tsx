@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ProspectRow } from "@/app/api/campaigns/[id]/prospects/route";
+import { downloadCsv } from "@/lib/ui/csv";
 
 // Every publication the campaign looked at, what it decided, and why — one row each, expandable.
 // This is the list behind the numbers: found / rejected / qualified / emailed / replied / deal.
@@ -12,6 +13,7 @@ const STAGE_CHIP: Record<string, string> = { deal: "chip-accent", needs_you: "ch
 export function Publications({ campaignId, refreshKey }: { campaignId: string; refreshKey: number }) {
   const [rows, setRows] = useState<ProspectRow[] | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -23,7 +25,9 @@ export function Publications({ campaignId, refreshKey }: { campaignId: string; r
   if (!rows) return <div className="skeleton h-40" />;
   if (rows.length === 0) return <div className="card p-6 text-sm text-ink-2">Nothing found yet. The Scout runs on the first step.</div>;
   const stages = STAGE_ORDER.filter((st) => rows.some((r) => r.stage === st));
-  const shown = rows.filter((r) => filter === "all" || r.stage === filter).sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
+  const needle = q.trim().toLowerCase();
+  const shown = rows.filter((r) => (filter === "all" || r.stage === filter) && (!needle || [r.host, r.title, r.why, r.editor?.name, r.editor?.email, r.email?.subject].some((v) => (v ?? "").toLowerCase().includes(needle)))).sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
+  const exportCsv = () => downloadCsv("nseo-publications.csv", rows.map((r) => ({ publication: r.host, url: r.url ?? "", title: r.title ?? "", stage: r.stage_label, relevance: r.relevance ?? "", dr: r.dr ?? "unverified", score: r.score ?? "", page_type: r.page_type ?? "", verdict: r.why ?? "", editor: r.editor?.name ?? "", editor_email: r.editor?.email ?? "", editor_source: r.editor?.source ?? "", email_subject: r.email?.subject ?? "", email_status: r.email?.status ?? "", reply: r.email?.reply ?? "", thread: r.email?.negotiation_status ?? "", deal_agreed: r.deal?.agreed ?? "", deal_asked: r.deal?.asked ?? "" })));
   const n = (st: string) => rows.filter((r) => r.stage === st).length;
 
   return (
@@ -32,10 +36,13 @@ export function Publications({ campaignId, refreshKey }: { campaignId: string; r
         <h2 className="label">Every publication it looked at <span className="font-normal normal-case text-ink-3">({rows.length})</span></h2>
         <span className="text-xs text-ink-3">Tap a row for the verdict, the editor, the email and the reply.</span>
       </div>
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
         <button type="button" className={`chip ${filter === "all" ? "bg-ink text-paper border-ink" : "hover:bg-paper-2"}`} onClick={() => setFilter("all")}>all {rows.length}</button>
         {stages.map((st) => <button key={st} type="button" className={`chip ${filter === st ? "bg-ink text-paper border-ink" : "hover:bg-paper-2"}`} onClick={() => setFilter(st)}>{st.replace("_", " ")} {n(st)}</button>)}
+        <input className="field !h-8 !w-56 !text-sm ml-auto" value={q} onChange={(e) => setQ(e.target.value)} placeholder="find a publication, editor, word…" aria-label="Filter publications" />
+        <button type="button" className="btn btn-ghost btn-sm" onClick={exportCsv}>Download CSV</button>
       </div>
+      {shown.length === 0 && <div className="card p-6 text-sm text-ink-2">Nothing matches.</div>}
       <div className="card divide-y divide-rule">
         {shown.map((r) => {
           const isOpen = openId === r.id;

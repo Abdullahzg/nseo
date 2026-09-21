@@ -27,7 +27,7 @@ export async function todosFor(scope: { owner_email?: string; guest_id?: string 
   if (!ids.length) return [];
   const name = new Map(((camps ?? []) as any[]).map((c) => [c.id, c.name as string]));
   const [{ data: deals }, { data: ivs }, { data: done }, { data: anchors }] = await Promise.all([
-    supabaseAdmin.from("deals").select("id, campaign_id, anchor_email_id, domain_host, agreed_price, original_ask, status, agreed_at, created_at").in("campaign_id", ids).neq("status", "cancelled"),
+    supabaseAdmin.from("deals").select("id, campaign_id, anchor_email_id, domain_host, agreed_price, original_ask, status, terms, agreed_at, created_at").in("campaign_id", ids).neq("status", "cancelled"),
     supabaseAdmin.from("interventions").select("id, campaign_id, anchor_email_id, prospect_id, type, status, answer, editor_quote, resolved_at, created_at").in("campaign_id", ids),
     supabaseAdmin.from("todo_state").select("campaign_id, key, done_at").in("campaign_id", ids),
     supabaseAdmin.from("outreach_emails").select("id, to_email, prospect:campaign_prospects(domain_host, contact_name)").in("campaign_id", ids).eq("kind", "initial"),
@@ -40,8 +40,10 @@ export async function todosFor(scope: { owner_email?: string; guest_id?: string 
   for (const d of (deals ?? []) as any[]) {
     const w = (d.anchor_email_id && who.get(d.anchor_email_id)) || `the editor at ${d.domain_host}`;
     const saved = d.original_ask != null && Number(d.original_ask) > Number(d.agreed_price) ? ` (they asked $${Number(d.original_ask)}; agreed $${Number(d.agreed_price)})` : ` ($${Number(d.agreed_price)})`;
-    push({ key: `deal:${d.id}:blurb`, campaign_id: d.campaign_id, what: `Send ${w} the blurb and link for the placement`, why: `Deal agreed${saved}. The agent promised "a short blurb and everything you need from our side".`, when: "now", who: w, href: `/campaigns/${d.campaign_id}?tab=conversations` });
-    push({ key: `deal:${d.id}:pay`, campaign_id: d.campaign_id, what: `Pay ${d.domain_host} $${Number(d.agreed_price)}`, why: `The agreed price for the inclusion. Pay when the placement is live and the link is as agreed.`, when: "when_live", who: w, href: `/deals` });
+    const blurbReady = !!d.terms?.blurb;
+    if (d.status === "terms_agreed") push({ key: `deal:${d.id}:blurb`, campaign_id: d.campaign_id, what: `Send ${w} the blurb and link for the placement${blurbReady ? " (drafted — copy it from Deals)" : ""}`, why: `Deal agreed${saved}. The agent promised "a short blurb and everything you need from our side".${blurbReady ? "" : " Deals → Draft it for me writes it."}`, when: "now", who: w, href: `/deals` });
+    if (d.status === "live") push({ key: `deal:${d.id}:pay`, campaign_id: d.campaign_id, what: `Pay ${d.domain_host} $${Number(d.agreed_price)}`, why: `The placement is live${d.terms?.live_url ? ` at ${d.terms.live_url}` : ""}. Pay, then mark it paid on Deals.`, when: "now", who: w, href: `/deals` });
+    else if (d.status !== "closed") push({ key: `deal:${d.id}:pay`, campaign_id: d.campaign_id, what: `Pay ${d.domain_host} $${Number(d.agreed_price)}`, why: `The agreed price for the inclusion. Pay when the placement is live and the link is as agreed (mark it live on Deals first).`, when: "when_live", who: w, href: `/deals` });
   }
   for (const iv of (ivs ?? []) as any[]) {
     const w = (iv.anchor_email_id && who.get(iv.anchor_email_id)) || "the editor";

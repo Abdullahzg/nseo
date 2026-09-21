@@ -20,9 +20,14 @@ export default function SettingsPage() {
   const [nebius, setNebius] = useState("");
   const [tavily, setTavily] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [never, setNever] = useState<{ id: string; type: string; value: string; reason: string | null }[] | null>(null);
+  const [neverNew, setNeverNew] = useState("");
+  const loadNever = async () => { const r = await fetch("/api/suppression", { cache: "no-store" }); if (r.ok) setNever((await r.json()).entries ?? []); };
+  async function addNever() { const v = neverNew.trim(); if (!v) return; const r = await fetch("/api/suppression", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: v }) }); const d = await r.json().catch(() => ({})); if (!r.ok) { setMsg({ ok: false, text: d.error ?? "Could not add." }); return; } setNeverNew(""); loadNever(); }
+  async function removeNever(value: string) { await fetch(`/api/suppression?value=${encodeURIComponent(value)}`, { method: "DELETE" }); loadNever(); }
   const [busy, setBusy] = useState<Busy>(null);
 
-  useEffect(() => { fetch("/api/settings").then(async (r) => { if (r.status === 403) { setForbidden(true); return; } const d = await r.json(); setCfg(d); setFromName(d.from_name ?? ""); setTz(d.timezone ?? ""); setHours([d.send_hour_start ?? 9, d.send_hour_end ?? 17]); }); }, []);
+  useEffect(() => { fetch("/api/settings").then(async (r) => { if (r.status === 403) { setForbidden(true); return; } const d = await r.json(); setCfg(d); setFromName(d.from_name ?? ""); setTz(d.timezone ?? ""); setHours([d.send_hour_start ?? 9, d.send_hour_end ?? 17]); loadNever(); }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function post(query: string, body: Record<string, unknown>) {
     const r = await fetch(`/api/settings${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -88,6 +93,13 @@ export default function SettingsPage() {
           <span className="text-xs text-ink-3">app.tavily.com → API keys (1,000 free searches a month). Without it, real campaigns can still run on publications you list at Setup.</span>
         </label>
         <div className="flex gap-2"><button className="btn btn-ghost" onClick={() => test("tavily")} disabled={!!busy || !tavilyReady}>{busy === "tavily" ? "Testing…" : "Test key"}</button>{cfg.hasTavilyKey && <button className="btn btn-ghost" onClick={() => save({ tavily_api_key: "" })} disabled={!!busy}>Remove</button>}</div>
+      </div>
+
+      <div className="card p-5 mt-4 space-y-3">
+        <div className="flex items-center justify-between"><div className="label">Never contact</div><span className="chip">{never?.length ?? 0}</span></div>
+        <p className="text-xs text-ink-3">Domains and addresses the Scout skips and the Writer refuses, in every campaign. Editors who say no are added automatically.</p>
+        <div className="flex gap-2"><input className="field !h-9 !text-sm" value={neverNew} onChange={(e) => setNeverNew(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addNever(); } }} placeholder="publication.com or editor@publication.com" /><button className="btn btn-ghost !h-9" onClick={addNever} disabled={!neverNew.trim()}>Add</button></div>
+        {never && never.length > 0 && <ul className="divide-y divide-rule text-sm">{never.map((n) => <li key={n.id} className="py-1.5 flex items-center gap-3"><span className="mono">{n.value}</span><span className="text-xs text-ink-3 flex-1 truncate">{n.reason ?? n.type}</span><button className="text-xs text-ink-3 hover:text-danger" onClick={() => removeNever(n.value)}>remove</button></li>)}</ul>}
       </div>
 
       <div className="mt-4 flex items-center gap-3">
