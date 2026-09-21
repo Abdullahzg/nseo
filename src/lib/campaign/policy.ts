@@ -42,7 +42,8 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
     case "planning":
     case "discovering":
       // Demo fixtures load in one go; real campaigns keep searching until the pool target is met.
-      if (loadsInOneGo(i) ? pool === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? (i.canSearch === false ? "Load the demo publications." : "Search the web for publications.") : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
+      // One-go campaigns load once: if everything loaded was rejected, that is "nothing qualified", not a reason to load again.
+      if (loadsInOneGo(i) ? pool + c("rejected") === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? (i.canSearch === false ? "Load the demo publications." : "Search the web for publications.") : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
       if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
       break;
     case "qualifying":
@@ -78,7 +79,7 @@ export function nextPhase(i: PolicyInput): { phase: CampaignPhase; reason: strin
   switch (camp.phase) {
     case "planning": return { phase: "discovering", reason: "plan ready" };
     case "discovering":
-      if (pool >= poolTarget(camp) || (pool > 0 && loadsInOneGo(i))) return { phase: "qualifying", reason: "pool filled" };
+      if (pool >= poolTarget(camp) || (pool + c("rejected") > 0 && loadsInOneGo(i))) return { phase: "qualifying", reason: "pool filled" };
       return null;
     case "qualifying":
       if (c("discovered") === 0 && (c("qualified") > 0 || c("ready") > 0)) return { phase: "resolving_contacts", reason: "all prospects evaluated" };

@@ -90,6 +90,13 @@ describe("seed-only real campaigns (no web search)", () => {
     expect(availableActions(loaded).map((a) => a.key)).toEqual(["qualify"]);
     expect(nextPhase(loaded)?.phase).toBe("qualifying");
   });
+  it("a seed-only campaign whose only page was rejected does not reload forever", () => {
+    const i = input({ canSearch: false, counts: { rejected: 1 } }, { phase: "discovering", demo_mode: false });
+    expect(availableActions(i)).toEqual([]);
+    expect(nextPhase(i)?.phase).toBe("qualifying");
+    const q = input({ canSearch: false, counts: { rejected: 1 } }, { phase: "qualifying", demo_mode: false });
+    expect(nextPhase(q)).toEqual({ phase: "completed", reason: "nothing_qualified" });
+  });
   it("a searching real campaign still fills to the pool target", () => {
     const i = input({ canSearch: true, counts: { discovered: 1 } }, { phase: "discovering", demo_mode: false });
     expect(availableActions(i).map((a) => a.key)).toEqual(["run_discovery", "qualify"]);
