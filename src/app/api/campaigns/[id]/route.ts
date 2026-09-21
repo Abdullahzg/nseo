@@ -46,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     numbers: { found, contacted, replied, deals: dealsLive.length },
     budget: { total: Number(camp.budget_total), used: Number(camp.budget_used), currency: camp.currency },
     open_interventions: open.length, deals: dealsLive, counts,
-    activity: camp.activity ?? null, agents: byAgent, tools,
+    activity: camp.activity ? { ...camp.activity, fresh: Date.now() - new Date(camp.activity.at).getTime() < 90_000 } : null, agents: byAgent, tools,
     contacts: c("ready") + c("outreached") + c("replied") + c("negotiating") + c("deal") + c("escalated") + c("lost"),
   });
 }

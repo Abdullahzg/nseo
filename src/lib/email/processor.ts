@@ -48,7 +48,8 @@ export async function processDueEmails(timeBudgetMs = 255_000): Promise<ProcessR
   // One pooled SMTP transport per sender, reused across the whole burst (closed in finally).
   const txPool = new Map<string, Transporter>();
 
-  let sent = 0, failed = 0, cappedSkipped = 0, dupSkipped = 0;
+  let sent = 0, failed = 0, dupSkipped = 0;
+  const cappedSkipped = 0;
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
 
   try {

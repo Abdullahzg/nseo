@@ -11,7 +11,7 @@ export interface CampaignState {
   numbers: { found: number; contacted: number; replied: number; deals: number };
   budget: { total: number; used: number; currency: string };
   open_interventions: number;
-  activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string; done?: boolean } | null;
+  activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string; done?: boolean; fresh?: boolean } | null;
   agents?: Record<string, { events: number; model_calls: number; cost_usd: number }>;
   tools?: ToolUsage;
   counts?: Record<string, number>;
@@ -31,7 +31,7 @@ export interface ToolUsage {
 /** "Judge is reading designdigest.creative.example (3 of 12)" — or what the campaign is waiting for. */
 export function activityLine(s: CampaignState, stepping: boolean): string {
   const a = s.activity;
-  const fresh = a && Date.now() - new Date(a.at).getTime() < 90_000;
+  const fresh = !!a?.fresh;
   const who = a ? (AGENT_LABEL[a.agent] ?? a.agent) : "";
   const count = a && a.n && a.of ? ` (${a.n} of ${a.of})` : "";
   if (a && fresh && !a.done) return `${who} is ${a.doing}${a.target ? ` ${a.target}` : ""}${count}${a.model ? ` · ${a.model}` : ""}`;

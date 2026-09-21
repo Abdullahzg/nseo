@@ -8,19 +8,25 @@ import { PLAN_DEFAULTS } from "@/lib/campaign/plan";
 // time (the Scout's angles and pool, the Judge's floor, the Negotiator's money rules and standing
 // answers). Nothing is hidden behind the prose.
 
+type NumKey = "pool_target" | "min_dr" | "auto_accept_below" | "human_approval_above" | "followup_after_days";
+
+function Num({ k, label, min, max, step = 1, hint, value, onChange }: { k: NumKey; label: string; min: number; max: number; step?: number; hint?: string; value: number | undefined; onChange: (k: NumKey, v: number) => void }) {
+  return (
+    <label className="block">
+      <span className="label">{label}</span>
+      <input type="number" className="field mt-1.5 !h-9" min={min} max={max} step={step} value={value ?? ""} onChange={(e) => onChange(k, Number(e.target.value))} />
+      {hint && <span className="text-xs text-ink-3">{hint}</span>}
+    </label>
+  );
+}
+
 export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: CampaignPlan; onChange: (p: CampaignPlan) => void; demo: boolean; maxPerDeal: number }) {
   const [newQ, setNewQ] = useState("");
   const p = { ...PLAN_DEFAULTS, ...plan };
   const set = (patch: Partial<CampaignPlan>) => onChange({ ...plan, ...patch });
+  const setNum = (k: NumKey, v: number) => set({ [k]: v } as Partial<CampaignPlan>);
   const queries = plan.queries ?? [];
   const addQ = () => { const q = newQ.trim(); if (q && !queries.includes(q) && queries.length < 10) set({ queries: [...queries, q] }); setNewQ(""); };
-  const Num = ({ k, label, min, max, step = 1, hint }: { k: keyof CampaignPlan; label: string; min: number; max: number; step?: number; hint?: string }) => (
-    <label className="block">
-      <span className="label">{label}</span>
-      <input type="number" className="field mt-1.5 !h-9" min={min} max={max} step={step} value={Number(p[k] ?? "")} onChange={(e) => set({ [k]: Number(e.target.value) } as Partial<CampaignPlan>)} />
-      {hint && <span className="text-xs text-ink-3">{hint}</span>}
-    </label>
-  );
   return (
     <div className="card p-5 space-y-5">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -38,8 +44,8 @@ export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: Campaig
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Num k="pool_target" label="Publications to look at" min={3} max={60} hint={demo ? "the demo takes what 3 searches return" : "before judging starts"} />
-        <Num k="min_dr" label="Authority floor (DR)" min={0} max={90} hint="only applied when DR can be measured" />
+        <Num k="pool_target" label="Publications to look at" min={3} max={60} hint={demo ? "the demo takes what 3 searches return" : "before judging starts"} value={p.pool_target} onChange={setNum} />
+        <Num k="min_dr" label="Authority floor (DR)" min={0} max={90} hint="only applied when DR can be measured" value={p.min_dr} onChange={setNum} />
         <label className="block"><span className="label">Tone</span>
           <select className="field mt-1.5 !h-9" value={p.tone} onChange={(e) => set({ tone: e.target.value as CampaignPlan["tone"] })}><option value="gentle">gentle</option><option value="balanced">balanced</option><option value="firm">firm</option></select>
           <span className="text-xs text-ink-3">how hard the Negotiator pushes</span>
@@ -47,9 +53,9 @@ export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: Campaig
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Num k="auto_accept_below" label="Accept without asking, up to" min={0} max={maxPerDeal} step={10} hint={`a quote at or under this is taken at their number (≤ $${maxPerDeal} ceiling)`} />
-        <Num k="human_approval_above" label="Ask me before agreeing above" min={0} max={maxPerDeal} step={10} hint="a Needs-you card instead of a handshake" />
-        {!demo && <Num k="followup_after_days" label="Follow up after (days)" min={1} max={30} hint="one polite nudge, then stop" />}
+        <Num k="auto_accept_below" label="Accept without asking, up to" min={0} max={maxPerDeal} step={10} hint={`a quote at or under this is taken at their number (≤ $${maxPerDeal} ceiling)`} value={p.auto_accept_below} onChange={setNum} />
+        <Num k="human_approval_above" label="Ask me before agreeing above" min={0} max={maxPerDeal} step={10} hint="a Needs-you card instead of a handshake" value={p.human_approval_above} onChange={setNum} />
+        {!demo && <Num k="followup_after_days" label="Follow up after (days)" min={1} max={30} hint="one polite nudge, then stop" value={p.followup_after_days} onChange={setNum} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -29,18 +29,20 @@ function tally(key: AgentKey, s: CampaignState): [string, string] {
 
 export function Pipeline({ s }: { s: CampaignState }) {
   const [open, setOpen] = useState<AgentKey | null>(null);
-  const [work, setWork] = useState<FeedEvent[] | null>(null);
+  const [work, setWork] = useState<{ key: AgentKey; events: FeedEvent[] } | null>(null);
   const a = s.activity;
-  const live = a && !a.done && Date.now() - new Date(a.at).getTime() < 90_000 ? a.agent : null;
+  const live = a && !a.done && a.fresh ? a.agent : null;
   const last = a && !live ? a.agent : null;
   const spec = open ? AGENTS.find((x) => x.key === open) : null;
 
   useEffect(() => {
-    if (!open) { setWork(null); return; }
+    if (!open) return;
     let alive = true;
-    fetch(`/api/campaigns/${s.campaign.id}/feed?agent=${open}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { if (alive) setWork(d.events ?? []); }).catch(() => { if (alive) setWork([]); });
+    const key = open;
+    fetch(`/api/campaigns/${s.campaign.id}/feed?agent=${key}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { if (alive) setWork({ key, events: d.events ?? [] }); }).catch(() => { if (alive) setWork({ key, events: [] }); });
     return () => { alive = false; };
   }, [open, s.campaign.id, s.campaign.tick_count, s.activity?.at]);
+  const workFor = open && work?.key === open ? work.events : null;
 
   return (
     <section>
@@ -89,12 +91,12 @@ export function Pipeline({ s }: { s: CampaignState }) {
           </div>
           <div className="md:col-span-3 border-t border-rule pt-3">
             <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
-              <div className="label">Everything {spec.name} did in this campaign{work ? ` (${work.length})` : ""}</div>
+              <div className="label">Everything {spec.name} did in this campaign{workFor ? ` (${workFor.length})` : ""}</div>
               <span className="text-xs text-ink-3">Newest first. Click a line for the model, its reasoning, the email.</span>
             </div>
-            {work == null ? <div className="space-y-2 py-2" aria-busy="true"><div className="skeleton h-5 w-2/3" /><div className="skeleton h-5 w-1/2" /><div className="skeleton h-5 w-3/5" /></div>
-              : work.length === 0 ? <div className="text-sm text-ink-3 py-2">Nothing yet — {spec.name} has not been handed anything in this campaign.</div>
-              : <ul className="divide-y divide-rule">{work.map((e) => <Row key={e.id} e={e} />)}</ul>}
+            {workFor == null ? <div className="space-y-2 py-2" aria-busy="true"><div className="skeleton h-5 w-2/3" /><div className="skeleton h-5 w-1/2" /><div className="skeleton h-5 w-3/5" /></div>
+              : workFor.length === 0 ? <div className="text-sm text-ink-3 py-2">Nothing yet — {spec.name} has not been handed anything in this campaign.</div>
+              : <ul className="divide-y divide-rule">{workFor.map((e) => <Row key={e.id} e={e} />)}</ul>}
           </div>
         </div>
       )}
