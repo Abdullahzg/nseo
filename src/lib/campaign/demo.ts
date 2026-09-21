@@ -31,14 +31,15 @@ export const DEMO_FIXTURES: DemoFixture[] = [
   { host: "fintechbrief.example", url: "https://fintechbrief.example/neobank-fees-compared", title: "Neobank Fees Compared: 2026 Edition", blurb: "A comparison of account fees, FX spreads and card perks across digital banks.", dr: 69, editor: { name: "Ravi Menon", email: "ravi@fintechbrief.example" } },
 ];
 
-const STAND_INS = ["Sofia Reyes", "Marcus Bell", "Aisha Karim", "Jonas Weber", "Priya Nair", "Elena Rossi", "Tomás Ortega", "Hannah Lind", "Kenji Sato", "Lucas Moreau"];
+const STAND_IN_FIRST = ["Sofia", "Marcus", "Aisha", "Jonas", "Priya", "Elena", "Tomas", "Hannah", "Kenji", "Lucas", "Nadia", "Oliver", "Mei", "Daniel"];
+const STAND_IN_LAST = ["Reyes", "Bell", "Karim", "Weber", "Nair", "Rossi", "Ortega", "Lind", "Sato", "Moreau", "Okafor", "Hughes", "Tanaka"];
 
 /** A fixture's editor, or a labelled stand-in for a real site that publishes no address (demo only; nothing is ever sent). */
 export function demoContactFor(host: string): { name: string; email: string } {
   const fixture = DEMO_FIXTURES.find((f) => f.host === host)?.editor;
   if (fixture) return fixture;
   let h = 0; for (const ch of host) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const name = STAND_INS[h % STAND_INS.length];
+  const name = `${STAND_IN_FIRST[h % STAND_IN_FIRST.length]} ${STAND_IN_LAST[Math.floor(h / 7) % STAND_IN_LAST.length]}`;
   const [first, last] = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(" ");
   return { name, email: `${first}.${last}@${host}` };
 }
