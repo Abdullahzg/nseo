@@ -11,6 +11,7 @@ export interface CampaignState {
   numbers: { found: number; contacted: number; replied: number; deals: number };
   budget: { total: number; used: number; currency: string };
   open_interventions: number;
+  awaiting_approval?: number;
   activity?: { agent: string; doing: string; target?: string | null; n?: number; of?: number; model?: string | null; at: string; done?: boolean; fresh?: boolean } | null;
   agents?: Record<string, { events: number; model_calls: number; cost_usd: number }>;
   tools?: ToolUsage;
@@ -99,6 +100,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
 
       <div className="flex flex-wrap items-center gap-2">
         {s.open_interventions > 0 && <Link href="/needs-you" className="btn btn-attention">{s.open_interventions} {s.open_interventions === 1 ? "thing needs" : "things need"} you →</Link>}
+        {(s.awaiting_approval ?? 0) > 0 && <Link href={`/campaigns/${c.id}?tab=conversations`} className="btn btn-attention">{s.awaiting_approval} email{s.awaiting_approval === 1 ? "" : "s"} to approve →</Link>}
         {!terminal && c.demo_mode && (
           <>
             <button className="btn" onClick={onStep} disabled={stepping || c.paused}>{stepping ? "Working…" : "Run next step"}</button>

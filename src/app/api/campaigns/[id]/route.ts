@@ -19,6 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const c = (k: string) => counts[k] ?? 0;
   const dealsLive = deals.filter((d) => d.status !== "cancelled");
   const sentence = statusSentence({ camp, counts, deals: dealsLive.length, openInterventions: open.length, unansweredReplies: unanswered, sendableReady: ready.filter((p) => p.contact_email).length, actionableQualified: qualified.filter((p) => (p.contact_attempts ?? 0) < 3).length, paused_reason: camp.paused_reason, completion_reason: camp.completion_reason });
+  const { count: awaiting } = await supabaseAdmin.from("outreach_emails").select("id", { count: "exact", head: true }).eq("campaign_id", id).eq("status", "awaiting_approval");
   const found = Object.values(counts).reduce((s, n) => s + n, 0);
   const contacted = c("outreached") + c("replied") + c("negotiating") + c("deal") + c("escalated") + c("lost");
   const replied = c("replied") + c("negotiating") + c("deal") + c("escalated");
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ledger: { deals: dealsLive.length, committed: Number(camp.budget_used) },
   };
   return NextResponse.json({
-    campaign: camp, is_active: isActivePhase(camp.phase), sentence,
+    campaign: camp, is_active: isActivePhase(camp.phase), sentence: (awaiting ?? 0) > 0 ? `${awaiting} email${awaiting === 1 ? " is" : "s are"} waiting for your approval. ${sentence}` : sentence, awaiting_approval: awaiting ?? 0,
     numbers: { found, contacted, replied, deals: dealsLive.length },
     budget: { total: Number(camp.budget_total), used: Number(camp.budget_used), currency: camp.currency },
     open_interventions: open.length, deals: dealsLive, counts,

@@ -147,7 +147,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-ink-3">{t.status === "needs_human" ? "Parked on the Needs-you screen: answer it there and the agent resumes this thread." : !t.open ? "This thread is closed." : demo ? "" : "Waiting for the editor. The Inbox agent checks your Gmail every scheduler round."}</div>
+                    <div className="text-sm text-ink-3">{t.pending ? "" : t.status === "needs_human" ? "Parked on the Needs-you screen: answer it there and the agent resumes this thread." : !t.open ? "This thread is closed." : demo ? "" : "Waiting for the editor. The Inbox agent checks your Gmail every scheduler round."}</div>
                   )}
                   {result && <div className={`text-sm ${result.ok ? "text-accent" : "text-danger"}`}>{result.text}</div>}
                 </div>
