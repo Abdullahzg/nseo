@@ -160,7 +160,9 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   }
 
   // Hard no / unsubscribe → suppress the domain so no campaign ever emails them again.
-  if (cls.intent === "hard_no" || cls.intent === "unsubscribe") {
+  // A real editor's "no" is respected everywhere. A demo editor is the model playing a part: its
+  // "no" must never put a real publication on the never-contact list.
+  if ((cls.intent === "hard_no" || cls.intent === "unsubscribe") && !opts.demo) {
     if (dom?.host) await addSuppression("domain", dom.host, `reply ${cls.intent}`).catch(() => {});
   }
 

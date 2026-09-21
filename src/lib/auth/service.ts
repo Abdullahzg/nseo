@@ -43,11 +43,26 @@ export async function identifyCaller(req: NextRequest): Promise<Caller> {
     const { auth } = await import("@auth");
     const session = await auth().catch(() => null);
     const email = session?.user?.email;
-    if (email && ownerAllowed(email)) return { kind: "owner", email };
+    if (email && ownerAllowed(email)) {
+      // A visitor who ran demos as a guest and then signed in keeps them: the guest's campaigns
+      // become the owner's (they stay demos — the CHECK constraint sees to that).
+      const gid = verifyGuestToken(req.cookies.get(GUEST_COOKIE)?.value);
+      if (gid) claimGuestCampaigns(gid, email.toLowerCase()).catch(() => {});
+      return { kind: "owner", email: email.toLowerCase() };
+    }
   } catch { /* auth not configured */ }
   const gid = verifyGuestToken(req.cookies.get(GUEST_COOKIE)?.value);
   if (gid) return { kind: "guest", id: gid };
   return null;
+}
+
+let claimed = new Set<string>();
+async function claimGuestCampaigns(guestId: string, email: string): Promise<void> {
+  const key = `${guestId}:${email}`;
+  if (claimed.has(key)) return;
+  claimed.add(key); if (claimed.size > 5000) claimed = new Set([key]);
+  const { supabaseAdmin } = await import("@/lib/db/supabase");
+  await supabaseAdmin.from("campaigns").update({ owner_email: email, guest_id: null }).eq("guest_id", guestId);
 }
 
 /** Scope for data queries: owner sees their campaigns; guest sees theirs; cron sees everything. */

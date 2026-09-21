@@ -53,13 +53,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
   const camp = deal.campaign;
   try {
-    const r = await withKeys(await getOwnerKeys(camp.owner_email), () => nebiusJson<{ blurb: string; anchor_text: string }>({
-      role: "fast", thinking: false, max_tokens: 400, temperature: 0.4, schema: BLURB_SCHEMA, validate: isBlurb,
+    const keys = await getOwnerKeys(camp.owner_email);
+    const words = (t: string) => t.trim().split(/\s+/).length;
+    const ask = (note: string) => withKeys(keys, () => nebiusJson<{ blurb: string; anchor_text: string }>({
+      role: "fast", thinking: false, max_tokens: 500, temperature: 0.4, schema: BLURB_SCHEMA, validate: isBlurb,
       messages: [
-        { role: "system", content: "You write the short, factual product blurb an editor asked for, to be dropped into their existing article. Plain text, 70-110 words, third person, no hype adjectives, no claims that are not in the product description, no markdown. Also give a 2-5 word anchor text for the link. JSON: {blurb, anchor_text}." },
-        { role: "user", content: `Product: ${productName(camp)} — ${camp.what_you_sell ?? camp.name}. Website: ${camp.website_url ?? ""}.\nPublication: ${deal.publication ?? deal.domain_host}. The placement is an inclusion in their article about ${camp.keywords.join(", ")}.${camp.plan?.facts ? `\nFacts you may use: ${camp.plan.facts}` : ""}` },
+        { role: "system", content: "You write the short, factual product blurb an editor asked for, to be dropped into their existing article. Plain text, three or four sentences, 70 to 110 words, third person, no hype adjectives, no claims that are not in the product description, no markdown. Also give a 2-5 word anchor text for the link. JSON: {blurb, anchor_text}." },
+        { role: "user", content: `Product: ${productName(camp)} — ${camp.what_you_sell ?? camp.name}. Website: ${camp.website_url ?? ""}.\nPublication: ${deal.publication ?? deal.domain_host}. The placement is an inclusion in their article about ${camp.keywords.join(", ")}.${camp.plan?.facts ? `\nFacts you may use: ${camp.plan.facts}` : ""}${note}` },
       ],
     }));
+    let r = await ask("");
+    // Nano sometimes answers in one sentence; an editor will not run a 26-word blurb. One retry, then accept.
+    if (words(r.data.blurb) < 40) r = await ask(`\nYour previous draft was ${words(r.data.blurb)} words; write 50 to 90 words in three sentences, still without inventing features.`);
     const terms = { ...(deal.terms ?? {}), blurb: r.data.blurb.trim(), anchor_text: r.data.anchor_text.trim(), blurb_model: r.meta.model };
     await supabaseAdmin.from("deals").update({ terms, updated_at: new Date().toISOString() }).eq("id", id);
     await recordEvent({ campaign_id: deal.campaign_id, agent: "outreach", action: "blurb_drafted", engine: "model", llm: r.meta, thread_id: deal.anchor_email_id ?? null, human: `Drafted the blurb you owe ${deal.domain_host} (${r.data.blurb.split(/\s+/).length} words)`, detail: { body: r.data.blurb, anchor_text: r.data.anchor_text } });
