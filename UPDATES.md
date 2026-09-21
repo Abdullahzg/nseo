@@ -47,6 +47,14 @@ dated and unsquashed.
   of reply, through Gmail both ways; nine negotiation fixes from it. "You be the editor" on demo
   campaigns. Qualification moved to Super after Nano passed vendors' product pages (Run F).
   Completion winds down open threads politely.
+- **2026-09-21 (night)** — The demo runs the real pipeline (real Tavily search, real pages, Super
+  judging, real editor lookup; only the email transport is simulated; editors played by Nano).
+  Editable plan; Next steps (your real-world to-dos); notifications; the agents as a pipeline you
+  can open; Publications / Conversations / Tools tabs; for real mode: approve each first email,
+  owner alerts from your own Gmail, sending hours, a never-contact list; deals you can act on (blurb
+  drafted by the Writer, live, paid); run again / delete; CSV exports. Concurrency: one negotiator
+  per thread (DB lock) and atomic send claims. Lint clean, production build verified, deployment
+  checklist and clean-publish script.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before

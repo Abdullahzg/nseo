@@ -4,6 +4,13 @@ Three demo campaigns and one real-mode campaign run on **2026-09-20** against li
 read back from `agent_events` (the append-only feed every decision writes to). Numbers are the
 database's, not estimates.
 
+## Run H — REAL mode, approval mode (2026-09-21)
+One listed publication (shotkit.com) with the author's own address as the editor; plan: *show me each
+first email before it goes out*. 4 ticks → the Writer's draft waited as "awaiting approval" (the
+owner was emailed about it from their own Gmail); approved with an edited subject through the API;
+the next scheduler pass sent it through Gmail (the send window had first moved it to 09:00 — sending
+hours are now a Setting). Message-ID recorded.
+
 ## Run G — demo, after the qualification and negotiation changes (2026-09-20, evening)
 Goal 3, budget $800, max $250. Browser-driven with one unscripted editor reply typed in the inbox.
 **Goal reached: 3 deals, $480 committed.** 78 events · **model 39** · policy 11 · fixture 24 · system 4 ·

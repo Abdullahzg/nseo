@@ -30,11 +30,25 @@ Five screens.
 | **Setup** | Six fields, under a minute. Nemotron 3 Nano writes the plan in plain English and proposes the search angles; **you can edit the plan** before launch — angles, how many publications, the DR floor, the money rules, the tone, and standing answers (a call? traffic?) so the agent need not ask. |
 | **Campaign** | One true sentence of current state, a working orb with a live line ("Judge is reading shotkit.com (9 of 16) · Nemotron 3 Super"), **the eight agents as a pipeline** (the working one lit; open any for everything it did), and four tabs: **Activity** (the feed, one line per decision, expandable to the model's reasoning), **Publications** (every page it looked at — link, each check, the reason, the editor, the email, the reply, the deal), **Conversations** (every thread both ways, with its state; in a demo, reply *as* the editor and the agent answers live), **Tools** (which tool each agent used, how, and how much). |
 | **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
-| **Next steps** | What only you can do, derived by rules from deals and the cards you answered: send the blurb, pay once the placement is live, put the call on your calendar, sign the agreement. |
-| **Deals** | Publication, what they asked, what you pay, what you saved. |
+| **Next steps** | What only you can do, derived by rules from deals and the cards you answered: send the blurb, pay once the placement is live, put the call on your calendar, sign the agreement. Tick items off. |
+| **Deals** | Publication, what they asked, what you pay, what you saved. Click one: the Writer drafts the blurb you owe the editor; you move it along — blurb sent, live (with the URL), paid. CSV export. |
 
 Bottom-right, on every screen: a panel listing the campaigns running now, and pop-ups for deals,
 cards, replies and finished campaigns.
+
+**Real mode, for people who will actually use it:** sign in with any Google account and bring your
+own keys (Settings: Nebius, Gmail app password, Tavily, each with a live test; timezone and sending
+hours; a "never contact" list). In the plan: *show me each first email before it goes out* (it waits
+under Conversations — approve, edit or discard), *email me when something needs me or a deal lands*
+(from your own Gmail), standing answers for calls and traffic questions, a follow-up delay. Finished
+campaigns can be run again (everything prefilled) or deleted.
+
+**What happens when several things run at once:** every campaign steps under its own Postgres lock
+(a browser tab, a second tab and the scheduler cannot double-step it); every editor thread has its
+own lock (a Needs-you answer, an inbox reply and a tick cannot answer the same editor twice); every
+outgoing email is claimed atomically (two overlapping scheduler runs cannot both send it); the daily
+token and search budgets are atomic counters. All four are tested against the real schema
+(`tests/db-walls.test.ts`).
 
 Real mode is the same product with real email: it runs for days from a scheduler, and the **Needs you**
 badge is how you find out it wants you. It is multi-user and bring-your-own-keys: sign in with any
