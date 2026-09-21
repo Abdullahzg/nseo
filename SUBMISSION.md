@@ -26,10 +26,12 @@ safety rules: ceilings, an atomic budget commit in Postgres, the escalation cues
 completion. The activity feed shows, for every line, which model decided it, its tokens, latency and
 reasoning. A whole demo campaign costs about three cents.
 
-**Demo vs real.** The demo (default, no account) runs the full arc in about four minutes on fixture
-publications and scripted editor replies — but every decision on that data is a real model call, and
-**you can be the editor**: open any thread in the campaign's inbox, type whatever an editor might say,
-and watch the agent classify it, counter it, or park it for a human. Real mode is multi-user and
+**Demo vs real.** The demo (default, no account) is the real pipeline — real Tavily search, real
+pages, real judging by Super, real editor lookup, real outreach written by Nano — with one difference:
+no email leaves the machine. The editors' replies are written by Nano role-playing an editor with a
+stance, so the negotiation never sees a script; and **you can be the editor**: open any thread in the
+campaign's Conversations tab, type whatever an editor might say, and watch the agent classify it,
+counter it, or park it for a human. Real mode is multi-user and
 bring-your-own-keys: sign in with Google, save your Nebius, Gmail and Tavily credentials, and it sends
 actual email from your Gmail, runs from a 5-minute scheduler, and reads replies over IMAP. Guests can
 only ever run demos; that is enforced by a database `CHECK` and a trigger, not a permissions check.
@@ -61,10 +63,12 @@ Token Factory (`nvidia/nemotron-3-super-120b-a12b`, `nvidia/NVIDIA-Nemotron-3-Na
 The doubt is legitimate: a demo with scripted editor replies looks like a script. Four things answer it,
 in the order a judge can verify them in under five minutes:
 
-1. **Be the editor.** On any demo campaign, open a thread in *The editors' inbox* and type a reply no
-   script could contain — a strange price, a condition, a question. The agent's answer is a live
-   Nemotron call, and the feed line under it shows the model, the tokens and the reasoning. Scripted
-   personas exist only so a hands-off demo still finishes; the moment you type, that editor is yours.
+1. **Nothing in the demo is canned.** The publications come from a live Tavily search (the Tools
+   tab shows the queries and counts), the verdicts are Super reading the real pages (the Publications
+   tab shows every check and reason, with the link), and the editors' replies are written by Nano
+   playing an editor with a stance — the feed line says so, with the model and tokens. **Be the
+   editor:** open a thread in Conversations and type a reply no one anticipated; the agent's answer is
+   a live call with its reasoning attached.
 2. **Every line is labelled with who decided it.** *Nemotron 3 Super / Nano / Ultra* chips are model
    calls with cost and reasoning attached; *policy rule* is code; *fixture* is a data load. There is no
    fourth kind. A judge can count the fixture lines (publications, editors, scripted replies) and see

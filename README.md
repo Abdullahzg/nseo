@@ -13,21 +13,28 @@ one of them is visible in the product: tap any line of the activity feed to see 
 it, the tokens it used, how long it took, and its reasoning.
 
 **Live demo:** _(URL in the Devpost submission)_ — open it, read the plan the agent wrote for the
-pre-filled example, press **Launch demo**, and watch a campaign run to three deals in about three
-minutes. No account needed. Nothing is sent anywhere.
+pre-filled example, change anything you like in it, press **Launch demo**, and watch a campaign run
+to three deals in a few minutes. No account needed. **The demo is the real pipeline** — real web
+search, real pages, real judging, real editor lookup — with one difference: no email leaves the
+machine, and the editors' replies are written by the model role-playing each editor. You can also
+reply as any editor yourself.
 
 ---
 
 ## What it looks like
 
-Four screens. Nothing else.
+Five screens.
 
 | Screen | What it is for |
 |---|---|
-| **Setup** | Six fields, under a minute. Before launch, Nemotron 3 Nano writes the plan in plain English. Demo is the default and pre-filled. |
-| **Campaign** | One true sentence of current state ("Negotiating with 2 editors. 2 deals agreed, $240 of $800 committed. 2 things need you."), four numbers, a budget bar, and a human-readable feed — newest first, one line per decision, expandable to the model's reasoning. In a demo, **the editors' inbox**: every thread both ways, and a box to reply *as* the editor — the agent answers whatever you type, live. |
+| **Setup** | Six fields, under a minute. Nemotron 3 Nano writes the plan in plain English and proposes the search angles; **you can edit the plan** before launch — angles, how many publications, the DR floor, the money rules, the tone, and standing answers (a call? traffic?) so the agent need not ask. |
+| **Campaign** | One true sentence of current state, a working orb with a live line ("Judge is reading shotkit.com (9 of 16) · Nemotron 3 Super"), **the eight agents as a pipeline** (the working one lit; open any for everything it did), and four tabs: **Activity** (the feed, one line per decision, expandable to the model's reasoning), **Publications** (every page it looked at — link, each check, the reason, the editor, the email, the reply, the deal), **Conversations** (every thread both ways, with its state; in a demo, reply *as* the editor and the agent answers live), **Tools** (which tool each agent used, how, and how much). |
 | **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
+| **Next steps** | What only you can do, derived by rules from deals and the cards you answered: send the blurb, pay once the placement is live, put the call on your calendar, sign the agreement. |
 | **Deals** | Publication, what they asked, what you pay, what you saved. |
+
+Bottom-right, on every screen: a panel listing the campaigns running now, and pop-ups for deals,
+cards, replies and finished campaigns.
 
 Real mode is the same product with real email: it runs for days from a scheduler, and the **Needs you**
 badge is how you find out it wants you. It is multi-user and bring-your-own-keys: sign in with any
@@ -67,11 +74,12 @@ kind is there too.
 
 ## Where Tavily is called at runtime
 
-Real-mode discovery searches the web with Tavily (`POST https://api.tavily.com/search`, Bearer auth)
-in [`src/lib/search/webSearch.ts`](src/lib/search/webSearch.ts), called from
-[`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with queries Nano planned,
-under the owner's own Tavily key. Publications the owner listed at Setup load first and cost no
-credit; demo mode uses fixture publications so a public demo cannot burn search credits.
+Discovery — in the demo and in real mode — searches the web with Tavily (`POST
+https://api.tavily.com/search`, Bearer auth) in [`src/lib/search/webSearch.ts`](src/lib/search/webSearch.ts),
+called from [`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with the
+angles from the plan (Nano proposes them; you can edit them) and then angles Nano plans at run time.
+Owners' campaigns use their own Tavily key; public demos use the platform key under a daily cap.
+Publications the owner listed at Setup load first and cost no credit.
 
 ## Architecture
 
@@ -88,11 +96,15 @@ Supabase Postgres: campaigns · campaign_prospects · outreach_emails · deals �
 Nebius Token Factory: Nemotron 3 Nano / Super / Ultra (+ 3.5 Lightning)   Tavily: web search (real mode)
 ```
 
-**Demo mode rule:** fixture data is fake, every decision is real. The publications, editors and
-scripted replies are fixtures; relevance, classification, outreach wording, counter-offers and deal
-recording are genuine Nemotron calls or the same policy rules as real mode. Only the email transport
-is simulated — and you can replace any scripted editor with yourself from the campaign page, so
-nothing you see has to be taken on trust.
+**Demo mode rule:** the demo is the real pipeline; only the email transport is simulated. With a
+Tavily key the demo searches the real web (3 queries), reads the real pages, judges them with Super,
+finds real editors (a site with no public address gets a labelled stand-in), and writes real outreach
+— which is never sent. The editors' replies are written by Nemotron 3 Nano role-playing an editor
+with a stance (opens high on price, says yes quickly, wants a call, asks about traffic, declines,
+out of office); the words are the model's every time. You can replace any editor with yourself from
+the Conversations tab. Without any Tavily key the demo falls back to a built-in publication list,
+labelled as such. `DEMO_SEARCH_QUERIES` (3) and `TAVILY_DAILY_BUDGET` (150) cap what public demos
+spend of the platform's search credits.
 
 **Guests** can run demos only, and that is enforced in the database, not in a permissions check: a
 `CHECK` constraint forbids a guest campaign from being real, and a trigger forbids scheduling real
