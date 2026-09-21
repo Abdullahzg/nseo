@@ -79,3 +79,7 @@ in the order a judge can verify them in under five minutes:
    ask, NDA, in-bounds price, "what's your budget" — each with what the agent did and the Message-IDs.
 4. **Run it yourself.** `README.md` → clone, one key, `npm run dev`. Or sign in with Google on the
    deployment, save your own Nebius key, and run a real campaign against a publication you list.
+5. **Read the story, then scrub the replay.** Story & replay on any finished campaign: Super's
+   debrief names every publication and quotes the editors from the ledger; the numbers beside it are
+   computed by code; the replay walks every recorded moment. The share link is the thing to put in
+   the Devpost text — a judge can read a real campaign without signing in.

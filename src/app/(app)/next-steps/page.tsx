@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion, AnimatePresence } from "@/components/ui/motion";
 import { useCallback, useEffect, useState } from "react";
 import type { Todo } from "@/lib/campaign/todos";
 
@@ -34,17 +35,19 @@ export default function NextStepsPage() {
         return (
           <section key={w} className="mt-8">
             <h2 className="label mb-3">{WHEN_TITLE[w]} <span className="font-normal normal-case text-ink-3">({list.length})</span></h2>
-            <ul className="card divide-y divide-rule">
+            <ul className="card divide-y divide-rule overflow-hidden">
+              <AnimatePresence initial={false}>
               {list.map((t) => (
-                <li key={`${t.campaign_id}:${t.key}`} className="p-4 flex items-start gap-3">
+                <motion.li key={`${t.campaign_id}:${t.key}`} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 24, height: 0, paddingTop: 0, paddingBottom: 0 }} transition={{ duration: 0.28 }} className="p-4 flex items-start gap-3">
                   <input type="checkbox" className="mt-1.5" checked={false} onChange={() => tick(t, true)} aria-label={`Done: ${t.what}`} />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{t.what}</div>
                     <div className="text-sm text-ink-2 mt-0.5">{t.why}</div>
                     <div className="text-xs text-ink-3 mt-1.5 flex flex-wrap gap-x-3 gap-y-1"><span>{t.who}</span><span>·</span><span>{t.campaign_name}</span><span>·</span><Link href={t.href} className="text-model underline">open</Link></div>
                   </div>
-                </li>
+                </motion.li>
               ))}
+              </AnimatePresence>
             </ul>
           </section>
         );

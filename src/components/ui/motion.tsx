@@ -3,7 +3,7 @@
 // Motion primitives used across the screens (Motion, formerly Framer Motion). Kept small and
 // consistent: one easing, one duration scale, reduced-motion respected by the library.
 import { motion, AnimatePresence, useMotionValue, useTransform, animate, useReducedMotion } from "motion/react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Children, useEffect, useState, type ReactNode } from "react";
 
 export const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -15,6 +15,10 @@ export function Rise({ children, delay = 0, className = "" }: { children: ReactN
 /** Children enter one after another. */
 export function Stagger({ children, className = "", step = 0.05 }: { children: ReactNode; className?: string; step?: number }) {
   return <motion.div className={className} initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: step } } }}>{children}</motion.div>;
+}
+/** Server components can hand a list of children here; each enters in turn. */
+export function StaggerList({ children, className = "", itemClassName = "", step = 0.05 }: { children: ReactNode; className?: string; itemClassName?: string; step?: number }) {
+  return <Stagger className={className} step={step}>{Children.map(children, (c, i) => <Item key={i} variants={item} className={itemClassName}>{c}</Item>)}</Stagger>;
 }
 export const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease } } };
 export const Item = motion.div;

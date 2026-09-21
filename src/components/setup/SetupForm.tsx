@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PlanPreview } from "./PlanPreview";
 import { ModeToggle } from "./ModeToggle";
 import { PlanEditor } from "./PlanEditor";
+import { Journey } from "./Journey";
 import type { CampaignPlan } from "@/lib/campaign/plan";
 
 const DEMO_DEFAULTS = {
@@ -156,6 +157,7 @@ export function SetupForm() {
 
         {note && <div className="text-sm text-ink-2 fade-in">{note}</div>}
         {plan && <PlanEditor plan={planSettings} onChange={setPlanSettings} demo={demo} maxPerDeal={f.max_per_deal} />}
+        {plan && <Journey plan={planSettings} demo={demo} goal={f.desired_deals} budget={f.budget_total} maxPerDeal={f.max_per_deal} seedCount={demo ? 0 : seeds.filter((s) => s.url.trim()).length} searchWeb={demo || (searchWeb && !!me?.has_search)} />}
 
         {error && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Could not continue.</span> {error}</div>}
 

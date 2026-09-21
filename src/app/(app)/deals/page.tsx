@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "@/components/ui/motion";
 import Link from "next/link";
 import { money, ago } from "@/lib/ui/format";
 import { downloadCsv } from "@/lib/ui/csv";
@@ -44,7 +45,7 @@ function DealRow({ x, onChange }: { x: Deal; onChange: () => void }) {
       </tr>
       {open && (
         <tr className="border-b border-rule last:border-0 bg-paper-2/30"><td colSpan={7} className="p-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="grid gap-4 md:grid-cols-2">
             <div>
               <div className="label">The blurb you owe them</div>
               {x.terms?.blurb ? (
@@ -59,7 +60,7 @@ function DealRow({ x, onChange }: { x: Deal; onChange: () => void }) {
               {NEXT_LABEL[x.status] && <div className="mt-2"><button type="button" className="btn btn-sm" disabled={!!busy} onClick={advance}>{busy === "advance" ? "…" : NEXT_LABEL[x.status]}</button></div>}
               {msg && <div className="text-xs mt-2 text-ink-2">{msg}</div>}
             </div>
-          </div>
+          </motion.div>
         </td></tr>
       )}
     </>

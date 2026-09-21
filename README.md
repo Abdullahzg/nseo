@@ -27,14 +27,20 @@ Five screens.
 
 | Screen | What it is for |
 |---|---|
-| **Setup** | Six fields, under a minute. Nemotron 3 Nano writes the plan in plain English and proposes the search angles; **you can edit the plan** before launch — angles, how many publications, the DR floor, the money rules, the tone, and standing answers (a call? traffic?) so the agent need not ask. |
-| **Campaign** | One true sentence of current state, a working orb with a live line ("Judge is reading shotkit.com (9 of 16) · Nemotron 3 Super"), **the eight agents as a pipeline** (the working one lit; open any for everything it did), and four tabs: **Activity** (the feed, one line per decision, expandable to the model's reasoning), **Publications** (every page it looked at — link, each check, the reason, the editor, the email, the reply, the deal), **Conversations** (every thread both ways, with its state; in a demo, reply *as* the editor and the agent answers live), **Tools** (which tool each agent used, how, and how much). |
+| **Setup** | Six fields, under a minute. Nemotron 3 Nano writes the plan in plain English and proposes the search angles; **you can edit the plan** before launch — angles, how many publications, the DR floor, the money rules, the tone, and standing answers (a call? traffic?) so the agent need not ask. Under it, **"Here's what will happen"**: the campaign's journey, agent by agent, day by day, computed by code from the plan — change a number and the consequence shows at once. |
+| **Campaign** | One true sentence of current state, a working orb with a live line ("Judge is reading shotkit.com (9 of 16) · Nemotron 3 Super"), **the eight agents as a pipeline** (the working one lit; open any for everything it did), and four tabs: **Activity** (the feed, one line per decision, expandable to the model's reasoning), **Publications** (every page it looked at — link, each check, the reason, the editor, the email, the reply, the deal), **Conversations** (every thread both ways, with its state; in a demo, reply *as* the editor and the agent answers live), **Tools** (which tool each agent used, how, and how much), **Story & replay** (Nemotron 3 Super writes the campaign's story from the ledger, in your voice, with the agents named; a replay scrubber walks every recorded moment with the agents lighting up and the numbers rolling; **Share this story** mints a read-only link with every address scrubbed). First visit: three coach marks. As it runs: **moments** — the first reply, the first deal, the goal — each with the story so far in one line. |
 | **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
 | **Next steps** | What only you can do, derived by rules from deals and the cards you answered: send the blurb, pay once the placement is live, put the call on your calendar, sign the agreement. Tick items off. |
 | **Deals** | Publication, what they asked, what you pay, what you saved. Click one: the Writer drafts the blurb you owe the editor; you move it along — blurb sent, live (with the URL), paid. CSV export. |
 
 Bottom-right, on every screen: a panel listing the campaigns running now, and pop-ups for deals,
 cards, replies and finished campaigns.
+
+The agents have faces (DiceBear "bottts" robots, seeded so each agent always looks the same) and so
+do the editors ("notionists", seeded by name and publication); both are free for commercial use.
+Motion is [Motion](https://motion.dev) (`motion/react`): the working robot nods, numbers roll to
+their new values, rows and cards enter in turn, panels crossfade; `prefers-reduced-motion` is
+honoured by the library.
 
 **Real mode, for people who will actually use it:** sign in with any Google account and bring your
 own keys (Settings: Nebius, Gmail app password, Tavily, each with a live test; timezone and sending
@@ -170,10 +176,16 @@ src/lib/campaign/outreach.ts  draft (Nano), send/queue, replies → negotiation 
 src/lib/negotiation/agent.ts  classify (Nano) · strong-cue escalations · counter-offers (Ultra) · policy closings
 src/lib/negotiation/run.ts    one negotiation step with persistence
 src/lib/campaign/guard.ts     tick lock, daily caps, global token budget
+src/lib/campaign/story.ts     the story: facts by code, chapters by Super, share token, address scrubbing
+src/lib/campaign/plan.ts · todos.ts · agents.ts   the editable plan, rule-derived to-dos, the agent registry
+src/components/setup/Journey.tsx   "here's what will happen", computed from the plan
+src/components/campaign/{Tour,Moments,Story}.tsx   coach marks, milestone moments, story + replay
+src/components/ui/{Face,motion}.tsx   DiceBear faces, Motion primitives
 src/lib/ai/context.ts         per-request key context: an owner's own Nebius/Tavily keys, or the platform key for guest demos
 src/lib/email/processor.ts    real-mode transport: IMAP reply sweep, then SMTP send from the owner's Gmail (run by the scheduler)
 supabase/migrations/0001_schema.sql   the whole schema, including the guest walls
-src/app/(app)/{setup,campaigns/[id],needs-you,deals,settings}   the screens
+src/app/(app)/{setup,campaigns,campaigns/[id],needs-you,next-steps,deals,settings}   the screens
+src/app/story/[token]     the shared read-only story (no sign-in, no addresses)
 docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.md · FEEDBACK.md
 ```
 

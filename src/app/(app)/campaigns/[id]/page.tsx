@@ -10,6 +10,8 @@ import { Publications } from "@/components/campaign/Publications";
 import { Tools } from "@/components/campaign/Tools";
 import { Panel } from "@/components/ui/motion";
 import { StoryTab } from "@/components/campaign/StoryTab";
+import { Tour } from "@/components/campaign/Tour";
+import { Moments } from "@/components/campaign/Moments";
 
 const STATE_POLL_MS = 15_000;
 const AUTO_STEP_MS = 12_000;
@@ -115,13 +117,15 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   return (
     <div className="space-y-10">
       <StatusHeader s={state} busy={busy} onControl={control} onStep={step} stepping={stepping} autoStep={autoStep} setAutoStep={setAutoStep} onDelete={remove} />
+      <Tour />
+      <Moments state={state} events={events} />
       {stepError && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Step failed.</span> {stepError}</div>}
       {note && <div className="text-sm text-ink-3 fade-in">{note}</div>}
 
-      <Pipeline s={state} />
+      <div data-tour="agents"><Pipeline s={state} /></div>
 
       <div>
-        <div className="flex gap-1 border-b border-rule mb-6 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist">
+        <div data-tour="tabs" className="flex gap-1 border-b border-rule mb-6 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist">
           {([["activity", "Activity"], ["publications", `Publications${state.numbers.found ? ` · ${state.numbers.found}` : ""}`], ["conversations", `Conversations${state.numbers.contacted ? ` · ${state.numbers.contacted}` : ""}`], ["tools", "Tools"], ["story", "Story & replay"]] as const).map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 h-10 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === k ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}>{label}</button>
           ))}

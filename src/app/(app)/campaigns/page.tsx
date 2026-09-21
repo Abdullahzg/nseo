@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/db/supabase";
 import { GUEST_COOKIE, verifyGuestToken } from "@/lib/auth/guest";
 import { devOwnerBypass, devOwnerEmail, ownerAllowed } from "@/lib/auth/service";
 import { money } from "@/lib/ui/format";
+import { StaggerList } from "@/components/ui/motion";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +48,8 @@ export default async function CampaignsIndex() {
         <h1 className="serif text-3xl font-semibold">Campaigns</h1>
         <Link href="/setup" className="btn">New campaign</Link>
       </div>
-      {running.length > 0 && <><h2 className="label mb-3">Running now ({running.length})</h2><div className="grid gap-3 sm:grid-cols-2 mb-8">{running.map((c) => <CampaignCard key={c.id} c={c} active phase={PHASE[c.phase] ?? String(c.phase).replace("_", " ")} />)}</div></>}
-      {done.length > 0 && <><h2 className="label mb-3">Finished ({done.length})</h2><div className="grid gap-3 sm:grid-cols-2">{done.map((c) => <CampaignCard key={c.id} c={c} active={false} phase={PHASE[c.phase] ?? String(c.phase).replace("_", " ")} />)}</div></>}
+      {running.length > 0 && <><h2 className="label mb-3">Running now ({running.length})</h2><StaggerList className="grid gap-3 sm:grid-cols-2 mb-8">{running.map((c) => <CampaignCard key={c.id} c={c} active phase={PHASE[c.phase] ?? String(c.phase).replace("_", " ")} />)}</StaggerList></>}
+      {done.length > 0 && <><h2 className="label mb-3">Finished ({done.length})</h2><StaggerList className="grid gap-3 sm:grid-cols-2">{done.map((c) => <CampaignCard key={c.id} c={c} active={false} phase={PHASE[c.phase] ?? String(c.phase).replace("_", " ")} />)}</StaggerList></>}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         {s.is_active && !c.paused && <span className="inline-flex items-center gap-1.5"><span className="live-dot" />live</span>}
       </div>
 
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4" data-tour="status">
         <div className={`orb mt-1 ${terminal ? "orb-done" : c.paused || !s.is_active ? "orb-idle" : ""}`} aria-hidden="true" />
         <div className="min-w-0">
           <h1 className="serif text-2xl sm:text-[34px] leading-tight font-medium max-w-3xl">{s.sentence}</h1>

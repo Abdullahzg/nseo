@@ -55,6 +55,16 @@ dated and unsquashed.
   drafted by the Writer, live, paid); run again / delete; CSV exports. Concurrency: one negotiator
   per thread (DB lock) and atomic send claims. Lint clean, production build verified, deployment
   checklist and clean-publish script.
+- **2026-09-21 (morning)** — The journey. **Story & replay** tab: Super writes the campaign's story
+  from the real ledger (facts computed by code, chapters by the model, cached per step, rewrite on
+  demand); **Share this story** mints a read-only page at `/story/<token>` with every address
+  scrubbed; **Replay** scrubs through every recorded moment with the agents lighting up and the
+  numbers rolling. Faces for the agents (DiceBear bottts) and editors (notionists); Motion
+  everywhere (nodding working agent, rolling numbers, staggered lists, crossfading panels, sliding
+  notifications). On Setup, **"Here's what will happen"**: the campaign's journey computed by code
+  from the plan, updating as the plan is edited. A **first-run tour** (three coach marks, once per
+  browser) and **moments** — first reply, first deal, goal reached — shown as they happen with the
+  story so far.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before
