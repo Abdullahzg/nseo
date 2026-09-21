@@ -75,6 +75,13 @@ export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: Campaig
         </div>
       </div>
 
+      {!demo && (
+        <div className="grid gap-2 sm:grid-cols-2 text-sm">
+          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!p.approve_emails} onChange={(e) => set({ approve_emails: e.target.checked })} /><span>Show me each first email before it goes out<span className="block text-xs text-ink-3">It waits under Conversations; approve, edit or discard. Replies in a running negotiation still follow the money rules above.</span></span></label>
+          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={p.notify_email !== false} onChange={(e) => set({ notify_email: e.target.checked })} /><span>Email me when something needs me or a deal lands<span className="block text-xs text-ink-3">Sent from your own Gmail to your own Gmail, with a link.</span></span></label>
+        </div>
+      )}
+
       <label className="block"><span className="label">Facts the agent may state about your business <span className="font-normal normal-case text-ink-3">(optional)</span></span>
         <textarea className="field !h-auto py-2 mt-1.5" rows={2} value={plan.facts ?? ""} onChange={(e) => set({ facts: e.target.value })} placeholder="e.g. About 40,000 visits a month, mostly US and UK. We'd want a do-follow link. We can send before/after examples." />
         <span className="text-xs text-ink-3">Quoted verbatim when relevant; never extended. Leave blank and the agent will ask you instead.</span>

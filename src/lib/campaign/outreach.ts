@@ -15,6 +15,21 @@ import { assignDemoPersona, injectDemoReplies } from "./demo";
 import { acquireThreadLock, releaseThreadLock } from "./guard";
 import type { Campaign, Prospect } from "./types";
 
+// ─── Owner notifications (real mode): a card or a deal is worth an email from your own Gmail ──
+
+function appUrl(): string { return (process.env.APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/$/, ""); }
+
+/** Real campaigns run for days; the owner should not have to keep a tab open. Sent from and to the owner's own Gmail; never blocks the agent. */
+export async function notifyOwner(camp: Campaign, subject: string, body: string): Promise<void> {
+  if (camp.demo_mode || !camp.owner_email || camp.plan?.notify_email === false) return;
+  try {
+    const { deliverOutreach } = await import("@/lib/email/deliver");
+    await deliverOutreach({ to: camp.owner_email, subject, body: `${body}\n\n— Nseo (this note was sent from your own Gmail; the campaign is "${camp.name}")`, sender: camp.owner_email, sentBy: camp.owner_email });
+  } catch (e: any) {
+    await recordEvent({ campaign_id: camp.id, agent: "system", action: "notify_failed", engine: "system", level: "warn", human: `Could not email you about this (${e?.message ?? e})` }).catch(() => {});
+  }
+}
+
 // ─── Workflow binding (the email engine groups sends by workflow) ─────────────
 
 export async function ensureWorkflow(camp: Campaign): Promise<string> {
@@ -104,16 +119,18 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
     subject: draft.subject, body: draft.body, to_email: p.contact_email,
     sender_email: demo ? null : camp.owner_email, sent_by_email: demo ? null : camp.owner_email,
     ai_managed: true, max_offer: p.ceiling ?? null, simulated: demo,
-    ...(demo ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` } : { status: "scheduled", scheduled_at: new Date().toISOString() }),
+    ...(demo ? { status: "sent", sent_at: new Date().toISOString(), message_id: `<demo-${crypto.randomUUID()}@simulated.local>` } : camp.plan?.approve_emails ? { status: "awaiting_approval" } : { status: "scheduled", scheduled_at: new Date().toISOString() }),
   }).select("id").single();
   if (error) return { ok: false, reason: error.message };
 
+  const awaiting = !demo && !!camp.plan?.approve_emails;
   await updateProspect(prospectId, { status: "outreached" });
   await recordEvent({
-    campaign_id: camp.id, agent: "outreach", action: demo ? "outreach_sent_simulated" : "outreach_queued", engine: "model", llm: meta, prospect_id: prospectId, thread_id: (inserted as any).id,
-    human: `${demo ? "Emailed (simulated)" : "Queued email to"} ${p.contact_name ?? "the editor"} at ${p.domain_host} — “${draft.subject}”`,
-    detail: { subject: draft.subject, body: draft.body, to_domain: p.contact_email.split("@")[1], ceiling: p.ceiling, simulated: demo },
+    campaign_id: camp.id, agent: "outreach", action: demo ? "outreach_sent_simulated" : awaiting ? "outreach_awaiting_approval" : "outreach_queued", engine: "model", llm: meta, prospect_id: prospectId, thread_id: (inserted as any).id, level: awaiting ? "warn" : "info",
+    human: `${demo ? "Emailed (simulated)" : awaiting ? "Drafted an email for your approval to" : "Queued email to"} ${p.contact_name ?? "the editor"} at ${p.domain_host} — “${draft.subject}”`,
+    detail: { subject: draft.subject, body: draft.body, to_domain: p.contact_email.split("@")[1], ceiling: p.ceiling, simulated: demo, awaiting_approval: awaiting },
   });
+  if (awaiting) await notifyOwner(camp, `Nseo: approve the email to ${p.contact_name ?? "the editor"} at ${p.domain_host}`, `The Writer drafted a first email to ${p.domain_host}:\n\nSubject: ${draft.subject}\n\n${draft.body}\n\nApprove, edit or discard it under Conversations: ${appUrl()}/campaigns/${camp.id}?tab=conversations`);
   return { ok: true, email_id: (inserted as any).id, simulated: demo };
 }
 
@@ -214,6 +231,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
     };
     const [plan, needs] = PLAN[t] ?? PLAN.other;
     await createIntervention({ campaign_id: camp.id, anchor_email_id: anchorId, prospect_id: prospect?.id ?? null, type: r.interventionType ?? "other", editor_quote: r.editorQuote ?? null, agent_plan: plan, agent_needs: needs, assistable: r.classification?.assistable !== false });
+    await notifyOwner(camp, `Nseo needs you: ${who} at ${host} — ${t.replace(/_/g, " ")}`, `${who} wrote:\n\n"${r.editorQuote ?? ""}"\n\n${plan}\n${needs}\n\nAnswer in a line here: ${appUrl()}/needs-you`);
     if (prospect) await updateProspect(prospect.id, { status: "escalated" });
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "intervention_created", engine: r.classification?.decided_by === "model" ? "model" : "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Needs you: ${who} at ${host} ${quote} — ${r.interventionReason ?? "a person is needed"}`, detail: { type: r.interventionType, ask: r.interventionAsk, intent: r.intent, decided_by: r.classification?.decided_by } });
     return r;
@@ -237,6 +255,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       if (prospect) await updateProspect(prospect.id, { status: "deal" });
       const ask = a?.original_ask ?? r.theirPrice;
       await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "deal_agreed", engine: r.draft?.engine === "model" ? "model" : "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: agreed > 0 ? `Deal with ${host} at $${agreed}${ask && ask > agreed ? ` (they asked $${ask} — saved $${ask - agreed})` : ""}` : `Deal with ${host} — free editorial inclusion`, detail: { deal_id: deal.id, agreed, original_ask: ask } });
+      await notifyOwner(camp, `Nseo: deal with ${host} at $${agreed}`, `${who} at ${host} agreed to an inclusion at $${agreed}${ask && ask > agreed ? ` (they asked $${ask})` : ""}.\n\nNext: send them the blurb and link. Your list: ${appUrl()}/next-steps`);
     }
     return r;
   }

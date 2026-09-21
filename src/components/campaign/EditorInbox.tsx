@@ -14,6 +14,36 @@ export interface ThreadView {
   state: "agent_writing" | "waiting_editor" | "editor_replied" | "needs_you" | "you_answered" | "deal" | "declined" | "closed" | "taken_over";
   state_label: string;
   intervention: { type: string; status: string; answer: string | null } | null;
+  pending: { id: string; subject: string; body: string } | null;
+}
+
+function PendingDraft({ campaignId, t, onDone }: { campaignId: string; t: ThreadView; onDone: () => void }) {
+  const [subject, setSubject] = useState(t.pending!.subject);
+  const [body, setBody] = useState(t.pending!.body);
+  const [busy, setBusy] = useState<"approve" | "discard" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function act(action: "approve" | "discard") {
+    if (action === "discard" && !confirm(`Discard the email to ${t.editor ?? "this editor"}? The publication will be closed.`)) return;
+    setBusy(action); setErr(null);
+    const r = await fetch(`/api/campaigns/${campaignId}/emails`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.pending!.id, action, subject, body }) });
+    const d = await r.json().catch(() => ({}));
+    setBusy(null);
+    if (!r.ok) { setErr(d.error ?? "Failed."); return; }
+    onDone();
+  }
+  return (
+    <div className="rounded-lg border border-attention-soft bg-attention-soft/30 p-3 space-y-2">
+      <div className="label text-attention">Waiting for your approval — nothing has been sent</div>
+      <input className="field !h-9 !text-sm" value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject" />
+      <textarea className="field !h-auto py-2 text-sm" rows={7} value={body} onChange={(e) => setBody(e.target.value)} aria-label="Email body" />
+      {err && <div className="text-sm text-danger">{err}</div>}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="btn" disabled={!!busy || body.trim().length < 20} onClick={() => act("approve")}>{busy === "approve" ? "Approving…" : "Approve & send"}</button>
+        <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => act("discard")}>{busy === "discard" ? "…" : "Discard"}</button>
+        <span className="text-xs text-ink-3">Approved emails go out from your Gmail on the next scheduler pass inside your sending hours (Settings).</span>
+      </div>
+    </div>
+  );
 }
 
 function StateDot({ state }: { state: ThreadView["state"] }) {
@@ -98,6 +128,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
               {isOpen && (
                 <div className="mt-3 space-y-3">
                   <div className="text-sm text-ink-3">Subject: {t.subject}</div>
+                  {t.pending && <PendingDraft campaignId={campaignId} t={t} onDone={() => { load(); onChanged(); }} />}
                   {t.intervention && <div className={`text-sm rounded-lg p-3 ${t.intervention.status === "open" ? "bg-attention-soft/60 text-attention" : "bg-accent-soft/60 text-ink-2"}`}>{t.intervention.status === "open" ? `Parked for you: ${t.intervention.type.replace(/_/g, " ")}. Answer it on the Needs-you screen and the agent resumes here.` : `You answered (${t.intervention.type.replace(/_/g, " ")}): “${t.intervention.answer ?? ""}” — the agent used it in its next email.`}</div>}
                   {t.messages.map((m, i) => (
                     <div key={i} className={`rounded-lg p-3 text-sm whitespace-pre-wrap ${m.from === "us" ? "bg-paper-2" : "bg-model-soft/60"}`}>

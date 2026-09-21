@@ -17,10 +17,12 @@ export interface CampaignPlan {
   if_asked_for_call?: AskPolicy;      // "email_only" answers without asking you
   if_asked_about_traffic?: "ask_me" | "use_facts";
   facts?: string;                     // things the agent may state as true about your business (traffic, audience, link type)
+  approve_emails?: boolean;           // real mode: show me each first email before it goes out
+  notify_email?: boolean;             // real mode: email me (from my own Gmail) when a card or a deal appears
 }
 
 export const PLAN_DEFAULTS: Required<Omit<CampaignPlan, "queries" | "facts">> = {
-  pool_target: 12, min_dr: 50, auto_accept_below: 150, human_approval_above: 200, tone: "balanced", followup_after_days: 3, if_asked_for_call: "ask_me", if_asked_about_traffic: "ask_me",
+  pool_target: 12, min_dr: 50, auto_accept_below: 150, human_approval_above: 200, tone: "balanced", followup_after_days: 3, if_asked_for_call: "ask_me", if_asked_about_traffic: "ask_me", approve_emails: false, notify_email: true,
 };
 
 export function normalizePlan(raw: unknown): CampaignPlan {
@@ -37,6 +39,8 @@ export function normalizePlan(raw: unknown): CampaignPlan {
   if (["email_only", "ask_me", "share_calendar"].includes(String(p.if_asked_for_call))) out.if_asked_for_call = p.if_asked_for_call as AskPolicy;
   if (["ask_me", "use_facts"].includes(String(p.if_asked_about_traffic))) out.if_asked_about_traffic = p.if_asked_about_traffic as CampaignPlan["if_asked_about_traffic"];
   if (typeof p.facts === "string" && p.facts.trim()) out.facts = p.facts.trim().slice(0, 1200);
+  if (typeof p.approve_emails === "boolean") out.approve_emails = p.approve_emails;
+  if (typeof p.notify_email === "boolean") out.notify_email = p.notify_email;
   return out;
 }
 

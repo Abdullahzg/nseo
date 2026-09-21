@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
   if (typeof body?.app_password === "string" && body.app_password.trim()) patch.app_password_enc = encryptSecret(body.app_password.replace(/\s+/g, ""));
   if (typeof body?.nebius_api_key === "string") patch.nebius_api_key_enc = body.nebius_api_key.trim() ? encryptSecret(body.nebius_api_key.trim()) : null;
   if (typeof body?.tavily_api_key === "string") patch.tavily_api_key_enc = body.tavily_api_key.trim() ? encryptSecret(body.tavily_api_key.trim()) : null;
-  if (typeof body?.timezone === "string") patch.timezone = body.timezone;
+  if (typeof body?.timezone === "string" && body.timezone.trim()) { try { new Intl.DateTimeFormat("en", { timeZone: body.timezone.trim() }); patch.timezone = body.timezone.trim(); } catch { return NextResponse.json({ error: `Unknown timezone: ${body.timezone}` }, { status: 400 }); } }
+  // Sending hours: cold outreach goes out inside these hours in your timezone (editors' inboxes, not 3 a.m.).
+  const hs = Number(body?.send_hour_start), he = Number(body?.send_hour_end);
+  if (Number.isInteger(hs) && hs >= 0 && hs <= 23) patch.send_hour_start = hs;
+  if (Number.isInteger(he) && he >= 1 && he <= 24) patch.send_hour_end = he;
+  if (patch.send_hour_start != null && patch.send_hour_end != null && Number(patch.send_hour_end) <= Number(patch.send_hour_start)) return NextResponse.json({ error: "Sending hours must end after they start." }, { status: 400 });
   await upsertUserEmailConfig(caller.email, patch);
   return NextResponse.json(view(await getUserEmailConfig(caller.email)));
 }

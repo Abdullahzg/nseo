@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 interface Cfg {
   user_email: string; from_name?: string; timezone: string;
   hasPassword: boolean; hasNebiusKey: boolean; hasTavilyKey: boolean; nebiusKeyHint?: string; tavilyKeyHint?: string;
+  send_hour_start: number; send_hour_end: number;
   platform_nebius: boolean; platform_tavily: boolean;
 }
 type Busy = "save" | "gmail" | "nebius" | "tavily" | null;
@@ -13,13 +14,15 @@ export default function SettingsPage() {
   const [cfg, setCfg] = useState<Cfg | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [fromName, setFromName] = useState("");
+  const [tz, setTz] = useState("");
+  const [hours, setHours] = useState<[number, number]>([9, 17]);
   const [pass, setPass] = useState("");
   const [nebius, setNebius] = useState("");
   const [tavily, setTavily] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
 
-  useEffect(() => { fetch("/api/settings").then(async (r) => { if (r.status === 403) { setForbidden(true); return; } const d = await r.json(); setCfg(d); setFromName(d.from_name ?? ""); }); }, []);
+  useEffect(() => { fetch("/api/settings").then(async (r) => { if (r.status === 403) { setForbidden(true); return; } const d = await r.json(); setCfg(d); setFromName(d.from_name ?? ""); setTz(d.timezone ?? ""); setHours([d.send_hour_start ?? 9, d.send_hour_end ?? 17]); }); }, []);
 
   async function post(query: string, body: Record<string, unknown>) {
     const r = await fetch(`/api/settings${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -27,7 +30,7 @@ export default function SettingsPage() {
   }
   async function save(extra: Record<string, unknown> = {}) {
     setBusy("save"); setMsg(null);
-    const body: Record<string, unknown> = { from_name: fromName, ...extra };
+    const body: Record<string, unknown> = { from_name: fromName, timezone: tz, send_hour_start: hours[0], send_hour_end: hours[1], ...extra };
     if (pass) body.app_password = pass;
     if (nebius) body.nebius_api_key = nebius;
     if (tavily) body.tavily_api_key = tavily;
@@ -69,6 +72,12 @@ export default function SettingsPage() {
           <input className="field mt-1.5" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder={cfg.hasPassword ? "•••• •••• •••• •••• (leave blank to keep)" : "xxxx xxxx xxxx xxxx"} autoComplete="off" />
           <span className="text-xs text-ink-3">Google Account → Security → 2-Step Verification → App passwords. Replies land in your inbox; the agent reads them over IMAP.</span>
         </label>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+          <label className="block"><span className="label">Your timezone</span><input className="field mt-1.5 !h-9" value={tz} onChange={(e) => setTz(e.target.value)} placeholder="America/New_York" list="tz-list" /><datalist id="tz-list">{["America/New_York", "America/Los_Angeles", "Europe/London", "Europe/Berlin", "Asia/Karachi", "Asia/Kolkata", "Asia/Singapore", "Australia/Sydney"].map((z) => <option key={z} value={z} />)}</datalist></label>
+          <label className="block"><span className="label">Send from</span><input type="number" min={0} max={23} className="field mt-1.5 !h-9 !w-20" value={hours[0]} onChange={(e) => setHours([Number(e.target.value), hours[1]])} /></label>
+          <label className="block"><span className="label">until</span><input type="number" min={1} max={24} className="field mt-1.5 !h-9 !w-20" value={hours[1]} onChange={(e) => setHours([hours[0], Number(e.target.value)])} /></label>
+        </div>
+        <div className="text-xs text-ink-3">First emails to editors go out only inside these hours, in this timezone; replies in a running thread go out immediately.</div>
         <div className="flex gap-2"><button className="btn btn-ghost" onClick={() => test("gmail")} disabled={!!busy || !cfg.hasPassword}>{busy === "gmail" ? "Testing…" : "Test login"}</button></div>
       </div>
 
