@@ -4,6 +4,14 @@ Three demo campaigns and one real-mode campaign run on **2026-09-20** against li
 read back from `agent_events` (the append-only feed every decision writes to). Numbers are the
 database's, not estimates.
 
+## Concurrency check (2026-09-21)
+Two fresh guests (separate cookies) launched demos at the same second: distinct campaigns, both at
+"qualifying" with 4 ticks and 19 pages found after 90 s. Five parallel `POST /tick` on one campaign:
+`["run_discovery","locked","locked","locked","locked"]`. Guest B on guest A's campaign: GET 404, threads
+404, tick 404, DELETE 404. Guest creating a real campaign: 403. Guest reading Settings: 403. The
+per-thread negotiator lock and the atomic send claim are covered by `tests/db-walls.test.ts` (5
+concurrent Postgres clients each; exactly one wins).
+
 ## Run H — REAL mode, approval mode (2026-09-21)
 One listed publication (shotkit.com) with the author's own address as the editor; plan: *show me each
 first email before it goes out*. 4 ticks → the Writer's draft waited as "awaiting approval" (the

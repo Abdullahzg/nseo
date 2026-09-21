@@ -48,7 +48,10 @@ campaigns can be run again (everything prefilled) or deleted.
 own lock (a Needs-you answer, an inbox reply and a tick cannot answer the same editor twice); every
 outgoing email is claimed atomically (two overlapping scheduler runs cannot both send it); the daily
 token and search budgets are atomic counters. All four are tested against the real schema
-(`tests/db-walls.test.ts`).
+(`tests/db-walls.test.ts`), and the whole thing was exercised live on 2026-09-21: two guests
+launching demos at the same second ran independently to the same point; five parallel ticks on one
+campaign produced one step and four "locked"; a guest reading, ticking or deleting another guest's
+campaign got 404; a guest asking for a real campaign got 403; a guest opening Settings got 403.
 
 Real mode is the same product with real email: it runs for days from a scheduler, and the **Needs you**
 badge is how you find out it wants you. It is multi-user and bring-your-own-keys: sign in with any
