@@ -139,7 +139,17 @@ async function discoverFixtures(camp: Campaign): Promise<DiscoverResult> {
 
 // What kind of page this is decides whether an editor could ever feature us there. A competitor's
 // product page or a vendor's feature page is on-topic and still worthless as a placement target.
-export const PAGE_TYPES = ["editorial_article", "news_or_press_coverage", "vendor_product_page", "competitor_product_page", "press_release", "directory_or_listing", "video_or_social", "other"] as const;
+export const PAGE_TYPES = ["editorial_article", "news_or_press_coverage", "vendor_product_page", "competitor_product_page", "press_release", "directory_or_listing", "forum_or_qna", "video_or_social", "other"] as const;
+
+// Platforms where nobody sells an inclusion: video, social, forums, Q&A, app stores, the big
+// portals' community pages. A code rule, applied before any model call, so search noise never
+// reaches the Judge (a Microsoft Answers thread had been judged "editorial").
+const PLATFORM_HOSTS = ["youtube.com", "youtu.be", "reddit.com", "quora.com", "facebook.com", "instagram.com", "twitter.com", "x.com", "linkedin.com", "tiktok.com", "pinterest.com", "medium.com", "github.com", "stackoverflow.com", "stackexchange.com", "wikipedia.org", "amazon.com", "apple.com", "play.google.com", "microsoft.com", "answers.microsoft.com", "google.com", "yahoo.com", "bing.com", "producthunt.com", "capterra.com", "g2.com", "trustpilot.com", "fiverr.com", "upwork.com", "etsy.com", "ebay.com"];
+const PLATFORM_SUBDOMAIN = /^(answers|community|forum|forums|support|help|discuss|discussions|groups|boards)\./i;
+export function isPlatformHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^www\./, "");
+  return PLATFORM_HOSTS.some((p) => h === p || h.endsWith(`.${p}`)) || PLATFORM_SUBDOMAIN.test(h);
+}
 export type PageType = (typeof PAGE_TYPES)[number];
 export const PLACEABLE_PAGE_TYPES: PageType[] = ["editorial_article", "news_or_press_coverage"];
 interface RelevanceVerdict { relevance_0_100: number; why_fit: string; placement_angle: string; spam_risk: "low" | "medium" | "high"; is_editorial: boolean; page_type: PageType; publisher_makes_the_product: boolean }
@@ -154,6 +164,15 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
   const camp = await getCampaign(p.campaign_id);
   if (!camp) throw new Error("campaign not found");
   const fixture = DEMO_FIXTURES.find((f) => f.host === p.domain_host);
+
+  // 0) CODE: platforms are not publications. No model call, no page fetch.
+  if (!fixture && isPlatformHost(p.domain_host)) {
+    const reason = "a platform (video, social, forum, Q&A, store or portal), not a publication that sells inclusions";
+    const checks = [{ label: "Third-party publication", state: "fail" as const }];
+    await updateProspect(prospectId, { status: "rejected", opportunity_score: 0, score_basis: "relevance_only", qualification: { checks, title: p.title ?? undefined, why_fit: reason, page_type: "video_or_social" } as any });
+    await recordEvent({ campaign_id: camp.id, agent: "qualification", action: "prospect_rejected", engine: "policy", prospect_id: prospectId, human: `Rejected ${p.domain_host} — ${reason}`, detail: { rule: "platform_host" } });
+    return { prospect_id: prospectId, qualified: false, score: 0, score_basis: "relevance_only", reason };
+  }
 
   // 1) Article text (plain fetch). Fixtures have .example URLs, so the model judges the title + blurb.
   let text = fixture?.blurb ?? "";
@@ -185,7 +204,7 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
   const r = await nebiusJson<RelevanceVerdict>({
     role: "orchestrator", thinking: true, max_tokens: 1500, schema: RELEVANCE_SCHEMA, validate: isRelevance,
     messages: [
-      { role: "system", content: "You evaluate whether a web page is a good placement target for a product's SEO outreach: a THIRD-PARTY publication (blog, magazine, news site, review site) whose editor could realistically add or feature the product. First answer one factual question: does the organisation that publishes this page ALSO make the tool/product the page is about (e.g. adobe.com describing Adobe Firefly, canva.com describing Canva's feature, a tool's own homepage)? That is publisher_makes_the_product=true and page_type=vendor_product_page (or competitor_product_page if that tool competes with ours). A wire/PR item is press_release; a roundup, review or how-to written by a publication about other people's tools is editorial_article. is_editorial means real written content, not a link farm. Judge topical fit and realistic fit of the product. JSON only." },
+      { role: "system", content: "You evaluate whether a web page is a good placement target for a product's SEO outreach: a THIRD-PARTY publication (blog, magazine, news site, review site) whose editor could realistically add or feature the product. First answer one factual question: does the organisation that publishes this page ALSO make the tool/product the page is about (e.g. adobe.com describing Adobe Firefly, canva.com describing Canva's feature, a tool's own homepage)? That is publisher_makes_the_product=true and page_type=vendor_product_page (or competitor_product_page if that tool competes with ours). A wire/PR item is press_release; a forum thread, Q&A or community post is forum_or_qna; a roundup, review or how-to written by a publication about other people's tools is editorial_article. is_editorial means real written content, not a link farm. Judge topical fit and realistic fit of the product. JSON only." },
       { role: "user", content: `Product: ${camp.what_you_sell ?? camp.name} (${camp.website_url ?? ""})
 Target keywords: ${camp.keywords.join(", ")}
 Publication: ${p.domain_host}

@@ -39,7 +39,7 @@ export function demoContactFor(host: string): { name: string; email: string } {
   if (fixture) return fixture;
   let h = 0; for (const ch of host) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const name = STAND_INS[h % STAND_INS.length];
-  const [first, last] = name.toLowerCase().split(" ");
+  const [first, last] = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(" ");
   return { name, email: `${first}.${last}@${host}` };
 }
 

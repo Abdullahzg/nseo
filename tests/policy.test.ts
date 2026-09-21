@@ -96,3 +96,11 @@ describe("seed-only real campaigns (no web search)", () => {
     expect(nextPhase(i)).toBeNull();
   });
 });
+
+describe("platform hosts are never publications (code rule, no model call)", () => {
+  it("rejects video, social, forum, Q&A and portal hosts; keeps real sites", async () => {
+    const { isPlatformHost } = await import("@/lib/campaign/tools");
+    for (const h of ["youtube.com", "www.reddit.com", "answers.microsoft.com", "community.adobe.com", "forum.example.org", "yahoo.com", "m.youtube.com"]) expect(isPlatformHost(h)).toBe(true);
+    for (const h of ["shotkit.com", "petapixel.com", "letsenhance.io", "restorephotosapp.com"]) expect(isPlatformHost(h)).toBe(false);
+  });
+});

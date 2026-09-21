@@ -57,7 +57,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         <span className="font-medium text-ink-2">{c.name}</span>
         <span>·</span>
         <span>{c.keywords.join(" · ")}</span>
-        {c.demo_mode && <span className="chip">Demo · made-up publications, real decisions</span>}
+        {c.demo_mode && <span className="chip">Demo · real pipeline, no email sent</span>}
         {s.is_active && !c.paused && <span className="inline-flex items-center gap-1.5"><span className="live-dot" />live</span>}
       </div>
 
