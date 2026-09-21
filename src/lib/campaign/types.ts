@@ -35,6 +35,7 @@ export interface Campaign {
   next_tick_after: string | null;
   ultra_calls: number;
   plan_text: string | null;
+  plan: import("./plan").CampaignPlan;
   /** Real mode: publications the owner already knows, optionally with the editor's address. */
   seed_contacts: { url: string; email?: string }[];
   /** Real mode: false means "only the publications I listed" — no web search, no strangers. */

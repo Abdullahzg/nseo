@@ -23,7 +23,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   const [autoStep, setAutoStep] = useState(true);
   const [stepError, setStepError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools">("activity");
+  const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools">(() => { try { const t = new URLSearchParams(window.location.search).get("tab"); return (["activity", "publications", "conversations", "tools"].includes(t ?? "") ? t : "activity") as any; } catch { return "activity"; } });
   const [refreshKey, setRefreshKey] = useState(0);
   const newest = useRef(0);
 

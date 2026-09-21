@@ -27,6 +27,8 @@ export interface AvailableAction { key: ActionKey; description: string; size: nu
 const POOL_TARGET_MIN = 12;
 
 export function poolTarget(camp: Campaign): number {
+  const fromPlan = Number(camp.plan?.pool_target);
+  if (Number.isFinite(fromPlan) && fromPlan > 0) return fromPlan;
   return Math.max(POOL_TARGET_MIN, camp.desired_deals * 6);
 }
 

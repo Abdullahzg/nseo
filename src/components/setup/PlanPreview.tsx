@@ -20,7 +20,7 @@ export function PlanPreview({ plan, previewing, demo }: { plan: { text: string; 
             <span className="chip mono">{plan.tokens} tokens</span>
             <span className="chip mono">{(plan.latency_ms / 1000).toFixed(1)} s</span>
           </div>
-          <p className="text-xs text-ink-3 mt-3">{demo ? "Publications and editors are simulated fixtures. Every decision on them is a real model call." : "Nothing is sent until you press Launch. You can pause or stop any time."}</p>
+          <p className="text-xs text-ink-3 mt-3">{demo ? "The demo runs the real pipeline: real search, real pages, real judging. The only simulated step is sending the email; the editors' replies are written by the model playing them. Change anything in the plan below before you launch." : "Nothing is sent until you press Launch. Change anything in the plan below first; you can pause or stop any time."}</p>
         </div>
       )}
       {!previewing && !plan && (

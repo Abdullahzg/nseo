@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/setup", label: "Setup" },
   { href: "/campaigns", label: "Campaign", match: /^\/campaigns/ },
   { href: "/needs-you", label: "Needs you" },
+  { href: "/next-steps", label: "Next steps" },
   { href: "/deals", label: "Deals" },
 ];
 
@@ -19,14 +20,15 @@ export function Nav() {
   const [me, setMe] = useState<Me | null>(null);
   const [open, setOpen] = useState<number>(0);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [todos, setTodos] = useState<number>(0);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const [m, i, cs] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/interventions?status=open").then((r) => (r.ok ? r.json() : { open_count: 0 })), fetch("/api/campaigns").then((r) => (r.ok ? r.json() : []))]);
+        const [m, i, cs, td] = await Promise.all([fetch("/api/me").then((r) => r.json()), fetch("/api/interventions?status=open").then((r) => (r.ok ? r.json() : { open_count: 0 })), fetch("/api/campaigns").then((r) => (r.ok ? r.json() : [])), fetch("/api/todos").then((r) => (r.ok ? r.json() : { open: 0 }))]);
         if (!alive) return;
-        setMe(m); setOpen(i.open_count ?? 0);
+        setMe(m); setOpen(i.open_count ?? 0); setTodos(td.open ?? 0);
         // The Campaign tab opens the campaign that is running (or the newest one), never a dead end.
         const list = Array.isArray(cs) ? cs : [];
         // One running campaign → the tab opens it. Several (or none running) → the list.
@@ -52,6 +54,9 @@ export function Nav() {
                 {it.label}
                 {it.href === "/needs-you" && open > 0 && (
                   <span className={`ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${active ? "bg-paper text-attention" : "bg-attention text-white"}`}>{open}</span>
+                )}
+                {it.href === "/next-steps" && todos > 0 && (
+                  <span className={`ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${active ? "bg-paper text-accent" : "bg-accent text-white"}`}>{todos}</span>
                 )}
               </Link>
             );

@@ -31,8 +31,16 @@ export const DEMO_FIXTURES: DemoFixture[] = [
   { host: "fintechbrief.example", url: "https://fintechbrief.example/neobank-fees-compared", title: "Neobank Fees Compared: 2026 Edition", blurb: "A comparison of account fees, FX spreads and card perks across digital banks.", dr: 69, editor: { name: "Ravi Menon", email: "ravi@fintechbrief.example" } },
 ];
 
+const STAND_INS = ["Sofia Reyes", "Marcus Bell", "Aisha Karim", "Jonas Weber", "Priya Nair", "Elena Rossi", "Tomás Ortega", "Hannah Lind", "Kenji Sato", "Lucas Moreau"];
+
+/** A fixture's editor, or a labelled stand-in for a real site that publishes no address (demo only; nothing is ever sent). */
 export function demoContactFor(host: string): { name: string; email: string } {
-  return DEMO_FIXTURES.find((f) => f.host === host)?.editor ?? { name: "Editor", email: `editor@${host}` };
+  const fixture = DEMO_FIXTURES.find((f) => f.host === host)?.editor;
+  if (fixture) return fixture;
+  let h = 0; for (const ch of host) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const name = STAND_INS[h % STAND_INS.length];
+  const [first, last] = name.toLowerCase().split(" ");
+  return { name, email: `${first}.${last}@${host}` };
 }
 
 export type DemoPersona = "high_anchor" | "meeting_request" | "quick_deal" | "decliner" | "autoresponder" | "factual_question" | "manual";

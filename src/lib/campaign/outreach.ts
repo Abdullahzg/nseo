@@ -71,8 +71,11 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   const camp = await getCampaign(p.campaign_id);
   if (!camp) return { ok: false, reason: "campaign not found" };
   if (!p.contact_email) return { ok: false, reason: "no contact resolved" };
-  if (isRoleEmail(p.contact_email)) return { ok: false, reason: "role mailbox refused" };
-  if (isPlaceholderEmail(p.contact_email)) return { ok: false, reason: "placeholder address refused" };
+  // A refused address must not stay "ready" forever (that loop cost a Super decision per step).
+  if (p.contact_source !== "demo-simulated" && (isRoleEmail(p.contact_email) || isPlaceholderEmail(p.contact_email))) {
+    await updateProspect(prospectId, { status: "lost" });
+    return { ok: false, reason: isRoleEmail(p.contact_email) ? "role mailbox (info@, editor@…) refused — not a person" : "placeholder address refused" };
+  }
   const demo = !!camp.demo_mode;
   if (!demo) {
     if (!camp.owner_email) return { ok: false, reason: "real campaigns need an owner with a configured sender" };
@@ -138,7 +141,8 @@ export const FOLLOWUP_AFTER_MS = Number(process.env.FOLLOWUP_AFTER_DAYS ?? 3) * 
 /** Initials sent long enough ago, unanswered, with no follow-up yet. Zero ⇒ the policy offers nothing, so an idle real campaign costs no model call. */
 export async function listDueFollowups(camp: Campaign, limit = 10): Promise<any[]> {
   if (camp.demo_mode) return [];
-  const since = new Date(Date.now() - FOLLOWUP_AFTER_MS).toISOString();
+  const afterMs = Number(camp.plan?.followup_after_days) > 0 ? Number(camp.plan!.followup_after_days) * 86400_000 : FOLLOWUP_AFTER_MS;
+  const since = new Date(Date.now() - afterMs).toISOString();
   const { data } = await supabaseAdmin.from("outreach_emails").select("id, workflow_id, author_id, prospect_id, subject, to_email, sender_email, sent_by_email").eq("campaign_id", camp.id).eq("kind", "initial").eq("status", "sent").is("replied_at", null).eq("followup_skipped", false).lte("sent_at", since).limit(limit);
   const due: any[] = [];
   for (const a of (data ?? []) as any[]) {

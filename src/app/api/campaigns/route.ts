@@ -7,6 +7,7 @@ import { getUserEmailConfig } from "@/lib/db/queries";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { withKeys, PLATFORM_KEY_FOR_OWNERS } from "@/lib/ai/context";
 import { getOwnerKeys } from "@/lib/db/queries";
+import { normalizePlan } from "@/lib/campaign/plan";
 
 export const maxDuration = 60;
 
@@ -88,7 +89,18 @@ export async function POST(req: NextRequest) {
 Cover: ${v.seed_contacts.length && !v.search_web ? `working ONLY the ${v.seed_contacts.length} publication${v.seed_contacts.length === 1 ? "" : "s"} the owner listed (the owner turned web search off, so no other publication will be searched for or contacted), ` : v.seed_contacts.length ? `starting with the ${v.seed_contacts.length} publication${v.seed_contacts.length === 1 ? "" : "s"} the owner already named, then searching for publications about the keywords, ` : "searching for publications about the keywords, "}keeping those with topical fit and real authority (DR 50+), finding a human editor at each, emailing them, negotiating up to the per-placement cap, stopping at the goal or when the budget runs out, and asking the owner before anything unusual (calls, contracts, over-budget asks).` },
         ],
       }));
-      return NextResponse.json({ plan: p.data.plan, model: p.meta.model, tokens: p.meta.tokens_in + p.meta.tokens_out, latency_ms: p.meta.latency_ms });
+      let queries: string[] = [];
+      try {
+        const q = await withKeys(keys, () => nebiusJson<{ queries: string[] }>({
+          role: "fast", thinking: false, max_tokens: 300, schema: { name: "queries", schema: { type: "object", properties: { queries: { type: "array", items: { type: "string" } } }, required: ["queries"], additionalProperties: false } }, validate: (x: unknown): x is { queries: string[] } => Array.isArray((x as any)?.queries),
+          messages: [
+            { role: "system", content: "You plan web-search queries that find editorial publications (blogs, magazines, roundups, reviews) where a product could be featured or linked. Output JSON only." },
+            { role: "user", content: `Product: ${v.what_you_sell} (${v.website_url}). Keywords: ${v.keywords.join(", ")}. Return 6 diverse queries that would surface articles like "best X tools", "X roundup", "X review", "how to X" on real publications. No site: operators.` },
+          ],
+        }));
+        queries = q.data.queries.map((s) => String(s).trim()).filter(Boolean).slice(0, 8);
+      } catch { /* the plan still works without proposed angles; the Scout plans its own at run time */ }
+      return NextResponse.json({ plan: p.data.plan, queries, model: p.meta.model, tokens: p.meta.tokens_in + p.meta.tokens_out, latency_ms: p.meta.latency_ms });
     } catch (e: any) {
       const kind = e instanceof NebiusError ? e.kind : "unknown";
       return NextResponse.json({ error: `Nebius Token Factory is not answering (${kind}): ${e?.message ?? e}`, kind }, { status: 503 });
@@ -101,6 +113,7 @@ Cover: ${v.seed_contacts.length && !v.search_web ? `working ONLY the ${v.seed_co
     name: v.name, website_url: v.website_url, what_you_sell: v.what_you_sell, keywords: v.keywords, desired_deals: v.desired_deals,
     budget_total: v.budget_total, max_per_deal: v.max_per_deal, demo_mode: v.demo_mode, phase: "planning", plan_text: typeof body?.plan === "string" ? body.plan : null,
     seed_contacts: v.seed_contacts, search_web: v.search_web,
+    plan: normalizePlan(body?.plan_settings), min_dr: normalizePlan(body?.plan_settings).min_dr ?? 50,
     next_tick_after: new Date().toISOString(),
   }).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlanPreview } from "./PlanPreview";
 import { ModeToggle } from "./ModeToggle";
+import { PlanEditor } from "./PlanEditor";
+import type { CampaignPlan } from "@/lib/campaign/plan";
 
 const DEMO_DEFAULTS = {
   website_url: "https://restoria.app",
@@ -26,6 +28,7 @@ export function SetupForm() {
   const [seeds, setSeeds] = useState<Seed[]>([]);
   const [searchWeb, setSearchWeb] = useState(true);
   const [plan, setPlan] = useState<{ text: string; model: string; tokens: number; latency_ms: number } | null>(null);
+  const [planSettings, setPlanSettings] = useState<CampaignPlan>({});
   const [previewing, setPreviewing] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function SetupForm() {
   useEffect(() => {
     try {
       const cached = sessionStorage.getItem("nseo.plan.default");
-      if (cached) { setPlan(JSON.parse(cached)); return; }
+      if (cached) { const c = JSON.parse(cached); setPlan(c); if (Array.isArray(c.queries)) setPlanSettings((prev) => ({ ...prev, queries: c.queries })); return; }
     } catch { /* no storage */ }
     preview(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,8 +56,9 @@ export function SetupForm() {
       const r = await fetch("/api/campaigns?preview=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isDefault ? { ...DEMO_DEFAULTS, demo_mode: true } : body) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not build the plan.");
-      const p = { text: d.plan, model: d.model, tokens: d.tokens, latency_ms: d.latency_ms };
+      const p = { text: d.plan, model: d.model, tokens: d.tokens, latency_ms: d.latency_ms, queries: d.queries ?? [] };
       setPlan(p);
+      setPlanSettings((prev) => ({ ...prev, queries: Array.isArray(d.queries) && d.queries.length ? d.queries : prev.queries }));
       if (isDefault) { try { sessionStorage.setItem("nseo.plan.default", JSON.stringify(p)); } catch { /* ignore */ } }
     } catch (e: any) { setError(e.message); } finally { setPreviewing(false); }
   }
@@ -62,7 +66,7 @@ export function SetupForm() {
   async function launch() {
     setError(null); setLaunching(true);
     try {
-      const r = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, plan: plan?.text ?? null }) });
+      const r = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, plan: plan?.text ?? null, plan_settings: planSettings }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not launch.");
       router.push(`/campaigns/${d.id}?fresh=1`);
@@ -135,6 +139,8 @@ export function SetupForm() {
           </div>
         )}
 
+        {plan && <PlanEditor plan={planSettings} onChange={setPlanSettings} demo={demo} maxPerDeal={f.max_per_deal} />}
+
         {error && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Could not continue.</span> {error}</div>}
 
         <div className="flex flex-wrap items-center gap-3">
@@ -146,7 +152,7 @@ export function SetupForm() {
               <button type="button" className="btn btn-ghost" onClick={() => preview()} disabled={previewing}>{previewing ? "Re-planning…" : "Re-plan"}</button>
             </>
           )}
-          <span className="text-xs text-ink-3">{demo ? "About 3 minutes, simulated publishers, real decisions." : "Runs over days. You will only be pulled back when it needs you."}</span>
+          <span className="text-xs text-ink-3">{demo ? "A few minutes. Real search, real pages, real decisions; no email leaves the machine." : "Runs over days. You will only be pulled back when it needs you."}</span>
         </div>
       </form>
 

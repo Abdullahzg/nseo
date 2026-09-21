@@ -5,6 +5,7 @@ import { getNegotiationSettings } from "./settings";
 import { maxOfferFor } from "./pricing";
 import { classifyReplyIntent, draftNegotiationReply, type ThreadMessage, type ReplyClassification, type DraftResult } from "./agent";
 import { updateOutreachEmail, getUserEmailConfig, addSuppression } from "@/lib/db/queries";
+import { planWithDefaults } from "@/lib/campaign/plan";
 import { deliverOutreach } from "@/lib/email/deliver";
 import type { LLMMeta } from "@/lib/ai/nebius";
 
@@ -78,7 +79,10 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   }
   if (!latestReply) return { ...base, error: "no reply on thread" };
 
-  const settings = await getNegotiationSettings();
+  const settings0 = await getNegotiationSettings();
+  const { data: campForPlan } = (initial as any).campaign_id ? await supabaseAdmin.from("campaigns").select("plan").eq("id", (initial as any).campaign_id).maybeSingle() : { data: null };
+  const plan = planWithDefaults((campForPlan as any)?.plan);
+  const settings = { ...settings0, auto_accept_below: plan.auto_accept_below, human_approval_above: plan.human_approval_above, aggressiveness: plan.tone };
   const dom: any = (initial as any).author?.domain ?? null;
   const tier = maxOfferFor(dom?.dr ?? null, dom?.organic_traffic ?? null, dom?.us_traffic_share ?? null, settings.pricing_rules);
   const ceiling = (initial as any).max_offer != null ? Number((initial as any).max_offer) : (tier?.offer ?? null);
@@ -105,8 +109,13 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   if (ourMessages >= (settings.max_thread_length ?? 4) && !assisting) {
     return park("thread_limit", `${ourMessages} replies without closing`, INTERVENTION_REASON.thread_limit);
   }
+  // Standing answers from the plan: some things you told the agent up front, so it need not ask.
+  let standing: string | null = null;
   if (cls.intent === "needs_human" && !assisting) {
-    return park(cls.interventionType ?? "other", cls.interventionAsk ?? "asked for something the AI cannot do");
+    const t = cls.interventionType;
+    if ((t === "sync_contact" || t === "scheduling") && plan.if_asked_for_call === "email_only") standing = "We handle everything by email on our side, no calls; happy to answer anything in writing. (Standing answer from the owner's plan.)";
+    else if (t === "factual_question" && plan.if_asked_about_traffic === "use_facts" && plan.facts) standing = `Facts the owner has approved you to state: ${plan.facts}`;
+    if (!standing) return park(t ?? "other", cls.interventionAsk ?? "asked for something the AI cannot do");
   }
   if (cls.intent === "auto" || cls.intent === "irrelevant") {
     await updateOutreachEmail(anchorId, { reply_kind: cls.intent === "auto" ? "auto" : "reply" });
@@ -137,7 +146,7 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   const draft = await draftNegotiationReply({
     settings, thread, authorName: (initial as any).prospect?.contact_name || (initial as any).author?.full_name || "there", publication: dom?.name ?? dom?.host ?? (initial as any).prospect?.domain_host ?? "",
     ceiling, floor: settings.min_price, lastIntent: cls.intent, theirPrice, senderName, productName,
-    assistInput: assisting ? opts.assistInput : null, ultraCallsUsed: opts.ultraCallsUsed ?? 0,
+    assistInput: assisting ? opts.assistInput : standing ?? (plan.facts ? `Facts the owner has approved you to state if relevant: ${plan.facts}` : null), ultraCallsUsed: opts.ultraCallsUsed ?? 0,
   });
   if (draft.llm) llm.push(draft.llm);
   if (draft.needsHuman) return park(draft.interventionType ?? "other", draft.interventionAsk ?? "reply would need something the AI cannot provide");

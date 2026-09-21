@@ -39,6 +39,12 @@ const isQueries = (v: unknown): v is { queries: string[] } => Array.isArray((v a
 export async function planDiscoveryQueries(camp: Campaign): Promise<{ queries: string[] }> {
   const { data: prior } = await supabaseAdmin.from("campaign_prospects").select("provenance").eq("campaign_id", camp.id).limit(500);
   const used = [...new Set(((prior ?? []) as any[]).map((r) => r.provenance?.query).filter(Boolean))] as string[];
+  // The angles you approved (or edited) on the plan come first, unused ones only. Then the model plans more.
+  const planned = (camp.plan?.queries ?? []).filter((q) => !used.includes(q));
+  if (planned.length) {
+    await recordEvent({ campaign_id: camp.id, agent: "strategy", action: "plan_queries", engine: "policy", human: `Using ${planned.length} search angle${planned.length === 1 ? "" : "s"} from your plan: ${planned.slice(0, 3).map((q) => `“${q}”`).join(", ")}${planned.length > 3 ? "…" : ""}`, detail: { queries: planned, from_plan: true } });
+    return { queries: planned };
+  }
   const r = await nebiusJson<{ queries: string[] }>({
     role: "fast", thinking: false, max_tokens: 400, schema: QUERIES_SCHEMA, validate: isQueries,
     messages: [

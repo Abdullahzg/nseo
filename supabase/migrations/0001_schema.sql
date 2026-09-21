@@ -94,6 +94,7 @@ create table campaigns (
   tick_lock_until timestamptz,
   ultra_calls integer not null default 0,
   plan_text text,
+  plan jsonb not null default '{}',                -- the editable plan (src/lib/campaign/plan.ts): queries, pool_target, min_dr, money rules, tone, standing answers
   seed_contacts jsonb not null default '[]',      -- [{url, email?}] publications the owner already knows
   search_web boolean not null default true,        -- false: contact only the seeded publications, never search
   activity jsonb,                                  -- what an agent is doing right now {agent, doing, target, n, of, at}; null when idle
@@ -253,6 +254,15 @@ create table interventions (
   created_at timestamptz default now()
 );
 create index idx_iv_campaign_status on interventions(campaign_id, status);
+
+-- ─── Your to-do list ("Next steps"): derived from deals and answered cards; this only stores what you ticked off ───
+create table todo_state (
+  campaign_id uuid not null references campaigns(id) on delete cascade,
+  key text not null,
+  done_at timestamptz default now(),
+  primary key (campaign_id, key)
+);
+alter table todo_state enable row level security;
 
 -- ─── Activity feed ────────────────────────────────────────────────────────────
 create table agent_events (

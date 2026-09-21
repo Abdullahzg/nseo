@@ -6,7 +6,7 @@ import type { Campaign } from "@/lib/campaign/types";
 
 const camp = (over: Partial<Campaign> = {}): Campaign => ({
   id: "c1", owner_email: "o@x", guest_id: null, name: "T", website_url: "https://x", what_you_sell: "x", keywords: ["a", "b", "c"], desired_deals: 2, budget_total: 800, budget_used: 0, max_per_deal: 250, min_dr: 50, currency: "USD", demo_mode: true,
-  phase: "monitoring", completion_reason: null, paused: false, paused_reason: null, tick_count: 0, ticks_today: 0, ticks_day: null, last_tick_at: null, next_tick_after: null, ultra_calls: 0, plan_text: null, seed_contacts: [], search_web: true, activity: null, created_at: "", updated_at: "", completed_at: null, ...over,
+  phase: "monitoring", completion_reason: null, paused: false, paused_reason: null, tick_count: 0, ticks_today: 0, ticks_day: null, last_tick_at: null, next_tick_after: null, ultra_calls: 0, plan_text: null, plan: {}, seed_contacts: [], search_web: true, activity: null, created_at: "", updated_at: "", completed_at: null, ...over,
 });
 const input = (over: Partial<PolicyInput> = {}, c: Partial<Campaign> = {}): PolicyInput => ({ camp: camp(c), counts: {}, deals: 0, openInterventions: 0, unansweredReplies: 0, sendableReady: 0, actionableQualified: 0, ...over });
 
