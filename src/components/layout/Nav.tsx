@@ -43,9 +43,9 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-30 bg-paper/90 backdrop-blur border-b border-rule">
-      <div className="mx-auto max-w-5xl px-3 sm:px-6 h-14 flex items-center gap-1 sm:gap-6">
+      <div className="mx-auto max-w-5xl px-3 sm:px-6 h-14 flex items-center gap-1 sm:gap-6 overflow-x-auto overflow-y-hidden [scrollbar-width:none]">
         <Link href="/" className="mr-1 sm:mr-2 hidden sm:block" aria-label="Nseo home"><Wordmark className="text-lg" /></Link>
-        <nav className="flex flex-1 items-center gap-0.5 sm:gap-1">
+        <nav className="flex flex-1 items-center gap-0.5 sm:gap-1 min-w-max">
           {ITEMS.map((it) => {
             const active = it.match ? it.match.test(path) : path === it.href;
             const href = it.href === "/campaigns" && runningId ? `/campaigns/${runningId}` : it.href;

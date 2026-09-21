@@ -116,7 +116,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       <Pipeline s={state} />
 
       <div>
-        <div className="flex gap-1 border-b border-rule mb-6 overflow-x-auto" role="tablist">
+        <div className="flex gap-1 border-b border-rule mb-6 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist">
           {([["activity", "Activity"], ["publications", `Publications${state.numbers.found ? ` · ${state.numbers.found}` : ""}`], ["conversations", `Conversations${state.numbers.contacted ? ` · ${state.numbers.contacted}` : ""}`], ["tools", "Tools"]] as const).map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 h-10 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === k ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}>{label}</button>
           ))}
