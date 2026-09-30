@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resilientFetch } from "./resilient";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -20,7 +21,7 @@ let _supabaseAdmin: SupabaseClient | null = null;
 // Public client — safe for client-side use
 export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
   get(_t, prop, recv) {
-    if (!_supabase) _supabase = createClient(requireEnv(url, "NEXT_PUBLIC_SUPABASE_URL"), requireEnv(anonKey, "NEXT_PUBLIC_SUPABASE_ANON_KEY"));
+    if (!_supabase) _supabase = createClient(requireEnv(url, "NEXT_PUBLIC_SUPABASE_URL"), requireEnv(anonKey, "NEXT_PUBLIC_SUPABASE_ANON_KEY"), { global: { fetch: resilientFetch(fetch) } });
     const v = Reflect.get(_supabase as object, prop, _supabase);
     return typeof v === "function" ? v.bind(_supabase) : v;
   },
@@ -32,6 +33,9 @@ export const supabaseAdmin: SupabaseClient = new Proxy({} as SupabaseClient, {
     if (!_supabaseAdmin)
       _supabaseAdmin = createClient(requireEnv(url, "NEXT_PUBLIC_SUPABASE_URL"), requireEnv(serviceKey, "SUPABASE_SERVICE_ROLE_KEY"), {
         auth: { persistSession: false },
+        // A database still waking up (paused project, resumed laptop, restarted container) answers
+        // the first request with PostgREST's schema-cache error; every query waits and tries again.
+        global: { fetch: resilientFetch(fetch) },
       });
     const v = Reflect.get(_supabaseAdmin as object, prop, _supabaseAdmin);
     return typeof v === "function" ? v.bind(_supabaseAdmin) : v;

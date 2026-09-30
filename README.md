@@ -197,6 +197,9 @@ docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.m
   (docs/LEDGER.md, Run D) — no stranger has received a test email from this project.
 - The activity feed hides nothing: model errors, truncations, refusals and retries are lines in it.
 - Runtime logs on Vercel Hobby last an hour; `agent_events` is the durable record.
+- A free-tier Supabase project pauses when idle. The first request after it wakes can arrive before
+  PostgREST has its schema; every query retries through that (`src/lib/db/resilient.ts`), so the
+  first click on a cold deployment is slow, not broken.
 - Hobby is non-commercial. This deployment is a hackathon demo.
 
 MIT — see [`LICENSE`](LICENSE).

@@ -72,6 +72,14 @@ dated and unsquashed.
   the whole conversation and, when the agent held its own draft back, the draft it wanted to send.
   Pop-ups point at the exact thing — the thread, the card, the deal — which opens, scrolls into
   view and glows; each says what clicking it does.
+- **2026-09-30** — A database that is still waking up no longer dead-ends a screen. A paused
+  Supabase project, a resumed laptop or a restarted container answers the first request with
+  PostgREST's "Could not query the database for the schema cache"; every query now waits and tries
+  again (`src/lib/db/resilient.ts`), and Setup says "The database is waking up — give it a few
+  seconds and try again" instead of the raw sentence. A write is only retried when the statement
+  provably never ran (PGRST002); a bare 502/503 retries reads only, so nothing is applied twice.
+  Verified against the real stack: with PostgREST stopped, a request issued during the outage
+  returned 200 after 2.0 s.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before

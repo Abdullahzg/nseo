@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlanPreview } from "./PlanPreview";
+import { isWakingUp, WAKING_UP_MESSAGE } from "@/lib/db/resilient";
 import { ModeToggle } from "./ModeToggle";
 import { PlanEditor } from "./PlanEditor";
 import { Journey } from "./Journey";
@@ -76,7 +77,7 @@ export function SetupForm() {
       setPlan(p);
       setPlanSettings((prev) => ({ ...prev, queries: Array.isArray(d.queries) && d.queries.length ? d.queries : prev.queries }));
       if (isDefault) { try { sessionStorage.setItem("nseo.plan.default", JSON.stringify(p)); } catch { /* ignore */ } }
-    } catch (e: any) { setError(e.message); } finally { setPreviewing(false); }
+    } catch (e: any) { setError(isWakingUp(e.message) ? WAKING_UP_MESSAGE : e.message); } finally { setPreviewing(false); }
   }
 
   async function launch() {
@@ -86,7 +87,7 @@ export function SetupForm() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not launch.");
       router.push(`/campaigns/${d.id}?fresh=1`);
-    } catch (e: any) { setError(e.message); setLaunching(false); }
+    } catch (e: any) { setError(isWakingUp(e.message) ? WAKING_UP_MESSAGE : e.message); setLaunching(false); }
   }
 
   const realAllowed = me?.kind === "owner" && !!me.can_send_real;
