@@ -2,6 +2,8 @@
 // (and send, in real mode). The anchor row (the initial email) carries the thread's state.
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { threadFromRows } from "./thread";
+import { readTerms, assess, complianceAsk, type LinkRel, type Consideration } from "@/lib/compliance/policy";
+import { scanUntrusted, describeAttack } from "@/lib/security/injection";
 import { getNegotiationSettings } from "./settings";
 import { maxOfferFor } from "./pricing";
 import { classifyReplyIntent, draftNegotiationReply, type ThreadMessage, type ReplyClassification, type DraftResult } from "./agent";
@@ -17,6 +19,8 @@ function firstNameFromEmail(e?: string | null): string | undefined {
 }
 
 export const INTERVENTION_REASON: Record<string, string> = {
+  compliance_block: "Agreeing would have meant paying for a link that passes ranking credit, which Google treats as link spam.",
+  suspicious_content: "This reply tried to give the agent instructions, so no model was asked and nothing was answered.",
   asset_request: "They want a document or assets the AI cannot attach on its own.",
   identity_verification: "They want proof of who we are (LinkedIn / website / references).",
   sync_contact: "They want a live call or meeting, which only a person can take.",
@@ -50,6 +54,12 @@ export interface NegotiationResult {
   interventionReason?: string;
   /** The reply the model wrote but code held back (fabrication guard), so the owner can see what it wanted to say. */
   withheldDraft?: string | null;
+  /** What the editor's words say about the link and the disclosure, read by code. */
+  terms?: { linkRel: LinkRel; disclosed: boolean | null; consideration: Consideration };
+  /** The compliance verdict on those terms, with the rules it rests on. */
+  compliance?: { verdict: string; why: string; action: string; rules: { id: string; title: string; url: string }[] } | null;
+  /** Set when the reply tried to give the agent instructions. */
+  injection?: { verdict: string; score: number; matches: { rule: string; why: string; span: string }[] } | null;
   editorQuote?: string | null;
   agreedPrice?: number | null;
   replyRowId?: string | null;
@@ -88,6 +98,21 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   const ceiling = (initial as any).max_offer != null ? Number((initial as any).max_offer) : (tier?.offer ?? null);
   const editorQuote = (latestReply.reply_excerpt ?? "").slice(0, 600);
 
+  // 0) SECURITY, before any model call. The reply came from a stranger; if it reads like an attempt
+  // to give the agent instructions, no model is asked anything and the owner decides.
+  const scan = scanUntrusted(`${latestReply.reply_subject ?? ""}\n${latestReply.reply_excerpt ?? ""}`);
+  const injection = scan.matches.length ? { verdict: scan.verdict, score: scan.score, matches: scan.matches.map((m) => ({ rule: m.rule, why: m.why, span: m.span })) } : null;
+  if (injection) await updateOutreachEmail(anchorId, { injection });
+  if (scan.verdict === "attack") {
+    await supabaseAdmin.from("outreach_emails").delete().eq("parent_id", anchorId).eq("kind", "negotiation").eq("status", "draft");
+    await updateOutreachEmail(anchorId, { negotiation_status: "needs_human", intervention_type: "suspicious_content", intervention_ask: `the message ${describeAttack(scan)}`, intervention_reason: "This reply tried to give the agent instructions, so no model was asked and nothing was answered.", intervention_at: new Date().toISOString() });
+    return { ...base, ok: true, intent: "needs_human", editorQuote, ceiling, statusHint: "needs_human", persistedAs: "needs_human", interventionType: "suspicious_content", interventionAsk: `the message ${describeAttack(scan)}`, interventionReason: "This reply tried to give the agent instructions, so no model was asked and nothing was answered.", injection };
+  }
+
+  // What the editor's words say about the link and the label. Code reads this, never the model:
+  // a compliance verdict that could be talked out of its judgement is not a verdict.
+  const read = readTerms(`${latestReply.reply_subject ?? ""}\n${latestReply.reply_excerpt ?? ""}`);
+
   // 1) MODEL: what did they mean?
   const cls = await classifyReplyIntent(latestReply.reply_excerpt ?? "", latestReply.reply_subject ?? "");
   llm.push(cls.llm);
@@ -105,6 +130,11 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
   };
 
   // 2) POLICY gates (code-owned).
+  // Something that is never purchasable, whatever the price: a guaranteed verdict, or a link
+  // written into the terms of the deal.
+  if (read.prohibited && !assisting) {
+    return { ...(await park("over_policy", `asked for something we cannot buy: ${read.prohibited.title.toLowerCase()}`, read.prohibited.title)), terms: { linkRel: read.linkRel, disclosed: read.disclosed, consideration: "paid" }, compliance: { verdict: "refuse", why: read.prohibited.title, action: "Decline these terms, or ask the owner.", rules: [{ id: read.prohibited.id, title: read.prohibited.title, url: read.prohibited.url }] }, injection };
+  }
   const ourMessages = thread.filter((m) => m.from === "us").length;
   if (ourMessages >= (settings.max_thread_length ?? 4) && !assisting) {
     return park("thread_limit", `${ourMessages} replies without closing`, INTERVENTION_REASON.thread_limit);
@@ -159,6 +189,22 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
     return park("budget_exception", `wants to accept ${settings.currency} ${draft.suggestedOffer ?? theirPrice}, above the ${settings.currency} ${approvalThreshold} it may approve alone`);
   }
 
+  // 4) COMPLIANCE (code-owned, like the money). Money or a free product changing hands turns a
+  // link into a paid link, and Google is explicit that a paid link has to be qualified. The agent
+  // may agree to a placement; it may not agree to buy ranking credit.
+  const moneyInvolved = (draft.suggestedOffer ?? 0) > 0 || (theirPrice ?? 0) > 0 || ((initial as any).original_ask ?? 0) > 0;
+  const consideration: Consideration = moneyInvolved ? "paid" : read.consideration ?? "none";
+  const terms = { linkRel: read.linkRel, disclosed: read.disclosed, consideration };
+  const verdict = assess({ ...terms, hostedSection: read.hostedSection });
+  const compliance = { verdict: verdict.verdict, why: verdict.why, action: verdict.action, rules: verdict.rules.map((r) => ({ id: r.id, title: r.title, url: r.url })) };
+  if (draft.statusHint === "agreed" && verdict.verdict === "refuse" && !assisting) {
+    return { ...(await park("compliance_block", verdict.action, verdict.why)), terms, compliance, injection };
+  }
+  // Agreeing to a paid placement whose link is not yet qualified: the agreement goes out WITH the
+  // condition attached, written by code so its wording cannot drift.
+  const needsAsk = consideration !== "none" && verdict.verdict !== "compliant" && !/rel=|sponsored/i.test(draft.body);
+  if (needsAsk && draft.body) draft.body = `${draft.body.replace(/\n\nBest,\n/, "\n\n__ASK__\n\nBest,\n")}`.replace("__ASK__", complianceAsk(consideration)).trim();
+
   // Hard no / unsubscribe → suppress the domain so no campaign ever emails them again.
   // A real editor's "no" is respected everywhere. A demo editor is the model playing a part: its
   // "no" must never put a real publication on the never-contact list.
@@ -203,5 +249,6 @@ export async function negotiateThread(anchorId: string, opts: { assistInput?: st
     ...withCls, ok: true, draft, statusHint: draft.statusHint,
     persistedAs: status === "failed" ? "failed" : opts.demo ? "simulated" : "sent",
     agreedPrice, replyRowId: (row as any)?.id ?? null, error: sendError ?? undefined,
+    terms, compliance, injection,
   };
 }

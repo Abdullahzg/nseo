@@ -112,7 +112,7 @@ export async function updateProspect(id: string, patch: Record<string, unknown>)
 
 // ─── Deals ───────────────────────────────────────────────────────────────────
 
-export async function createDeal(input: { campaign_id: string; anchor_email_id: string; author_id?: string | null; domain_host: string; publication?: string | null; terms: DealTerms; original_ask: number | null; agreed_price: number | null; currency?: string }) {
+export async function createDeal(input: { campaign_id: string; anchor_email_id: string; author_id?: string | null; domain_host: string; publication?: string | null; terms: DealTerms; original_ask: number | null; agreed_price: number | null; currency?: string; link_rel?: string | null; disclosure?: boolean | null; compliance?: unknown }) {
   const { data, error } = await supabaseAdmin.from("deals").insert({ ...input, currency: input.currency ?? "USD", status: "terms_agreed", agreed_at: new Date().toISOString() }).select().single();
   if (error) throw error;
   return data as any;

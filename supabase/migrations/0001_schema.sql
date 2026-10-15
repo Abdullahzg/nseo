@@ -176,6 +176,7 @@ create table outreach_emails (
   reply_subject text,
   reply_excerpt text,                         -- the latest reply
   reply_history jsonb not null default '[]',  -- every reply: [{at, from, subject, body}] oldest first
+  injection jsonb,                            -- prompt-injection scan of the latest reply (lib/security/injection.ts)
   reply_sentiment text,
   reply_intent text,
   reply_price numeric(10,2),
@@ -220,6 +221,9 @@ create table deals (
   domain_host text,
   publication text,
   terms jsonb not null default '{}',
+  link_rel text,                              -- sponsored | nofollow | sponsored nofollow | dofollow | none | unknown
+  disclosure boolean,                         -- the publisher will label the piece as sponsored
+  compliance jsonb not null default '{}',     -- {verdict, why, rules:[{id,title,url}]} — see lib/compliance/policy.ts
   original_ask numeric(10,2),
   agreed_price numeric(10,2),
   currency text not null default 'USD',

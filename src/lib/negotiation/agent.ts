@@ -33,8 +33,9 @@ export const REPLY_INTENTS: ReplyIntent[] = ["interested", "counter_offer", "acc
 
 export type InterventionType =
   | "asset_request" | "identity_verification" | "sync_contact" | "scheduling" | "redirect" | "process_portal"
-  | "legal_contract" | "payment_details" | "factual_question" | "over_policy" | "inbound_attachment" | "other_channel" | "other";
-export const INTERVENTION_TYPES: InterventionType[] = ["asset_request", "identity_verification", "sync_contact", "scheduling", "redirect", "process_portal", "legal_contract", "payment_details", "factual_question", "over_policy", "inbound_attachment", "other_channel", "other"];
+  | "legal_contract" | "payment_details" | "factual_question" | "over_policy" | "inbound_attachment" | "other_channel"
+  | "compliance_block" | "suspicious_content" | "other";
+export const INTERVENTION_TYPES: InterventionType[] = ["asset_request", "identity_verification", "sync_contact", "scheduling", "redirect", "process_portal", "legal_contract", "payment_details", "factual_question", "over_policy", "inbound_attachment", "other_channel", "compliance_block", "suspicious_content", "other"];
 
 export interface ReplyClassification {
   intent: ReplyIntent;
@@ -83,15 +84,15 @@ export async function classifyReplyIntent(replyText: string, subject = ""): Prom
       { role: "user", content: `Classify this inbound reply.
 
 intent, one of:
-- interested: open to featuring/including us, positive, wants to talk.
-- counter_offer: names their own price or terms.
-- accept: agrees to our proposal/price.
-- question: a simple question answerable from the negotiation itself (not a factual company stat).
-- hard_no: clearly declines / not interested.
-- unsubscribe: asks to stop emailing.
+- interested: open to featuring/including us, positive, wants to talk, names NO number.
+- counter_offer: they put a number or their own terms on the table. THE TEST IS WHO NAMED THE NUMBER, NOT THE TONE: "Happy to help, our rate is $280" is counter_offer, not accept, because the figure is theirs and we have not agreed to it. Any reply quoting a rate, a price list or a fee is counter_offer unless it is accepting a figure WE already proposed.
+- accept: they agree to a price or terms WE proposed earlier in the thread. If no number of ours is on the table yet, it is not accept.
+- question: a simple question answerable from the negotiation itself (not a factual company stat). "What's your budget?" is a question.
+- hard_no: they decline to work with us at all. Pointing us to a different person, a form, or another channel is NOT a decline — that is needs_human.
+- unsubscribe: asks to be removed from the list, to stop emailing, or not to be contacted again. Prefer this over hard_no whenever they ask to stop receiving mail, even politely.
 - auto: automated out-of-office / autoresponder.
-- irrelevant: spam or unrelated.
-- needs_human: asks for something an EMAIL-ONLY AI cannot do or must not invent. Priority label when it applies. Then set interventionType: asset_request (send a file/deck/media kit), identity_verification (LinkedIn/proof), sync_contact (a call/Zoom/meeting/"tell me more about your tool on a call"), scheduling (availability/calendar link), redirect (email someone else), process_portal (submit via form/portal), legal_contract (NDA/contract), payment_details (invoice/PO/bank), factual_question (traffic/DAU/do-follow/turnaround facts), over_policy (retainer/exclusivity/long-term), inbound_attachment (they attached a file), other_channel (WhatsApp/phone), other. interventionAsk = what they literally asked for (<=15 words). assistable = true if a human's one-line answer lets the AI continue.
+- irrelevant: not about our pitch at all — spam, or someone selling us something (SEO services, backlinks, design work). A sales pitch aimed at US is irrelevant, never needs_human.
+- needs_human: asks for something an EMAIL-ONLY AI cannot do or must not invent. Priority label when it applies. Then set interventionType: asset_request (send a file/deck/media kit), identity_verification (LinkedIn/proof), sync_contact (a call/Zoom/meeting/"tell me more about your tool on a call"), scheduling (availability/calendar link), redirect (email someone else), process_portal (submit via form/portal), legal_contract (NDA/contract), payment_details (invoice/PO/bank), factual_question (traffic/DAU/do-follow/turnaround facts), over_policy (retainer/exclusivity/long-term), inbound_attachment (they attached a file), other_channel (WhatsApp/phone, "message me on +1..."), other. Redirects, portals and other channels are needs_human even when phrased as a brush-off. interventionAsk = what they literally asked for (<=15 words). assistable = true if a human's one-line answer lets the AI continue.
 
 priceMentioned: the number they named in currency, else null. reason: <=12 words. sentiment: their tone.
 

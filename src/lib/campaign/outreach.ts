@@ -227,6 +227,8 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       other_channel: [`${who} wants to move to WhatsApp / phone.`, "A line to send, or take over."],
       inbound_attachment: [`${who} sent a file the agent cannot read.`, "What it says, in a line."],
       thread_limit: ["The thread has gone several rounds without closing; the agent stopped rather than nag.", "A final line to send, or take over."],
+      compliance_block: [`${who} wants to sell a link that passes ranking credit. Google calls that link spam and it is the buyer — you — who pays for it. The agent would not agree.`, `Ask them for rel="sponsored" (the agent can send that), walk away, or tell it to proceed anyway.`],
+      suspicious_content: [`The message from ${who} tried to give the agent new instructions rather than reply to it. The agent did not act on it and did not ask a model anything.`, "Read it below and tell the agent what to do, or close the thread."],
       other: [r.interventionAsk ? `The agent stopped itself: ${r.interventionAsk}.` : "The agent hit something it should not decide alone.", "What should it say? (Your line goes into its next reply.)"],
     };
     const [plan, needs] = PLAN[t] ?? PLAN.other;
@@ -251,7 +253,7 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
         await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "budget_exhausted", engine: "policy", level: "warn", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `Agreed ${price} with ${host} but the budget cannot cover it ($${remaining} left) — needs you` });
         return r;
       }
-      const deal = await createDeal({ campaign_id: camp.id, anchor_email_id: anchorId, author_id: a?.author_id ?? null, domain_host: host, publication: host, terms: { placement_type: "inclusion" }, original_ask: a?.original_ask ?? r.theirPrice ?? null, agreed_price: agreed, currency: camp.currency });
+      const deal = await createDeal({ campaign_id: camp.id, anchor_email_id: anchorId, author_id: a?.author_id ?? null, domain_host: host, publication: host, terms: { placement_type: "inclusion" }, original_ask: a?.original_ask ?? r.theirPrice ?? null, agreed_price: agreed, currency: camp.currency, link_rel: r.terms?.linkRel ?? null, disclosure: r.terms?.disclosed ?? null, compliance: r.compliance ?? {} });
       if (prospect) await updateProspect(prospect.id, { status: "deal" });
       const ask = a?.original_ask ?? r.theirPrice;
       await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "deal_agreed", engine: r.draft?.engine === "model" ? "model" : "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: agreed > 0 ? `Deal with ${host} at $${agreed}${ask && ask > agreed ? ` (they asked $${ask} — saved $${ask - agreed})` : ""}` : `Deal with ${host} — free editorial inclusion`, detail: { deal_id: deal.id, agreed, original_ask: ask } });
