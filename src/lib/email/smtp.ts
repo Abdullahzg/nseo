@@ -79,11 +79,13 @@ export async function sendEmailAs(opts: {
   user: string; pass: string; fromName?: string; to: string; subject: string; body: string; cc?: string;
   inReplyTo?: string; references?: string; // thread a follow-up into the original thread
   attachments?: MailAttachment[];
+  /** List-Unsubscribe and friends: what Gmail and Yahoo look for on commercial mail. */
+  headers?: Record<string, string>;
 }): Promise<SendResult> {
   try {
     const tx = nodemailer.createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: { user: opts.user, pass: opts.pass } });
     const from = opts.fromName ? `"${opts.fromName}" <${opts.user}>` : opts.user;
-    const info = await tx.sendMail({ from, to: opts.to, cc: opts.cc, subject: opts.subject, inReplyTo: opts.inReplyTo, references: opts.references, text: opts.body, html: htmlify(opts.body), attachments: opts.attachments });
+    const info = await tx.sendMail({ from, to: opts.to, cc: opts.cc, subject: opts.subject, inReplyTo: opts.inReplyTo, references: opts.references, text: opts.body, html: htmlify(opts.body), attachments: opts.attachments, headers: opts.headers });
     tx.close();
     return { ok: true, messageId: info.messageId };
   } catch (e: any) {
@@ -108,10 +110,12 @@ export function createPooledUserTransport(user: string, pass: string): Transport
 export async function sendVia(tx: Transporter, opts: {
   user: string; fromName?: string; to: string; subject: string; body: string; cc?: string;
   inReplyTo?: string; references?: string; attachments?: MailAttachment[];
+  /** List-Unsubscribe and friends: what Gmail and Yahoo look for on commercial mail. */
+  headers?: Record<string, string>;
 }): Promise<SendResult> {
   try {
     const from = opts.fromName ? `"${opts.fromName}" <${opts.user}>` : opts.user;
-    const info = await tx.sendMail({ from, to: opts.to, cc: opts.cc, subject: opts.subject, inReplyTo: opts.inReplyTo, references: opts.references, text: opts.body, html: htmlify(opts.body), attachments: opts.attachments });
+    const info = await tx.sendMail({ from, to: opts.to, cc: opts.cc, subject: opts.subject, inReplyTo: opts.inReplyTo, references: opts.references, text: opts.body, html: htmlify(opts.body), attachments: opts.attachments, headers: opts.headers });
     return { ok: true, messageId: info.messageId };
   } catch (e: any) {
     return { ok: false, error: e?.message ?? "send failed" };

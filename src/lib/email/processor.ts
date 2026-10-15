@@ -2,6 +2,7 @@
 // owner's Gmail. Called by the scheduler after each round of ticks and by POST /api/emails/process.
 // Demo campaigns never reach this: getDueEmails() excludes them, and the DB trigger forbids
 // scheduling real email on a demo or guest campaign in the first place.
+import { outreachFooter, unsubscribeHeaders, unsubscribeToken, contextLine } from "@/lib/compliance/footer";
 import PQueue from "p-queue";
 import type { Transporter } from "nodemailer";
 import { getDueEmails, updateOutreachEmail, getUserEmailConfig, getUserAppPasswordEnc, getFollowupParent, addressHasOtherSentInitial, reburstScheduledInitials } from "@/lib/db/queries";
@@ -38,13 +39,23 @@ export async function processDueEmails(timeBudgetMs = 255_000): Promise<ProcessR
 
   const day = new Date().toISOString().slice(0, 10); // UTC date bucket for the daily counter
   // Per-sender credential + config cache (each email sends from its own user's Gmail).
-  const senderCache = new Map<string, { pass: string | null; fromName?: string }>();
+  const senderCache = new Map<string, { pass: string | null; fromName?: string; companyName?: string; postalAddress?: string }>();
   const senderInfo = async (email: string) => {
     if (!senderCache.has(email)) {
       const [enc, cfg] = await Promise.all([getUserAppPasswordEnc(email), getUserEmailConfig(email)]);
-      senderCache.set(email, { pass: decryptSecret(enc), fromName: cfg.from_name });
+      senderCache.set(email, { pass: decryptSecret(enc), fromName: cfg.from_name, companyName: (cfg as any).company_name, postalAddress: (cfg as any).postal_address });
     }
     return senderCache.get(email)!;
+  };
+  // Said once per run, not once per email: a missing postal address is an owner-settings problem.
+  const gapsReported = new Set<string>();
+  const recordComplianceGap = async (campaignId: string | null, missing: string[]) => {
+    const key = `${campaignId}:${missing.join(",")}`;
+    if (!campaignId || gapsReported.has(key)) return;
+    gapsReported.add(key);
+    await recordEvent({ campaign_id: campaignId, agent: "outreach", action: "compliance_gap", engine: "policy", level: "warn",
+      human: `Sent without a ${missing.join(" and ")} in the footer — CAN-SPAM requires a valid physical postal address on commercial email. Add one in Settings.`,
+      detail: { missing } }).catch(() => {});
   };
   // One pooled SMTP transport per sender, reused across the whole burst (closed in finally).
   const txPool = new Map<string, Transporter>();
@@ -179,6 +190,30 @@ export async function processDueEmails(timeBudgetMs = 255_000): Promise<ProcessR
         inReplyTo = parent?.message_id ?? undefined;
       }
 
+      // A first commercial email has to say who sent it, from where, and how to stop it - and
+      // carry the one-click headers Gmail and Yahoo look for. A reply inside a live thread does
+      // not: by then it is a conversation, and a legal footer on every turn reads as bulk mail.
+      let body = email.body ?? "";
+      let extraHeaders: Record<string, string> | undefined;
+      if (!isThreadReply && sender) {
+        const base = (process.env.APP_URL || process.env.NEXT_PUBLIC_BASE_URL || "").replace(/\/$/, "");
+        const token = unsubscribeToken(email.recipient, email.campaign_id ?? "");
+        const url = `${base}/api/u/${token}`;
+        const cfg = await senderInfo(sender);
+        const footer = outreachFooter(
+          { name: cfg.fromName || sender.split("@")[0], email: sender, company: cfg.companyName ?? null, postalAddress: cfg.postalAddress ?? null },
+          url,
+          contextLine(String(email.recipient).split("@")[1] ?? "", email.subject ?? null),
+        );
+        body = `${body}
+
+${footer.text}`;
+        extraHeaders = unsubscribeHeaders(url, sender);
+        if (footer.missing.length) {
+          await recordComplianceGap(email.campaign_id, footer.missing);
+        }
+      }
+
       let res;
       if (sender) {
         const info = await senderInfo(sender);
@@ -189,10 +224,10 @@ export async function processDueEmails(timeBudgetMs = 255_000): Promise<ProcessR
         }
         let tx = txPool.get(sender);
         if (!tx) { tx = createPooledUserTransport(sender, info.pass); txPool.set(sender, tx); }
-        res = await sendVia(tx, { user: sender, fromName: info.fromName, to: email.recipient, subject: email.subject ?? "(no subject)", body: email.body ?? "", cc, inReplyTo, references: inReplyTo });
+        res = await sendVia(tx, { user: sender, fromName: info.fromName, to: email.recipient, subject: email.subject ?? "(no subject)", body, cc, headers: extraHeaders, inReplyTo, references: inReplyTo });
       } else {
         // Legacy path — no per-user sender: fall back to the server SMTP identity.
-        res = await sendEmail({ to: email.recipient, subject: email.subject ?? "(no subject)", body: email.body ?? "", cc, inReplyTo, references: inReplyTo });
+        res = await sendEmail({ to: email.recipient, subject: email.subject ?? "(no subject)", body, cc, inReplyTo, references: inReplyTo });
       }
 
       if (res.ok) {

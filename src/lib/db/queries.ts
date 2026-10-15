@@ -258,6 +258,8 @@ export async function getUserEmailConfig(userEmail: string): Promise<UserEmailCo
   return {
     user_email: userEmail,
     from_name: data?.from_name ?? undefined,
+    company_name: data?.company_name ?? undefined,
+    postal_address: data?.postal_address ?? undefined,
     timezone: data?.timezone ?? DEFAULT_USER_CONFIG.timezone,
     send_hour_start: data?.send_hour_start ?? DEFAULT_USER_CONFIG.send_hour_start,
     send_hour_end: data?.send_hour_end ?? DEFAULT_USER_CONFIG.send_hour_end,
@@ -283,7 +285,7 @@ export async function getOwnerKeys(userEmail: string | null | undefined): Promis
   return { nebius: decryptSecret(data?.nebius_api_key_enc), tavily: decryptSecret(data?.tavily_api_key_enc), owner: userEmail };
 }
 
-export async function upsertUserEmailConfig(userEmail: string, data: { app_password_enc?: string; nebius_api_key_enc?: string | null; tavily_api_key_enc?: string | null; from_name?: string; timezone?: string; send_hour_start?: number; send_hour_end?: number; gap_minutes?: number; daily_cap?: number }): Promise<void> {
+export async function upsertUserEmailConfig(userEmail: string, data: { app_password_enc?: string; nebius_api_key_enc?: string | null; tavily_api_key_enc?: string | null; from_name?: string; company_name?: string; postal_address?: string; timezone?: string; send_hour_start?: number; send_hour_end?: number; gap_minutes?: number; daily_cap?: number }): Promise<void> {
   const { error } = await supabaseAdmin.from("user_email_config").upsert({ user_email: userEmail, ...data, updated_at: new Date().toISOString() }, { onConflict: "user_email" });
   if (error) throw error;
 }

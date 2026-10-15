@@ -11,6 +11,7 @@ import { Tools } from "@/components/campaign/Tools";
 import { Panel } from "@/components/ui/motion";
 import { StoryTab } from "@/components/campaign/StoryTab";
 import { Tour } from "@/components/campaign/Tour";
+import { Safety } from "@/components/campaign/Safety";
 import { Moments } from "@/components/campaign/Moments";
 
 const STATE_POLL_MS = 15_000;
@@ -29,7 +30,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   const [autoStep, setAutoStep] = useState(true);
   const [stepError, setStepError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools" | "story">(() => { try { const t = new URLSearchParams(window.location.search).get("tab"); return (["activity", "publications", "conversations", "tools", "story"].includes(t ?? "") ? t : "activity") as any; } catch { return "activity"; } });
+  const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools" | "safety" | "story">(() => { try { const t = new URLSearchParams(window.location.search).get("tab"); return (["activity", "publications", "conversations", "tools", "safety", "story"].includes(t ?? "") ? t : "activity") as any; } catch { return "activity"; } });
   const [refreshKey, setRefreshKey] = useState(0);
   const newest = useRef(0);
 
@@ -126,7 +127,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
 
       <div>
         <div data-tour="tabs" className="flex gap-1 border-b border-rule mb-6 overflow-x-auto [scrollbar-width:none] -mx-4 px-4 sm:mx-0 sm:px-0" role="tablist">
-          {([["activity", "Activity"], ["publications", `Publications${state.numbers.found ? ` · ${state.numbers.found}` : ""}`], ["conversations", `Conversations${state.numbers.contacted ? ` · ${state.numbers.contacted}` : ""}`], ["tools", "Tools"], ["story", "Story & replay"]] as const).map(([k, label]) => (
+          {([["activity", "Activity"], ["publications", `Publications${state.numbers.found ? ` · ${state.numbers.found}` : ""}`], ["conversations", `Conversations${state.numbers.contacted ? ` · ${state.numbers.contacted}` : ""}`], ["tools", "Tools"], ["safety", "Safety"], ["story", "Story & replay"]] as const).map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`px-3 h-10 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === k ? "border-ink text-ink" : "border-transparent text-ink-3 hover:text-ink-2"}`}>{label}</button>
           ))}
         </div>
@@ -147,6 +148,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
             : <div className="card p-6 text-sm text-ink-2">No emails yet. Conversations appear here once the Writer has emailed an editor{state.campaign.demo_mode ? "" : " — replies arrive from your Gmail over IMAP"}.</div>
         )}
         {tab === "tools" && <Tools s={state} />}
+        {tab === "safety" && <Safety campaignId={id} refreshKey={refreshKey} />}
         {tab === "story" && <StoryTab campaignId={id} tickCount={state.campaign.tick_count} />}
         </Panel>
       </div>

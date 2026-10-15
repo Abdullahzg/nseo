@@ -305,6 +305,9 @@ export interface OutreachEmail {
 export interface UserEmailConfig {
   user_email: string;
   from_name?: string;
+  /** Shown in the footer of commercial email, with the postal address CAN-SPAM requires. */
+  company_name?: string;
+  postal_address?: string;
   timezone: string;
   send_hour_start: number;
   send_hour_end: number;

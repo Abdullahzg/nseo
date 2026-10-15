@@ -80,6 +80,27 @@ dated and unsquashed.
   provably never ran (PGRST002); a bare 502/503 retries reads only, so nothing is applied twice.
   Verified against the real stack: with PostgREST stopped, a request issued during the outage
   returned 200 after 2.0 s.
+- **2026-10-15** — A competition-grade pass, driven by research into what the hackathon rewards,
+  what Google and the FTC actually require, and how agents are evaluated in practice.
+  **Compliance by construction:** the agent negotiates for a qualified link (`rel="sponsored"`) and
+  a visible label, attaches that condition to its own agreements, and refuses paid do-follow links,
+  undisclosed coverage, links written into contracts and bought verdicts - with the citation behind
+  each rule (`src/lib/compliance/policy.ts`, Safety tab).
+  **Security:** inbound email is defanged (zero-width, bidi, Unicode tag block, HTML comments),
+  fenced with an unguessable nonce and scanned against 13 literal rules; a reply that reads as an
+  instruction stops the thread with no model call at all.
+  **Evals:** `npm run eval` over a frozen hand-labelled set with 95% Wilson intervals, writing
+  `docs/EVALS.md` and `public/evals.json`. It found a bad metric and three classifier weaknesses on
+  its first run - triage accuracy went 60% -> 95%, escalation recall 56% -> 89%.
+  **Tavily:** four endpoints instead of one (`/search` with platform exclusion and a score floor,
+  `/map` + `/crawl` to find editors, `/extract` to read articles), with per-endpoint credit
+  accounting and `X-Session-Id` per campaign.
+  **Embeddings:** Qwen3-Embedding ranks the Judge's queue and drops same-host duplicates; the 0.92
+  threshold was calibrated against real vectors.
+  **Memory:** publications are remembered across campaigns - editor, ask, agreed price, link policy.
+  **CAN-SPAM:** a real footer with a postal address, one-click unsubscribe (RFC 8058 POST) and
+  `List-Unsubscribe` headers on first contact.
+  **For judges:** a landing page and an `/evidence` page, both without sign-in.
 - _(subsequent entries are added as commits land)_
 
 ## What was kept from before

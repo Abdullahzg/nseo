@@ -24,7 +24,7 @@ import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { getCampaign, updateProspect, getProspect, upsertProspect, recordEvent, listProspects, setActivity } from "./queries";
 import { assertTavilyBudget } from "./guard";
 import { tavilySearch, tavilyMap, tavilyCrawl, tavilyExtract, TavilyError } from "@/lib/search/tavily";
-import { dedupeBySimilarity, EMBEDDING_MODEL } from "@/lib/ai/embeddings";
+import { dedupeBySimilarity, embed, cosine, EMBEDDING_MODEL } from "@/lib/ai/embeddings";
 import { DEMO_FIXTURES, demoContactFor, demoUsesFixtures } from "./demo";
 import type { Campaign, Prospect, ScoreBreakdown } from "./types";
 
@@ -95,21 +95,27 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
       hits = await webSearch(query, maxPerQuery, undefined, (m) => errors.push(m));
     }
     res.found += hits.length;
-    // The same roundup turns up under two titles on two hosts more often than not. One embedding
-    // call over the batch (fractions of a cent) drops the near-identical ones before the Judge
-    // spends a Nemotron 3 Super call rejecting them. Results arrive in relevance order, so the
-    // survivor of each pair is the better-ranked one.
+    // The same article republished under a second title on the SAME publication is a duplicate
+    // worth dropping before it costs a judgement. Two different publications writing about the
+    // same subject are NOT duplicates, however close their titles read - measured on real search
+    // results, two unrelated vendors' pages scored 0.96 - so similarity is only applied within a
+    // host, where a high score really does mean the same article twice.
     let nearDuplicates = 0;
-    if (hits.length > 1) {
+    const byHost = new Map<string, typeof hits>();
+    for (const h of hits) { const k = hostOf(h.url) ?? ""; const g = byHost.get(k) ?? []; g.push(h); byHost.set(k, g); }
+    const repeated = [...byHost.values()].filter((g) => g.length > 1);
+    if (repeated.length) {
       try {
-        const d = await dedupeBySimilarity(hits, (h) => `${h.title}
-${h.snippet}`.slice(0, 600));
-        if (d.dropped.length) {
-          nearDuplicates = d.dropped.length;
-          const example = d.dropped[0];
-          await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "near_duplicates_dropped", engine: "model", llm: { model: EMBEDDING_MODEL, tokens_in: d.tokens, tokens_out: 0, latency_ms: d.ms, reasoning: null, finish_reason: "stop" }, human: `Dropped ${d.dropped.length} near-duplicate result${d.dropped.length === 1 ? "" : "s"} before judging — e.g. “${example.item.title.slice(0, 50)}” matches “${example.duplicateOf.title.slice(0, 50)}” at ${example.similarity.toFixed(2)} cosine`, detail: { dropped: d.dropped.length, threshold: 0.92, pairs: d.dropped.slice(0, 5).map((x) => ({ dropped: x.item.url, kept: x.duplicateOf.url, similarity: Number(x.similarity.toFixed(4)) })) } });
-          hits = d.kept;
+        const keep = new Set(hits);
+        for (const group of repeated) {
+          const d = await dedupeBySimilarity(group, (h) => `${h.title} ${h.snippet}`.slice(0, 600));
+          for (const drop of d.dropped) { keep.delete(drop.item); nearDuplicates++; }
+          if (d.dropped.length) {
+            const ex = d.dropped[0];
+            await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "near_duplicates_dropped", engine: "model", llm: { model: EMBEDDING_MODEL, tokens_in: d.tokens, tokens_out: 0, latency_ms: d.ms, reasoning: null, finish_reason: "stop" }, human: `Dropped ${d.dropped.length} repeat${d.dropped.length === 1 ? "" : "s"} of the same article on ${hostOf(ex.item.url)} before judging - "${ex.item.title.slice(0, 48)}" matches "${ex.duplicateOf.title.slice(0, 48)}" at ${ex.similarity.toFixed(2)} cosine`, detail: { dropped: d.dropped.length, threshold: 0.92, host: hostOf(ex.item.url) } });
+          }
         }
+        hits = hits.filter((h) => keep.has(h));
       } catch { /* embeddings are an optimisation; discovery continues without them */ }
     }
     let createdForQuery = 0;
@@ -389,8 +395,34 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
 }
 
 /** Batch helpers used by the orchestrator. Each stops at `limit` and reports what it did. */
+/**
+ * Order candidates by how close they read to what the campaign is actually about, so the Judge
+ * reads the most promising first. Falls back to the original order if embeddings are unavailable -
+ * ranking is an optimisation, never a gate.
+ */
+async function rankForJudging(camp: Campaign, queue: Prospect[], limit: number): Promise<Prospect[]> {
+  if (queue.length <= limit || queue.length < 2) return queue.slice(0, limit);
+  const subject = [camp.what_you_sell, (camp.keywords ?? []).join(", ")].filter(Boolean).join(". ");
+  if (!subject) return queue.slice(0, limit);
+  try {
+    const { vectors, tokens, cost_usd, ms } = await embed([subject, ...queue.map((p) => `${p.title ?? ""} ${p.domain_host}`.slice(0, 400))]);
+    if (vectors.length !== queue.length + 1) return queue.slice(0, limit);
+    const [want, ...rest] = vectors;
+    const scored = queue.map((p, i) => ({ p, score: cosine(want, rest[i]) })).sort((a, b) => b.score - a.score);
+    const picked = scored.slice(0, limit);
+    await recordEvent({ campaign_id: camp.id, agent: "qualification", action: "queue_ranked", engine: "model", llm: { model: EMBEDDING_MODEL, tokens_in: tokens, tokens_out: 0, latency_ms: ms, reasoning: null, finish_reason: "stop" }, human: `Ranked ${queue.length} candidates by closeness to what you sell and gave the Judge the best ${limit} first (top ${picked[0].score.toFixed(2)}, lowest held back ${scored[scored.length - 1].score.toFixed(2)})`, detail: { ranked: queue.length, taken: limit, cost_usd, top: picked.slice(0, 5).map((x) => ({ host: x.p.domain_host, score: Number(x.score.toFixed(4)) })) } });
+    return picked.map((x) => x.p);
+  } catch {
+    return queue.slice(0, limit);
+  }
+}
+
 export async function qualifyBatch(camp: Campaign, limit: number): Promise<{ evaluated: number; qualified: number; errors: string[] }> {
-  const pending = await listProspects(camp.id, "discovered", limit);
+  // Take more than we will judge, then let embeddings decide the order: a Nemotron 3 Super
+  // judgement costs hundreds of times an embedding, so spending one call to rank pays whenever
+  // there are more candidates than this batch can read.
+  const queue = await listProspects(camp.id, "discovered", Math.max(limit * 3, limit));
+  const pending = await rankForJudging(camp, queue, limit);
   const out = { evaluated: 0, qualified: 0, errors: [] as string[] };
   const { count: total } = await supabaseAdmin.from("campaign_prospects").select("id", { count: "exact", head: true }).eq("campaign_id", camp.id);
   const done = (total ?? 0) - pending.length;

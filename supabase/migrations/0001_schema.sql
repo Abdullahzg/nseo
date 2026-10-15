@@ -358,6 +358,8 @@ create table negotiation_activity (
 );
 
 -- Per-owner settings. Keys are the owner's own (bring-your-own-key), encrypted with AUTH_SECRET.
+-- The business identity that has to appear on a commercial email: CAN-SPAM requires a valid
+-- physical postal address, and UK/EU recipients also need to know who is writing and why.
 create table user_email_config (
   user_email text primary key,
   app_password_enc text,
@@ -371,6 +373,8 @@ create table user_email_config (
   daily_cap integer default 50,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
+  company_name text,
+  postal_address text,
 );
 
 create table app_state (

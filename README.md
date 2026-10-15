@@ -1,4 +1,4 @@
-# Nseo — an outreach agent that only comes back when it needs you
+# Nseo — an outreach agent that knows what it is not allowed to buy
 
 **Nebius × NVIDIA Global AI Hackathon 2026 · Best Apps and Agents track**
 
@@ -11,6 +11,41 @@ factual question about your business.
 Every decision is made by **NVIDIA Nemotron 3** models served on **Nebius Token Factory**, and every
 one of them is visible in the product: tap any line of the activity feed to see which model decided
 it, the tokens it used, how long it took, and its reasoning.
+
+### Three things that make it different from a demo
+
+**1. It is compliant by construction.** Google's spam policies list *"exchanging money for links, or
+posts that contain links"* as link spam — and say paid links are fine *"as long as they are
+qualified"* with `rel="sponsored"`. So this agent negotiates for a qualified link and a visible
+label, attaches that condition to its own agreement in code-written wording, and **refuses** an
+editor who insists on selling a paid do-follow link, who will not disclose, who writes a link into
+the contract, or who offers to guarantee a verdict. The rules carry their citations and are applied
+by code, never by a model. See `src/lib/compliance/policy.ts` and the **Safety** tab of any campaign.
+
+**2. The model never touches the money, and an email cannot change that.** Ceilings, the budget
+commit, send gates and escalations are deterministic. Inbound email is the one input from strangers,
+so every reply is stripped of what a reader cannot see and scanned against fixed rules before a model
+is asked anything; a reply that reads as an instruction stops the thread and comes to you with the
+matched words shown (`src/lib/security/injection.ts`).
+
+**3. It is measured, not demonstrated.** `npm run eval` runs a frozen, hand-labelled set — 20 inbound
+replies (10 verbatim from a real run), 8 negotiation scenarios, 9 compliance offers, 18 prompt-injection
+attacks and 12 ordinary replies — and reports every proportion with a 95% Wilson interval, because
+twenty cases cannot prove a percentage. Latest run:
+
+| Measure | Result | 95% CI |
+|---|---|---|
+| Injection attacks that got through | 0 / 18 | [0.0%, 17.6%] |
+| False positives on ordinary replies | 0 / 12 | [0.0%, 24.3%] |
+| Ceiling violations (a figure we offered above the cap) | 0 / 8 | [0.0%, 32.4%] |
+| Triage accuracy (intent of an inbound reply) | 19 / 20 | [76.4%, 99.1%] |
+| Escalation precision / recall | 100% / 88.9% | — |
+| Compliance verdict correct | 9 / 9 | [70.1%, 100.0%] |
+
+The harness earned its place on its first run: it caught a bad metric of mine and three real
+classifier weaknesses. Fixing the intent definitions took triage accuracy from **60% to 95%** and
+escalation recall from **56% to 89%**. Full table and caveats: `docs/EVALS.md`, or the **/evidence**
+page in the running app.
 
 **Live demo:** _(URL in the Devpost submission)_ — open it, read the plan the agent wrote for the
 pre-filled example, change anything you like in it, press **Launch demo**, and watch a campaign run
@@ -31,6 +66,7 @@ Five screens.
 | **Campaign** | One true sentence of current state, a working orb with a live line ("Judge is reading shotkit.com (9 of 16) · Nemotron 3 Super"), **the eight agents as a pipeline** (the working one lit; open any for everything it did), and four tabs: **Activity** (the feed, one line per decision, expandable to the model's reasoning), **Publications** (every page it looked at — link, each check, the reason, the editor, the email, the reply, the deal), **Conversations** (every thread both ways, with its state; in a demo, reply *as* the editor and the agent answers live), **Tools** (which tool each agent used, how, and how much), **Story & replay** (Nemotron 3 Super writes the campaign's story from the ledger, in your voice, with the agents named; a replay scrubber walks every recorded moment with the agents lighting up and the numbers rolling; **Share this story** mints a read-only link with every address scrubbed). First visit: three coach marks. As it runs: **moments** — the first reply, the first deal, the goal — each with the story so far in one line. |
 | **Needs you** | The queue. Each card: what the editor said (their words), what the agent wants to do, what it needs from you, one text box. Answer, and the same thread resumes. Empty state is the goal. |
 | **Next steps** | What only you can do, derived by rules from deals and the cards you answered: send the blurb, pay once the placement is live, put the call on your calendar, sign the agreement. Tick items off. |
+| **Safety** | What the agent would not do: every deal's link attribute, disclosure and compliance verdict with the rule behind it, plus any reply that tried to instruct the agent, with the words that gave it away. |
 | **Deals** | Publication, what they asked, what you pay, what you saved. Click one: the Writer drafts the blurb you owe the editor; you move it along — blurb sent, live (with the URL), paid. CSV export. |
 
 Bottom-right, on every screen: a panel listing the campaigns running now, and pop-ups for deals,
@@ -95,14 +131,23 @@ kind is there too.
 - `GET /v1/models` is checked at `/api/health?deep=1`; the app pauses with a visible banner if a
   routed model disappears or the key fails.
 
-## Where Tavily is called at runtime
+## Where Tavily is called at runtime (four endpoints)
 
-Discovery — in the demo and in real mode — searches the web with Tavily (`POST
-https://api.tavily.com/search`, Bearer auth) in [`src/lib/search/webSearch.ts`](src/lib/search/webSearch.ts),
-called from [`src/lib/campaign/tools.ts`](src/lib/campaign/tools.ts) `discoverBatch()` with the
-angles from the plan (Nano proposes them; you can edit them) and then angles Nano plans at run time.
-Owners' campaigns use their own Tavily key; public demos use the platform key under a daily cap.
-Publications the owner listed at Setup load first and cost no credit.
+Four endpoints, each where it is genuinely the right tool — all in
+[`src/lib/search/tavily.ts`](src/lib/search/tavily.ts), in the demo and in real mode alike:
+
+| Endpoint | Agent | What it does here | Credits |
+|---|---|---|---|
+| `POST /search` | Scout | The angles from the plan, one call each. Platform domains (YouTube, Reddit, stores) are excluded **at the API** and anything scoring under 0.3 is dropped — so a page that was always going to be rejected never costs a Nemotron 3 Super judgement. | 1 each |
+| `POST /map` | Finder | Lists a publication's about / contact / team / masthead / author pages, so the agent reads the pages that name a person instead of guessing three URLs. | ~2 per site |
+| `POST /crawl` | Finder | Reads those pages in one call with a plain-English instruction (*"find the editorial staff and the pitch address"*); the address is then taken from the result by rule. | ~3 per site |
+| `POST /extract` | Judge | Reads an article with the campaign's topic as `query`, so Tavily returns the passages about it rather than the whole page — fewer tokens to judge, and it works on JavaScript-rendered sites a plain fetch cannot read. | 1 per 5 URLs |
+| `GET /usage` | — | The key's real credit balance, for the meter. | 0 |
+
+Every call carries `X-Session-Id` (the campaign id, so one run groups together in Tavily's own
+dashboard) and `include_usage`, and the credits are counted per endpoint onto the campaign and shown
+in the **Tools** tab. Owners' campaigns use their own Tavily key; public demos use the platform key
+under a daily cap. Publications the owner listed at Setup load first and cost no credit.
 
 ## Architecture
 
@@ -177,6 +222,13 @@ src/lib/negotiation/agent.ts  classify (Nano) · strong-cue escalations · count
 src/lib/negotiation/run.ts    one negotiation step with persistence
 src/lib/campaign/guard.ts     tick lock, daily caps, global token budget
 src/lib/campaign/story.ts     the story: facts by code, chapters by Super, share token, address scrubbing
+src/lib/compliance/policy.ts  the link rules with their citations: what the agent may and may not agree to
+src/lib/compliance/footer.ts  CAN-SPAM footer, one-click unsubscribe tokens, List-Unsubscribe headers
+src/lib/security/injection.ts the scanner for inbound email: defang, fence, 13 literal rules
+src/lib/search/tavily.ts      /search, /extract, /map, /crawl, /usage with per-endpoint credit accounting
+src/lib/ai/embeddings.ts      Qwen3-Embedding on Token Factory: same-host dedupe, ranking the Judge's queue
+src/lib/campaign/memory.ts    what past campaigns learned about a publication
+evals/                        the frozen hand-labelled set and the report generator (npm run eval)
 src/lib/campaign/plan.ts · todos.ts · agents.ts   the editable plan, rule-derived to-dos, the agent registry
 src/components/setup/Journey.tsx   "here's what will happen", computed from the plan
 src/components/campaign/{Tour,Moments,Story}.tsx   coach marks, milestone moments, story + replay
@@ -186,6 +238,8 @@ src/lib/email/processor.ts    real-mode transport: IMAP reply sweep, then SMTP s
 supabase/migrations/0001_schema.sql   the whole schema, including the guest walls
 src/app/(app)/{setup,campaigns,campaigns/[id],needs-you,next-steps,deals,settings}   the screens
 src/app/story/[token]     the shared read-only story (no sign-in, no addresses)
+src/app/evidence          the measured numbers, the rules and their citations (no sign-in)
+src/app/u/[token]         one-click unsubscribe (RFC 8058 POST at /api/u/[token])
 docs/LEDGER.md · docs/RESEARCH.md · docs/PLATFORM.md · UPDATES.md · DEPLOY.md · FEEDBACK.md
 ```
 

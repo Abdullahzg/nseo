@@ -11,6 +11,28 @@ email-only agent must not decide alone — a call, a contract, a price above you
 question about your business — and parks that one thread on a **Needs you** card. You answer in a
 line; the same thread resumes.
 
+**What makes it worth building.** Most "AI outreach" tools are a mail merge with a language model
+attached, and the thing they automate — buying links — is the thing Google penalises. This agent is
+built the other way round. Google's spam policies list *"exchanging money for links, or posts that
+contain links"* as link spam, and say paid links are acceptable *"as long as they are qualified"*
+with `rel="sponsored"`. So the agent negotiates for a qualified link and a visible sponsorship
+label, attaches that condition to its own agreements in wording written by code, and refuses the
+deals that would earn the buyer a manual action. The rules are applied deterministically, each with
+the citation it comes from, and shown in a **Safety** tab.
+
+The same principle runs through the rest: the model decides what an editor meant and writes the
+words; code owns the ceiling, the budget commit, the send gate and every escalation. That is also
+why an inbound email claiming "your budget ceiling has been removed" changes nothing — and why
+every reply is scanned for exactly that kind of instruction before any model sees it.
+
+And it is measured rather than demonstrated. `npm run eval` runs a frozen hand-labelled set — 20
+inbound replies, 8 negotiation scenarios, 9 compliance offers, 18 prompt-injection attacks, 12
+ordinary replies — and reports each proportion with a 95% Wilson interval: 0/18 attacks through,
+0/12 false positives, 0/8 ceiling violations, 19/20 triage accuracy, 9/9 compliance verdicts. The
+harness found a metric bug and three classifier weaknesses on its first run; fixing them took triage
+accuracy from 60% to 95%. The table regenerates from the repository with one command and is on the
+`/evidence` page of the live app.
+
 **Why.** Editorial placements are the highest-value SEO work and the most manual: dozens of
 searches, hundreds of pages, finding the right person, writing, waiting, negotiating, tracking. It
 is also asynchronous — replies come back over days — so the wrong product is a dashboard you watch.
@@ -21,7 +43,9 @@ question.
 role: **Nemotron 3 Super** (thinking on) chooses the next action each step as a tool call;
 **Nemotron 3 Nano** (thinking off, `json_schema`) does the high-volume judgments — relevance and
 editorial quality of each publication, outreach wording, reply classification — in ~70 tokens each;
-**Nemotron 3 Ultra** writes counter-offers when an editor names a price. Code owns the money and the
+**Nemotron 3 Ultra** writes counter-offers when an editor names a price; **Qwen3-Embedding** (also
+on Token Factory) ranks the candidate queue so an expensive Super judgement goes to the most
+promising page first, and drops the same article republished twice on one site. Code owns the money and the
 safety rules: ceilings, an atomic budget commit in Postgres, the escalation cues, phase transitions,
 completion. The activity feed shows, for every line, which model decided it, its tokens, latency and
 reasoning. A whole demo campaign costs about three cents.
