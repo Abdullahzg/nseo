@@ -38,9 +38,12 @@ twenty cases cannot prove a percentage. Latest run:
 | Injection attacks that got through | 0 / 18 | [0.0%, 17.6%] |
 | False positives on ordinary replies | 0 / 12 | [0.0%, 24.3%] |
 | Ceiling violations (a figure we offered above the cap) | 0 / 8 | [0.0%, 32.4%] |
-| Triage accuracy (intent of an inbound reply) | 19 / 20 | [76.4%, 99.1%] |
+| Triage accuracy (intent of an inbound reply) | 19–20 / 20 * | [76.4%, 100%] |
 | Escalation precision / recall | 100% / 88.9% | — |
 | Compliance verdict correct | 9 / 9 | [70.1%, 100.0%] |
+
+\* Sampling is not deterministic, so the triage figure moves by a case between runs of the identical
+set. The committed table in `docs/EVALS.md` is the latest run, not the best one.
 
 The harness earned its place on its first run: it caught a bad metric of mine and three real
 classifier weaknesses. Fixing the intent definitions took triage accuracy from **60% to 95%** and

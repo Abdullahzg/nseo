@@ -237,6 +237,10 @@ ${table}
   and sending live in code the model cannot reach.
 - **The counterparties in the money suite are scripted,** not real editors, so those results say
   the agent respects its limits under pressure, not that it negotiates well against a human.
+- **These numbers move between runs.** The models are sampled at a non-zero temperature and the
+  API gives no determinism guarantee, so the triage figure has come out 19/20 and 20/20 on
+  consecutive runs of the identical set. The table is the latest run, not the best one; re-run it
+  and expect the last column to shift by a case.
 - **Nothing here is tuned on a held-out split** — the whole set is visible to the author, so treat
   it as a regression suite, not a benchmark result.
 

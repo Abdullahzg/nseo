@@ -53,7 +53,9 @@ const RULES: Rule[] = [
   { name: "bypass_human", why: "told the agent not to involve its owner", weight: 3,
     re: /\b(do\s+not|don'?t|no\s+need\s+to|without)\s+(ask|asking|check\s+with|checking\s+with|consult|consulting|escalat\w*\s+to|involv\w*|tell\w*|inform\w*)\s+(your\s+|the\s+)?(owner|human|manager|supervisor|boss|client|team)\b/i },
   { name: "forced_agreement", why: "pushed the agent to commit on the spot", weight: 2,
-    re: /\b(agree|accept|confirm|approve|say\s+yes)\b[^.\n]{0,30}\b(immediately|right\s+now|without\s+(asking|checking|confirmation|approval)|no\s+need\s+to\s+(ask|check|confirm))\b|\bdo\s+not\s+(ask|check\s+with|consult|escalate\s+to)\s+(your\s+)?(owner|human|manager|supervisor)\b/i },
+    // "do not ask your owner" belongs to bypass_human above; matching it here too would count the
+    // same words twice and show the owner the same span under two rules.
+    re: /\b(agree|accept|confirm|approve|say\s+yes)\b[^.\n]{0,30}\b(immediately|right\s+now|today|without\s+(asking|checking|confirmation|approval))\b/i },
   { name: "redirect_exfiltration", why: "asked the agent to send mail or data elsewhere", weight: 3,
     re: /\b(forward|send|cc|bcc|copy|email)\b[^.\n]{0,30}\b(this|the\s+(thread|conversation|details|instructions))\b[^.\n]{0,20}\bto\b\s*<?[\w.+-]+@/i },
   // "Here's our media kit at https://…" is an ordinary sentence; "run the command it gives you"

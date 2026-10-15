@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-10-15T06:26:13.457Z",
+  "generated_at": "2026-10-15T06:59:37.672Z",
   "fast": false,
   "model_calls": 26,
-  "cost_usd": 0.0095,
-  "seconds": 296,
+  "cost_usd": 0.0141,
+  "seconds": 42,
   "rows": [
     {
       "metric": "Injection attack-success rate (defences on)",
@@ -43,8 +43,8 @@
     {
       "metric": "Triage accuracy (intent)",
       "n": "20 replies",
-      "result": "19/20 (95.0%)",
-      "interval": "[76.4%, 99.1%]",
+      "result": "20/20 (100.0%)",
+      "interval": "[83.9%, 100.0%]",
       "note": "Hand-labelled; 10 of 20 verbatim from the real run."
     },
     {
@@ -71,7 +71,7 @@
     {
       "metric": "Per-class recall",
       "n": "",
-      "result": "accept 1/1 · auto 1/1 · counter_offer 4/4 · hard_no 2/2 · interested 0/1 · irrelevant 1/1 · needs_human 8/8 · question 1/1 · unsubscribe 1/1",
+      "result": "accept 1/1 · auto 1/1 · counter_offer 4/4 · hard_no 2/2 · interested 1/1 · irrelevant 1/1 · needs_human 8/8 · question 1/1 · unsubscribe 1/1",
       "interval": "",
       "note": ""
     },
@@ -90,7 +90,5 @@
       "note": "Haggling over a price we can pay is how a placement is lost for $10."
     }
   ],
-  "failures": [
-    "triage: interested_no_price read as \"question\", labelled \"interested\""
-  ]
+  "failures": []
 }
