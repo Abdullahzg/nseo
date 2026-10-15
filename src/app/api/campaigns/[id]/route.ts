@@ -35,7 +35,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const searches = events.filter((e) => e.action === "search_batch" && !e.detail?.synthetic && !e.detail?.seed);
   const tools = {
     nebius: { calls: modelCalls.length, cost_usd: modelCalls.reduce((s, e) => s + Number(e.cost_usd ?? 0), 0), tokens_in: modelCalls.reduce((s, e) => s + Number(e.tokens_in ?? 0), 0), tokens_out: modelCalls.reduce((s, e) => s + Number(e.tokens_out ?? 0), 0), models: modelsUsed },
-    tavily: { searches: searches.length, results: searches.reduce((s, e) => s + Number(e.detail?.hits ?? 0), 0), used: !camp.demo_mode && camp.search_web !== false },
+    tavily: {
+      searches: searches.length,
+      results: searches.reduce((s, e) => s + Number(e.detail?.hits ?? 0), 0),
+      used: !camp.demo_mode && camp.search_web !== false,
+      // What this campaign actually spent at Tavily, per endpoint, counted at the call site.
+      endpoints: ((camp as any).tavily_usage ?? {}) as Record<string, { calls: number; credits: number; ms: number; failures: number }>,
+    },
     seeds: { listed: (camp.seed_contacts ?? []).length },
     fixtures: { loaded: events.filter((e) => e.engine === "fixture" && e.action === "prospect_found").length },
     pages: { fetched: events.filter((e) => ["prospect_qualified", "prospect_rejected"].includes(e.action)).length },

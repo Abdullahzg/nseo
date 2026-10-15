@@ -99,6 +99,7 @@ create table campaigns (
   search_web boolean not null default true,        -- false: contact only the seeded publications, never search
   activity jsonb,                                  -- what an agent is doing right now {agent, doing, target, n, of, at}; null when idle
   story jsonb,                                     -- the campaign's story (src/lib/campaign/story.ts), cached with the tick it was written at
+  tavily_usage jsonb not null default '{}',        -- {endpoint: {calls, credits, ms, failures}} - what the run spent at Tavily
   share_token text unique,                         -- read-only public link /story/<token>; null until the owner shares
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -266,6 +267,30 @@ create table interventions (
 create index idx_iv_campaign_status on interventions(campaign_id, status);
 
 -- ─── Your to-do list ("Next steps"): derived from deals and answered cards; this only stores what you ticked off ───
+-- What past campaigns learned about a publication, so the next one does not start from zero:
+-- who the editor was, what they charged, what they said about the link. Scoped to the owner
+-- (or the guest session), because a negotiating history is not shared between people.
+create table publication_memory (
+  id uuid primary key default gen_random_uuid(),
+  owner_email text not null,
+  guest_id text,
+  domain_host text not null,
+  editor_name text,
+  editor_email text,
+  last_outcome text not null default 'contacted',   -- deal | declined | no_reply | needs_human | contacted
+  last_price numeric(10,2),
+  last_ask numeric(10,2),
+  link_rel text,
+  times_contacted integer not null default 1,
+  last_contacted_at timestamptz,
+  note text,
+  updated_at timestamptz default now()
+);
+-- One row per (owner or guest, publication). The coalesce keeps the unique index usable when
+-- guest_id is null, which is the signed-in-owner case.
+create unique index idx_pubmem_scope on publication_memory(owner_email, coalesce(guest_id, ''), domain_host);
+create index idx_pubmem_host on publication_memory(domain_host);
+
 create table todo_state (
   campaign_id uuid not null references campaigns(id) on delete cascade,
   key text not null,

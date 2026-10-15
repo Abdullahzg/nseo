@@ -3,6 +3,7 @@
 // Real mode: rows are inserted as `scheduled`; /api/emails/process (owner-only, Redis-locked) is
 // the ONLY thing that ever sends. Demo mode: rows are recorded as simulated `sent` — no SMTP, no
 // DEMO_RECIPIENT, nothing leaves the machine.
+import { recallPublications, rememberPublication, memoryBrief } from "./memory";
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { sanitizeBody, greetingName } from "@/lib/negotiation/agent";
@@ -55,7 +56,7 @@ export function productName(camp: Campaign): string {
   } catch { return camp.name; }
 }
 
-export async function draftOutreachEmail(p: Prospect, camp: Campaign, signer: string): Promise<{ draft: OutreachDraft; meta: import("@/lib/ai/nebius").LLMMeta }> {
+export async function draftOutreachEmail(p: Prospect, camp: Campaign, signer: string, history?: string | null): Promise<{ draft: OutreachDraft; meta: import("@/lib/ai/nebius").LLMMeta }> {
   const q = p.qualification ?? ({} as NonNullable<Prospect["qualification"]>);
   const editorFirst = greetingName(p.contact_name, p.domain_host);
   const r = await nebiusJson<OutreachDraft>({
@@ -70,7 +71,7 @@ Suggested angle: ${q.placement_angle ?? ""}
 Our product (what we sell): ${camp.what_you_sell ?? camp.name}
 Our product name: ${productName(camp)} (${camp.website_url ?? ""}). Refer to us only by this name or as "our tool". The publication (${p.domain_host}) is NOT us; never present its name as ours.
 Sign-off name: ${signer}
-
+${history ? `\nWhat happened last time we wrote to this publication: ${history}\nOpen by acknowledging the earlier conversation in ONE short clause. Do not restate their old price or treat it as agreed.\n` : ""}
 Write: a subject under 60 chars that references their article, and a body of 4-6 sentences: one genuine specific line about their article, what we make in one sentence, a clear ask (include us in that piece or a similar one), and ask what they typically charge for an inclusion. Start with "Hi ${editorFirst},". End with "Best,\n${signer}".` },
     ],
   });
@@ -110,7 +111,10 @@ export async function sendOutreachToProspect(prospectId: string): Promise<SendRe
   const senderCfg = camp.owner_email ? await getUserEmailConfig(camp.owner_email).catch(() => null) : null;
   const local = (camp.owner_email ?? "").split("@")[0].split(/[._+-]/)[0];
   const signer = senderCfg?.from_name?.trim() || (local ? local.charAt(0).toUpperCase() + local.slice(1) : "the team");
-  const { draft, meta } = await draftOutreachEmail(p, camp, signer);
+  // Anything the owner's earlier campaigns learned about this publication.
+  const recalled = (await recallPublications(camp.owner_email, (camp as any).guest_id ?? null, [p.domain_host]).catch(() => new Map())).get(p.domain_host);
+  const { draft, meta } = await draftOutreachEmail(p, camp, signer, recalled ? memoryBrief(recalled) : null);
+  if (recalled) await recordEvent({ campaign_id: camp.id, agent: "outreach", action: "memory_recalled", engine: "system", prospect_id: p.id, human: `Remembered ${p.domain_host} from an earlier campaign: ${memoryBrief(recalled)}`, detail: { last_outcome: recalled.last_outcome, last_price: recalled.last_price, times_contacted: recalled.times_contacted } });
   const workflowId = await ensureWorkflow(camp);
   if (demo) await assignDemoPersona(prospectId);
 
@@ -257,12 +261,14 @@ export async function handleThread(camp: Campaign, anchorId: string, opts: { ass
       if (prospect) await updateProspect(prospect.id, { status: "deal" });
       const ask = a?.original_ask ?? r.theirPrice;
       await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "deal_agreed", engine: r.draft?.engine === "model" ? "model" : "policy", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: agreed > 0 ? `Deal with ${host} at $${agreed}${ask && ask > agreed ? ` (they asked $${ask} — saved $${ask - agreed})` : ""}` : `Deal with ${host} — free editorial inclusion`, detail: { deal_id: deal.id, agreed, original_ask: ask } });
+      await rememberPublication({ ownerEmail: camp.owner_email, guestId: (camp as any).guest_id ?? null, host, editorName: prospect?.contact_name ?? null, editorEmail: prospect?.contact_email ?? null, outcome: "deal", price: agreed, ask: ask ?? null, linkRel: r.terms?.linkRel ?? null }).catch(() => {});
       await notifyOwner(camp, `Nseo: deal with ${host} at $${agreed}`, `${who} at ${host} agreed to an inclusion at $${agreed}${ask && ask > agreed ? ` (they asked $${ask})` : ""}.\n\nNext: send them the blurb and link. Your list: ${appUrl()}/next-steps`);
     }
     return r;
   }
   if (r.statusHint === "declined") {
     if (prospect) await updateProspect(prospect.id, { status: "lost" });
+    await rememberPublication({ ownerEmail: camp.owner_email, guestId: (camp as any).guest_id ?? null, host, editorName: prospect?.contact_name ?? null, outcome: "declined", ask: r.theirPrice ?? null }).catch(() => {});
     await recordEvent({ campaign_id: camp.id, agent: "negotiation", action: "declined", engine: "model", thread_id: anchorId, prospect_id: prospect?.id, llm: r.llm, human: `${host} declined ${quote} — closed politely, won't contact again`, detail: { intent: r.intent } });
     return r;
   }

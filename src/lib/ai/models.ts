@@ -26,6 +26,8 @@ export const PRICE_PER_M: Record<string, { in: number; out: number }> = {
   "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B": { in: 0.06, out: 0.24 },
   "nvidia/Nemotron-3_5-Lightning": { in: 0.06, out: 0.24 },
   "nvidia/Nemotron-3-Ultra-550b-a55b": { in: 1.0, out: 3.0 },
+  // Embeddings (de-duplicating search results before they are judged). Output tokens: none.
+  "Qwen/Qwen3-Embedding-8B": { in: 0.01, out: 0 },
 };
 
 export function costUsd(model: string, tokensIn: number, tokensOut: number): number | null {
@@ -40,5 +42,6 @@ export function modelLabel(model: string): string {
   if (/nano/i.test(model)) return "Nemotron 3 Nano";
   if (/lightning/i.test(model)) return "Nemotron 3.5 Lightning";
   if (/ultra/i.test(model)) return "Nemotron 3 Ultra";
+  if (/embedding/i.test(model)) return "Qwen3 Embedding";
   return model;
 }

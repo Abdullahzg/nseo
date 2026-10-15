@@ -15,6 +15,7 @@ import { countDueDemoReplies } from "./demo";
 import { searchProvider } from "@/lib/search/webSearch";
 import { acquireTickLock, releaseTickLock, checkTickCaps, bumpTickCounters, assertTokenBudget, installUsageSink, pauseCampaign } from "./guard";
 import { withKeys } from "@/lib/ai/context";
+import { setTavilySink, type TavilyCall } from "@/lib/search/tavily";
 import { setActivity, markActivityDone } from "./queries";
 import { getOwnerKeys } from "@/lib/db/queries";
 import type { Campaign } from "./types";
@@ -69,11 +70,31 @@ const TOOL_DESCRIPTIONS: Record<ActionKey, string> = {
  * Public entry: every model and search call inside the tick runs under the campaign owner's own
  * keys (Settings). Guests' demo campaigns run on the platform key.
  */
+/** Fold this tick's Tavily calls into the campaign's running totals, per endpoint. */
+async function recordTavilyUsage(campaignId: string, calls: TavilyCall[]): Promise<void> {
+  const camp = await getCampaign(campaignId);
+  const totals: Record<string, { calls: number; credits: number; ms: number; failures: number }> = { ...((camp as any)?.tavily_usage ?? {}) };
+  for (const c of calls) {
+    const t = (totals[c.endpoint] ??= { calls: 0, credits: 0, ms: 0, failures: 0 });
+    t.calls++; t.credits += c.credits; t.ms += c.ms; if (!c.ok) t.failures++;
+  }
+  await updateCampaign(campaignId, { tavily_usage: totals } as any);
+}
+
 export async function tick(campaignId: string, opts: { via?: string } = {}): Promise<TickResult> {
   const t0 = Date.now();
   const camp0 = await getCampaign(campaignId);
   if (!camp0) return { ok: false, campaign_id: campaignId, phase_before: "?", phase_after: "?", action: "error", decided_by: null, error: "campaign not found", duration_ms: Date.now() - t0 };
-  return withKeys(await getOwnerKeys(camp0.owner_email), () => tickInner(camp0, opts, t0));
+  // Everything Tavily is asked for during this tick is collected and written to the campaign once,
+  // so the Tools tab shows what the run actually spent rather than a guess.
+  const tavilyCalls: TavilyCall[] = [];
+  setTavilySink((c) => tavilyCalls.push(c));
+  try {
+    return await withKeys(await getOwnerKeys(camp0.owner_email), () => tickInner(camp0, opts, t0));
+  } finally {
+    setTavilySink(null);
+    if (tavilyCalls.length) await recordTavilyUsage(camp0.id, tavilyCalls).catch(() => {});
+  }
 }
 
 async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): Promise<TickResult> {

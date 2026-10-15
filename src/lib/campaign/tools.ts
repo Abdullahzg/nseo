@@ -23,6 +23,8 @@ import { resolveEmailCascade } from "@/lib/enrich/cascade";
 import { json as nebiusJson, NebiusError } from "@/lib/ai/nebius";
 import { getCampaign, updateProspect, getProspect, upsertProspect, recordEvent, listProspects, setActivity } from "./queries";
 import { assertTavilyBudget } from "./guard";
+import { tavilySearch, tavilyMap, tavilyCrawl, tavilyExtract, TavilyError } from "@/lib/search/tavily";
+import { dedupeBySimilarity, EMBEDDING_MODEL } from "@/lib/ai/embeddings";
 import { DEMO_FIXTURES, demoContactFor, demoUsesFixtures } from "./demo";
 import type { Campaign, Prospect, ScoreBreakdown } from "./types";
 
@@ -82,8 +84,34 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
   if (camp.demo_mode && queries.length) await assertTavilyBudget(queries.slice(0, maxQueries).length);
   for (const query of queries.slice(0, maxQueries)) {
     const t0 = Date.now();
-    const hits = await webSearch(query, maxPerQuery, undefined, (m) => errors.push(m));
+    // Platforms are excluded at the API (youtube, reddit, stores...) and anything Tavily scores
+    // below 0.3 is dropped: both save a Super call that would only have ended in a rejection.
+    let hits: { url: string; title: string; snippet: string }[] = [];
+    try {
+      hits = await tavilySearch(query, { count: maxPerQuery, excludeDomains: PLATFORM_HOSTS, minScore: 0.3, sessionId: camp.id });
+    } catch (e) {
+      if (e instanceof TavilyError && e.quotaExhausted) errors.push("Tavily quota exhausted");
+      else errors.push(e instanceof TavilyError ? `Tavily HTTP ${e.status}` : (e as any)?.message ?? "search failed");
+      hits = await webSearch(query, maxPerQuery, undefined, (m) => errors.push(m));
+    }
     res.found += hits.length;
+    // The same roundup turns up under two titles on two hosts more often than not. One embedding
+    // call over the batch (fractions of a cent) drops the near-identical ones before the Judge
+    // spends a Nemotron 3 Super call rejecting them. Results arrive in relevance order, so the
+    // survivor of each pair is the better-ranked one.
+    let nearDuplicates = 0;
+    if (hits.length > 1) {
+      try {
+        const d = await dedupeBySimilarity(hits, (h) => `${h.title}
+${h.snippet}`.slice(0, 600));
+        if (d.dropped.length) {
+          nearDuplicates = d.dropped.length;
+          const example = d.dropped[0];
+          await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "near_duplicates_dropped", engine: "model", llm: { model: EMBEDDING_MODEL, tokens_in: d.tokens, tokens_out: 0, latency_ms: d.ms, reasoning: null, finish_reason: "stop" }, human: `Dropped ${d.dropped.length} near-duplicate result${d.dropped.length === 1 ? "" : "s"} before judging — e.g. “${example.item.title.slice(0, 50)}” matches “${example.duplicateOf.title.slice(0, 50)}” at ${example.similarity.toFixed(2)} cosine`, detail: { dropped: d.dropped.length, threshold: 0.92, pairs: d.dropped.slice(0, 5).map((x) => ({ dropped: x.item.url, kept: x.duplicateOf.url, similarity: Number(x.similarity.toFixed(4)) })) } });
+          hits = d.kept;
+        }
+      } catch { /* embeddings are an optimisation; discovery continues without them */ }
+    }
     let createdForQuery = 0;
     for (let i = 0; i < hits.length; i++) {
       const host = hostOf(hits[i].url);
@@ -96,7 +124,7 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
         await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "prospect_found", engine: "system", prospect_id: id, human: `Found ${host} — “${(hits[i].title || hits[i].url).slice(0, 70)}” (via ${provider}, query “${query}”)`, detail: { host, url: hits[i].url, query, position: i + 1 } });
       } else res.duplicates++;
     }
-    await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "search_batch", engine: "system", human: `Searched ${provider} for “${query}” — ${hits.length} results, ${createdForQuery} new publications`, detail: { query, hits: hits.length, created: createdForQuery, duration_ms: Date.now() - t0, errors } });
+    await recordEvent({ campaign_id: camp.id, agent: "discovery", action: "search_batch", engine: "system", human: `Searched ${provider} for “${query}” — ${hits.length} results, ${createdForQuery} new publications`, detail: { query, hits: hits.length, created: createdForQuery, near_duplicates: nearDuplicates, duration_ms: Date.now() - t0, errors } });
   }
   if (res.found === 0 && errors.length) throw new Error(`Search failed: ${errors[0]}`);
   return res;
@@ -310,6 +338,25 @@ export async function resolveContactForProspect(prospectId: string): Promise<Con
         { onStep: (s) => steps.push(s), patternCache: new Map(), hunterDomains: new Map(), domainVerify: new Map() },
       ).catch((e: any) => { steps.push(`cascade error: ${e?.message}`); return null; }) : null;
       if (cascade) result = { ok: true, email: cascade.email, name: cascade.ownerName ?? null, source: cascade.source, confidence: cascade.score ?? 60, steps };
+      // Tavily knows the shape of the site: ask it which pages name a person, then read those,
+      // instead of guessing three URLs. ~2 credits for the map, ~3 for the crawl, and it finds
+      // mastheads and author pages that /contact and /about miss.
+      if (!result && !camp.demo_mode) {
+        const host = p.domain_host;
+        try {
+          const pages = await tavilyMap(host, { limit: 12, sessionId: camp.id });
+          if (pages.length) steps.push(`Tavily mapped ${pages.length} editor-ish page${pages.length === 1 ? "" : "s"}`);
+          const read = pages.length ? await tavilyCrawl(host, { limit: 8, sessionId: camp.id }) : [];
+          for (const page of read) {
+            const found = (page.content.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g) ?? []).filter((e) => !isRoleEmail(e) && !isPlaceholderEmail(e));
+            const em = found.find((e) => e.toLowerCase().endsWith(`@${host.replace(/^www\./, "")}`)) ?? found[0];
+            if (em) { steps.push(`found ${em} via Tavily on ${new URL(page.url).pathname}`); result = { ok: true, email: em, source: "tavily-crawl", confidence: 88, steps }; break; }
+          }
+          if (!result && read.length) steps.push("Tavily read the contact pages; no address published");
+        } catch (e: any) {
+          steps.push(`Tavily lookup unavailable (${e?.message ?? "error"})`);
+        }
+      }
       if (!result) {
         for (const url of [`https://${p.domain_host}/contact`, `https://${p.domain_host}/about`, `https://${p.domain_host}`]) {
           const sig = await Promise.race([scrapePageSignals(url).catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 8000))]);
