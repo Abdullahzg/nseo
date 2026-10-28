@@ -372,9 +372,9 @@ create table user_email_config (
   gap_minutes integer default 15,
   daily_cap integer default 50,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
   company_name text,
-  postal_address text,
+  postal_address text
 );
 
 create table app_state (
