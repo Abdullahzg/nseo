@@ -43,8 +43,32 @@ Zero spend.
    the Vercel cron (`vercel.json` → `/api/health?deep=1`) and the GitHub `keepalive.yml` workflow.
    Verify after the first week in the Supabase dashboard that the project has not paused.
 
+## 1b. Publishing the repo (do this before making anything public)
+
+The pre-rebuild commit `2e63454` pasted a real `.env` block into `PROJECT_HANDOFF.md`, including a
+Google key and the old `CRON_SECRET`. The file is long gone from HEAD, but the values are still in
+history, so **pushing this history to a public repo would publish them**.
+
+`scripts/publish-clean.sh` handles it. It never touches your working repository: it clones to a temp
+directory, rewrites that clone with `git-filter-repo` (every commit kept, dates and authorship
+preserved), removes `PROJECT_HANDOFF.md`, `ROTATION.md`, `_private/` and `test-results/` from every
+commit, replaces every secret *shape* that has ever appeared, and refuses to continue if one
+survives.
+
+```bash
+scripts/publish-clean.sh                                 # rewrite + verify only, pushes nothing
+scripts/publish-clean.sh git@github.com:<you>/nseo.git   # …then push to a new empty repo
+```
+
+Verified on 2026-10-27: 87 commits, first 2026-08-22, last 2026-10-15, no secret shape remaining.
+The existing `Abdullahzg/geseo` remote is private and can stay as-is — Vercel deploys from it
+happily. Only the *public* submission repo needs the scrubbed history.
+
 ## 2. Vercel (Hobby, personal account, Git-connected)
-1. Import the public repo (Hobby cannot connect to organisation repos).
+1. Import the repo. A **private** repo works fine for deployment; only the hackathon submission
+   needs a public one (see §1b). Hobby cannot connect to organisation repos.
+   **The complete environment block, with `AUTH_SECRET` and `CRON_SECRET` already generated, is
+   written to `_private/VERCEL_ENV.txt` (gitignored) — paste it into Vercel's "Import .env".**
 2. Environment variables (Production) — the complete list:
 
    ```
