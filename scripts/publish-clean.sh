@@ -39,7 +39,7 @@ cd "$WORK/repo"
 #   AIza   Google API key
 #   tvly-  Tavily
 #   v1.Cm  Nebius Token Factory
-#   sk-or-v1- OpenRouter · gsk_ Groq · sk- generic
+#   sk-or-v1- OpenRouter · gsk_ Groq · sk- generic · sb_secret_ Supabase (new key format)
 # Assignments are caught too, so a value with an unknown shape still goes.
 cat > "$WORK/replacements.txt" <<'EOF'
 regex:AQ\.[A-Za-z0-9_\-]{20,}==>REDACTED_GOOGLE_KEY
@@ -48,6 +48,7 @@ regex:tvly-[0-9A-Za-z_\-]{20,}==>REDACTED_TAVILY_KEY
 regex:v1\.Cm[0-9A-Za-z_.\-]{40,}==>REDACTED_NEBIUS_KEY
 regex:sk-or-v1-[0-9A-Za-z_\-]{10,}==>REDACTED_OPENROUTER_KEY
 regex:gsk_[0-9A-Za-z]{20,}==>REDACTED_GROQ_KEY
+regex:sb_secret_[0-9A-Za-z_\-]{20,}==>REDACTED_SUPABASE_SECRET
 regex:sk-[0-9A-Za-z_\-]{30,}==>REDACTED_KEY
 regex:(?i)(CRON_SECRET|AUTH_SECRET|NEXTAUTH_SECRET|AGENT_SERVICE_TOKEN|SMTP_PASS|IMAP_PASS|GMAIL_SMTP_PASS)\s*=\s*\S+==>\1=REDACTED
 EOF
@@ -61,7 +62,7 @@ $FR --force --replace-text "$WORK/replacements.txt" \
   --path test-results --invert-paths
 
 echo "verifying no known secret shape survives…"
-LEAK_RE='AQ\.[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}|tvly-[0-9A-Za-z_-]{20,}|v1\.Cm[0-9A-Za-z_.-]{40,}|sk-or-v1-[0-9A-Za-z_-]{10,}|gsk_[0-9A-Za-z]{20,}'
+LEAK_RE='AQ\.[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{30,}|tvly-[0-9A-Za-z_-]{20,}|v1\.Cm[0-9A-Za-z_.-]{40,}|sk-or-v1-[0-9A-Za-z_-]{10,}|gsk_[0-9A-Za-z]{20,}|sb_secret_[0-9A-Za-z_-]{20,}'
 if git log -p --all | grep -E -m1 "$LEAK_RE"; then
   echo "STILL FOUND A SECRET - add its pattern to replacements.txt and rerun"; exit 2
 fi
