@@ -27,7 +27,7 @@ export default async function SharedStory({ params }: { params: Promise<{ token:
     <div className="min-h-svh flex flex-col">
       <header className="border-b border-rule"><div className="mx-auto max-w-5xl px-4 sm:px-6 h-14 flex items-center justify-between"><Wordmark className="text-lg" /><span className="text-xs text-ink-3">A campaign's story, shared read-only · <Link href="/setup" className="text-ink-2 hover:text-ink">run your own →</Link></span></div></header>
       <main className="flex-1"><div className="mx-auto max-w-5xl px-4 sm:px-6 pt-8 pb-24 space-y-10">
-        <div className="text-xs text-ink-3">{camp.name} · {camp.keywords.join(" · ")} · {camp.demo_mode ? "demo (nothing was sent)" : "real campaign"} · {camp.phase.replace("_", " ")}</div>
+        <div className="text-xs text-ink-3">{camp.name} · {camp.keywords.join(" · ")} · {camp.demo_mode ? "live run, no email sent" : "real campaign"} · {camp.phase.replace("_", " ")}</div>
         <StoryView story={story} facts={facts} readOnly />
         <Replay events={events} />
       </div></main>

@@ -63,7 +63,7 @@ export default async function Home() {
           <nav className="flex items-center gap-3 text-sm">
             <Link href="/evidence" className="text-ink-2 hover:text-ink">Evidence</Link>
             {resume && <Link href={`/campaigns/${resume}`} className="text-ink-2 hover:text-ink hidden sm:inline">Your campaign</Link>}
-            <Link href="/setup" className="btn btn-sm">Run the demo</Link>
+            <Link href="/setup" className="btn btn-sm">Run it live</Link>
           </nav>
         </div>
       </header>
@@ -81,14 +81,16 @@ export default async function Home() {
               ceiling, and comes back only when it genuinely needs you.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link href="/setup" className="btn">Run the demo — no sign-up</Link>
+              <Link href="/setup" className="btn">Run it live — no sign-up</Link>
               <Link href="/evidence" className="btn btn-ghost">See the evidence</Link>
               {resume && <Link href={`/campaigns/${resume}`} className="text-sm text-model underline">resume your campaign →</Link>}
             </div>
             <p className="text-sm text-ink-3 mt-4 max-w-[62ch]">
-              The demo runs the{" "}<b className="text-ink-2 font-medium">real</b>{" "}pipeline: real web search, real pages,
-              real decisions by NVIDIA Nemotron. The only simulated step is sending the email — and you can write
-              the editor&apos;s replies yourself to prove nothing is scripted.
+              This is not a mock-up — it{" "}<b className="text-ink-2 font-medium">actually runs</b>: real Tavily
+              searches, real pages fetched and read, real decisions by NVIDIA Nemotron on Nebius, with the model and
+              the token cost on every line. The one thing it will not do without your Gmail is put mail in a
+              stranger&apos;s inbox, so the editors&apos; replies are played by a model — and you can write them
+              yourself to prove nothing is scripted.
             </p>
           </section>
 
@@ -133,7 +135,7 @@ export default async function Home() {
                   </p>
                 </div>
                 <div className="flex sm:flex-col gap-2">
-                  <Link href="/setup" className="btn">Run the demo</Link>
+                  <Link href="/setup" className="btn">Run it live</Link>
                   <Link href="/evidence" className="btn btn-ghost">Evidence</Link>
                 </div>
               </div>

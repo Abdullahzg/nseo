@@ -116,7 +116,7 @@ export function EditorInbox({ campaignId, active, onChanged }: { campaignId: str
   return (
     <section>
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-        <h2 className="label">Conversations <span className="font-normal normal-case text-ink-3">{demo ? "(simulated inbox)" : "(from your Gmail)"}</span></h2>
+        <h2 className="label">Conversations <span className="font-normal normal-case text-ink-3">{demo ? "(replies played by the model)" : "(from your Gmail)"}</span></h2>
         <span className="text-xs text-ink-3">{!demo ? "Every email both ways. Replies are read from your inbox over IMAP each scheduler round." : active ? "Each editor's replies are written by the model playing that editor (nothing is sent). Or open a thread and reply as the editor yourself — the agent answers you live." : "The campaign has finished; the threads are read-only."}</span>
       </div>
       <div className="card divide-y divide-rule">

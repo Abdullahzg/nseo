@@ -33,7 +33,7 @@ export function StoryView({ story, facts, readOnly = false }: { story: StoryT | 
             <div className="mt-6 text-xs text-ink-3">Written by {modelShort(story.model)} from the campaign's own records · {story.tokens.toLocaleString()} tokens · the numbers on the right are computed by code, not by the model.</div>
           </>
         ) : (
-          <div className="card p-6 text-sm text-ink-2">The story is written once the campaign has done something. Come back after a few steps{readOnly ? "" : ", or run the demo"}.</div>
+          <div className="card p-6 text-sm text-ink-2">The story is written once the campaign has done something. Come back after a few steps{readOnly ? "" : ", or run it live"}.</div>
         )}
       </article>
       <aside className="space-y-3 lg:sticky lg:top-20 self-start">
@@ -53,7 +53,7 @@ export function StoryView({ story, facts, readOnly = false }: { story: StoryT | 
             <dt className="text-ink-3">Cost</dt><dd className="mono">${facts.cost_usd.toFixed(3)}</dd>
             <dt className="text-ink-3">Steps · time</dt><dd className="mono">{facts.steps} · {facts.minutes} min</dd>
           </dl>
-          {facts.demo && <div className="text-xs text-ink-3 mt-3">Demo: nothing was sent; the editors' replies were written by the model playing editors.</div>}
+          {facts.demo && <div className="text-xs text-ink-3 mt-3">No email was sent; the editors' replies were played by the model.</div>}
         </div>
         {facts.deals.length > 0 && (
           <div className="card p-4"><div className="label mb-2">Deals</div><ul className="text-sm space-y-1">{facts.deals.map((d) => <li key={d.host} className="flex justify-between gap-2"><span className="truncate">{d.host}</span><span className="mono">{d.asked != null && d.asked > d.agreed ? <><span className="text-ink-3 line-through mr-1">${d.asked}</span></> : null}${d.agreed}</span></li>)}</ul></div>

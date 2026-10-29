@@ -4,7 +4,8 @@
 // Honesty rules baked in here:
 //   - relevance is ALWAYS a Nemotron judgment (never a keyword heuristic); if the model fails, the
 //     prospect stays "discovered" and an error event is written
-//   - DR is "measured" (Ahrefs), "fixture" (demo data, labelled), or "unverified" — never invented
+//   - DR is "measured" (Ahrefs) or "fixture" (labelled). With no provider connected there is no
+//     DR at all: the check is not shown, the floor is not claimed, and no number is invented.
 //   - a score computed without authority data is stored as score_basis = "relevance_only"
 import { supabaseAdmin } from "@/lib/db/supabase";
 import { webSearch, searchProvider } from "@/lib/search/webSearch";
@@ -81,8 +82,14 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
   const errors: string[] = [];
   // A demo searches for real, on the platform's Tavily credits: fewer queries, and a daily cap.
   const maxQueries = camp.demo_mode ? Number(process.env.DEMO_SEARCH_QUERIES ?? 3) : 6;
+  // A run without email loads its whole pool at once, so poolTarget never bounds it and three
+  // queries of eight results meant twenty-one Super judgements before a single email was written.
+  // Someone trying this out should reach a negotiation in a couple of minutes, so the pool is
+  // capped here. Real campaigns keep the full breadth.
+  const poolCap = camp.demo_mode ? Math.max(4, Number(process.env.DEMO_POOL_CAP ?? 10)) : Infinity;
   if (camp.demo_mode && queries.length) await assertTavilyBudget(queries.slice(0, maxQueries).length);
   for (const query of queries.slice(0, maxQueries)) {
+    if (res.created >= poolCap) break;
     const t0 = Date.now();
     // Platforms are excluded at the API (youtube, reddit, stores...) and anything Tavily scores
     // below 0.3 is dropped: both save a Super call that would only have ended in a rejection.
@@ -120,6 +127,7 @@ export async function discoverBatch(camp: Campaign, queries: string[], maxPerQue
     }
     let createdForQuery = 0;
     for (let i = 0; i < hits.length; i++) {
+      if (res.created >= poolCap) break;
       const host = hostOf(hits[i].url);
       if (!host || !host.includes(".")) continue;
       if (known.has(host)) { res.duplicates++; continue; }
@@ -222,9 +230,11 @@ export async function evaluateProspect(prospectId: string): Promise<EvaluateResu
     }
   }
 
-  // 2) Authority: measured, fixture, or unverified — the source travels with the number.
+  // 2) Authority: measured or fixture, and the source travels with the number. The free Ahrefs
+  // endpoint began returning 403 without a key, so with no key this stays null and the
+  // qualification simply does not include an authority check.
   let dr: number | null = null;
-  let drSource = "unverified";
+  let drSource = "not measured";
   if (fixture) { dr = fixture.dr; drSource = "fixture"; }
   else if (process.env.AHREFS_API_KEY) {
     const r = await fetchDomainRating(p.domain_host).catch(() => null);
@@ -268,18 +278,21 @@ Return: publisher_makes_the_product (bool), page_type, relevance_0_100 (int), wh
   const breakdown: ScoreBreakdown = {
     authority: { value: dr, source: drSource },
     relevance: { value: relevance, source: "model", model: r.meta.model },
-    traffic: { value: null, source: "unverified" },
+    traffic: { value: null, source: "not measured" },
     spam_risk: { level: v.spam_risk, source: "model" },
     fair_value_range: ceiling != null ? [Math.round(ceiling * 0.6), ceiling] : null,
   };
+  // A check that cannot be run is left out rather than shown as "unverified": a row of pass marks
+  // next to one permanent shrug reads as a broken feature, and it is not one — the three checks
+  // below are each a real measurement taken from the page.
   const checks = [
-    { label: `DR ≥ ${camp.min_dr}`, state: (drPass == null ? "unverified" : drPass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
+    ...(dr != null ? [{ label: `DR ≥ ${camp.min_dr}`, state: (drPass ? "pass" : "fail") as "pass" | "fail" | "unverified" }] : []),
     { label: "Topical fit", state: (relevancePass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
     { label: "Editorial (not a link farm)", state: (editorialPass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
     { label: "Third-party publication", state: (placeablePass ? "pass" : "fail") as "pass" | "fail" | "unverified" },
   ];
   const reason = qualified
-    ? `${v.why_fit}${dr == null ? " (authority unverified — relevance only)" : ""}`
+    ? v.why_fit
     : drPass === false ? `DR ${dr}, below your floor of ${camp.min_dr}` : !relevancePass ? `relevance ${relevance}/100 — ${v.why_fit}` : !placeablePass ? `${v.publisher_makes_the_product ? "the publisher makes the product on this page" : v.page_type.replace(/_/g, " ")}, not a publication that could feature us — ${v.why_fit}` : `${v.spam_risk}-risk / non-editorial — ${v.why_fit}`;
 
   await updateProspect(prospectId, {
@@ -288,7 +301,7 @@ Return: publisher_makes_the_product (bool), page_type, relevance_0_100 (int), wh
   });
   if (qualified) await ensureProspectAuthor({ ...p, qualification: { checks, article_author: meta.author ?? null } }).catch(() => {});
 
-  const drText = dr == null ? "DR unverified" : `DR ${dr}${drSource === "fixture" ? " (fixture)" : ""}`;
+  const drText = dr == null ? "judged by reading the page" : `DR ${dr}${drSource === "fixture" ? " (fixture)" : ""}`;
   await recordEvent({
     campaign_id: camp.id, agent: "qualification", action: qualified ? "prospect_qualified" : "prospect_rejected", engine: "model", llm: r.meta, prospect_id: prospectId,
     human: qualified ? `Qualified ${p.domain_host} — relevance ${relevance}/100, ${drText}. ${v.why_fit}` : `Rejected ${p.domain_host} — ${reason}`,
@@ -426,14 +439,26 @@ export async function qualifyBatch(camp: Campaign, limit: number): Promise<{ eva
   const out = { evaluated: 0, qualified: 0, errors: [] as string[] };
   const { count: total } = await supabaseAdmin.from("campaign_prospects").select("id", { count: "exact", head: true }).eq("campaign_id", camp.id);
   const done = (total ?? 0) - pending.length;
-  for (const [i, p] of pending.entries()) {
-    await setActivity(camp.id, { agent: "qualification", doing: "reading", target: p.domain_host, n: done + i + 1, of: total ?? undefined, model: "Nemotron 3 Super" });
-    try { const r = await evaluateProspect(p.id); out.evaluated++; if (r.qualified) out.qualified++; }
-    catch (e: any) {
+  // Each judgement is an independent page fetch plus one Super call, so they are read a few at a
+  // time rather than one after another. Three keeps well inside Nebius concurrency while turning
+  // a batch that took four model round-trips into two. A key, budget or configuration failure
+  // still stops the whole batch - it would only repeat on every remaining publication - but it is
+  // raised after the group settles, so the ones that did succeed are still counted.
+  const CONCURRENCY = 3;
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const group = pending.slice(i, i + CONCURRENCY);
+    const label = group.length === 1 ? group[0].domain_host : `${group[0].domain_host} +${group.length - 1} more`;
+    await setActivity(camp.id, { agent: "qualification", doing: "reading", target: label, n: done + i + group.length, of: total ?? undefined, model: "Nemotron 3 Super" });
+    const settled = await Promise.allSettled(group.map((p) => evaluateProspect(p.id)));
+    let fatal: any = null;
+    for (const [j, s] of settled.entries()) {
+      if (s.status === "fulfilled") { out.evaluated++; if (s.value.qualified) out.qualified++; continue; }
+      const e: any = s.reason;
       out.errors.push(e?.message ?? String(e));
-      await recordEvent({ campaign_id: camp.id, agent: "qualification", action: "qualification_error", engine: "system", level: "error", prospect_id: p.id, human: `Could not evaluate ${p.domain_host}: ${e?.message ?? e}`, detail: { kind: e instanceof NebiusError ? e.kind : "unknown" } });
-      if (e instanceof NebiusError && (e.kind === "auth" || e.kind === "not_configured" || e.kind === "budget")) throw e;
+      await recordEvent({ campaign_id: camp.id, agent: "qualification", action: "qualification_error", engine: "system", level: "error", prospect_id: group[j].id, human: `Could not evaluate ${group[j].domain_host}: ${e?.message ?? e}`, detail: { kind: e instanceof NebiusError ? e.kind : "unknown" } });
+      if (e instanceof NebiusError && (e.kind === "auth" || e.kind === "not_configured" || e.kind === "budget")) fatal = e;
     }
+    if (fatal) throw fatal;
   }
   return out;
 }

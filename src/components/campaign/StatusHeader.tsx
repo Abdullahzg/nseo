@@ -43,7 +43,7 @@ export function activityLine(s: CampaignState, stepping: boolean): string {
   if (c.phase === "completed") return `${last}Finished.`;
   if (c.phase === "stopped") return `${last}Stopped.`;
   if (c.paused) return `${last}Paused.`;
-  if (c.phase === "monitoring") return `${last}${c.demo_mode ? "Waiting for editors to reply; the demo's editors answer on the next step." : "Waiting for editors to reply. The inbox is checked every 5 minutes."}`;
+  if (c.phase === "monitoring") return `${last}${c.demo_mode ? "Waiting for editors to reply; they answer on the next step." : "Waiting for editors to reply. The inbox is checked every 5 minutes."}`;
   return `${last}${c.demo_mode ? "Next step in a few seconds." : "Next step when the scheduler runs (every 5 minutes)."}`;
 }
 
@@ -59,7 +59,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         <span className="font-medium text-ink-2">{c.name}</span>
         <span>·</span>
         <span>{c.keywords.join(" · ")}</span>
-        {c.demo_mode && <span className="chip">Demo · real pipeline, no email sent</span>}
+        {c.demo_mode && <span className="chip">Running live · real models and search, no email sent</span>}
         {s.is_active && !c.paused && <span className="inline-flex items-center gap-1.5"><span className="live-dot" />live</span>}
       </div>
 
@@ -80,7 +80,7 @@ export function StatusHeader({ s, busy, onControl, onStep, stepping, autoStep, s
         <div className={`card p-4 text-sm ${c.paused_kind === "nebius" ? "border-danger-soft bg-danger-soft/40" : "border-attention-soft bg-attention-soft/40"}`}>
           <div className="font-semibold">{c.paused_kind === "nebius" ? "Nebius Token Factory is unreachable" : c.paused_kind === "budget" ? "Daily model budget reached" : "Step limit reached"}</div>
           <div className="text-ink-2 mt-0.5">{c.paused_reason}</div>
-          <div className="text-ink-3 mt-1 text-xs">{c.paused_kind === "nebius" ? "Check NEBIUS_API_KEY and the model list at /api/health?deep=1, then resume." : c.paused_kind === "budget" ? "It resumes automatically tomorrow, or raise NEBIUS_DAILY_TOKEN_BUDGET." : "Demo campaigns stop after 60 steps. Start a new one from Setup."}</div>
+          <div className="text-ink-3 mt-1 text-xs">{c.paused_kind === "nebius" ? "Check NEBIUS_API_KEY and the model list at /api/health?deep=1, then resume." : c.paused_kind === "budget" ? "It resumes automatically tomorrow, or raise NEBIUS_DAILY_TOKEN_BUDGET." : "A run without email stops after 60 steps. Start a new one from Setup."}</div>
         </div>
       )}
 

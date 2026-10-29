@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { StatusHeader, type CampaignState } from "@/components/campaign/StatusHeader";
 import { ActivityFeed, type FeedEvent } from "@/components/campaign/ActivityFeed";
 import { EditorInbox } from "@/components/campaign/EditorInbox";
@@ -15,7 +16,10 @@ import { Safety } from "@/components/campaign/Safety";
 import { Moments } from "@/components/campaign/Moments";
 
 const STATE_POLL_MS = 15_000;
-const AUTO_STEP_MS = 12_000;
+// The server refuses a browser step within 10 s of the previous one. Auto-run waits out whatever
+// is left of that window after a step finishes, then goes straight on.
+const MIN_STEP_SPACING_MS = 10_500;
+const STEP_GAP_MS = 1_500;
 
 export default function CampaignPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -30,6 +34,11 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   const [autoStep, setAutoStep] = useState(true);
   const [stepError, setStepError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Every thread is either done or waiting on the owner. The campaign is not broken and not
+  // finished — there is simply nothing it may decide alone — so auto-run stops and says so
+  // rather than ticking a no-op every ten seconds while the screen appears to be working.
+  const [stalled, setStalled] = useState(false);
+  const noops = useRef(0);
   const [tab, setTab] = useState<"activity" | "publications" | "conversations" | "tools" | "safety" | "story">(() => { try { const t = new URLSearchParams(window.location.search).get("tab"); return (["activity", "publications", "conversations", "tools", "safety", "story"].includes(t ?? "") ? t : "activity") as any; } catch { return "activity"; } });
   const [refreshKey, setRefreshKey] = useState(0);
   const newest = useRef(0);
@@ -73,6 +82,8 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       const d = await r.json();
       if (!r.ok) setStepError(d.error ?? "The step failed. The feed has the details.");
       else if (d.action === "rate_limited" || d.action === "locked") { setNote("A step just ran. The next one starts in a few seconds."); setTimeout(() => setNote(null), 4000); }
+      else if (d.action === "noop") { noops.current += 1; if (noops.current >= 2) { setStalled(true); setAutoStep(false); } }
+      else { noops.current = 0; setStalled(false); }
     } catch (e: any) { setStepError(e?.message ?? "Network error"); }
     finally { steppingRef.current = false; setStepping(false); await loadState(); await loadFeed("new"); setRefreshKey((k) => k + 1); }
   }, [id, loadState, loadFeed]);
@@ -87,14 +98,29 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
     return () => clearInterval(t);
   }, [stepping, loadState]);
 
-  // Demo auto-run: only while visible, only while active, only in demo mode. The interval is
-  // stable (its deps change only when the campaign's activity flips), so 20 s is really 20 s.
+  // Auto-run: only while visible, only while active, only when no email is being sent. Each step
+  // is scheduled from the END of the one before it rather than on a fixed interval. A fixed
+  // interval was the wrong shape here: steps take 11-30 s, step() refuses to start while one is
+  // already running, so every tick that landed mid-step was dropped and the real cadence doubled
+  // to 24 s - and when a step finished early the page then sat idle waiting for the next tick.
   const active = !!state?.campaign.demo_mode && !!state.is_active && !state.campaign.paused;
   useEffect(() => {
     if (!autoStep || !active) return;
-    const kick = setTimeout(() => { if (document.visibilityState === "visible") step(); }, 800);
-    const t = setInterval(() => { if (document.visibilityState === "visible") step(); }, AUTO_STEP_MS);
-    return () => { clearInterval(t); clearTimeout(kick); };
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const runAfter = (delay: number) => {
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        // A hidden tab is not watching; check back rather than burning a step it will not see.
+        if (document.visibilityState !== "visible") return runAfter(2_000);
+        const started = Date.now();
+        await step();
+        if (cancelled) return;
+        runAfter(Math.max(STEP_GAP_MS, MIN_STEP_SPACING_MS - (Date.now() - started)));
+      }, delay);
+    };
+    runAfter(800);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [autoStep, active, step]);
 
   async function control(action: "pause" | "resume" | "stop") {
@@ -121,6 +147,26 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
       <Tour />
       <Moments state={state} events={events} />
       {stepError && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Step failed.</span> {stepError}</div>}
+      {stalled && (
+        <div className="card border-attention-soft bg-attention-soft/40 p-4 text-sm fade-in">
+          {state.open_interventions > 0 ? (
+            <>
+              <span className="font-semibold">It&apos;s your turn.</span>{" "}
+              Every open thread is waiting on a decision only you can make, so the agent has stopped rather than
+              keep asking itself the same question.{" "}
+              <Link href="/needs-you" className="text-model underline font-medium">
+                Answer {state.open_interventions} {state.open_interventions === 1 ? "question" : "questions"} →
+              </Link>{" "}
+              and it picks up where it left off.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">Nothing left to do on its own.</span>{" "}
+              Every editor who was going to answer has answered. Use <b>Run next step</b> to check once more, or stop the campaign.
+            </>
+          )}
+        </div>
+      )}
       {note && <div className="text-sm text-ink-3 fade-in">{note}</div>}
 
       <div data-tour="agents"><Pipeline s={state} /></div>

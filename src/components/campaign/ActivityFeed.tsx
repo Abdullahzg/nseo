@@ -16,7 +16,7 @@ import { motion, Expand } from "@/components/ui/motion";
 function EngineChip({ e }: { e: FeedEvent }) {
   if (e.engine === "model") return <span className="chip chip-model">{modelShort(e.model) || "Nemotron"}</span>;
   if (e.engine === "policy") return <span className="chip">policy rule</span>;
-  if (e.engine === "fixture") return <span className="chip">demo data</span>;
+  if (e.engine === "fixture") return <span className="chip">built-in list</span>;
   return null;
 }
 

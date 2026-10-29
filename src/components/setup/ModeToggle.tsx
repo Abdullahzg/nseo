@@ -8,10 +8,10 @@ export function ModeToggle({ demo, onChange, realAllowed, me }: { demo: boolean;
     <>
     <div className="card p-1.5 inline-flex gap-1" role="radiogroup" aria-label="Mode">
       <button type="button" role="radio" aria-checked={demo} onClick={() => onChange(true)} className={`rounded-lg px-4 h-10 text-sm font-medium transition-colors ${demo ? "bg-ink text-paper" : "text-ink-2 hover:bg-paper-2"}`}>
-        Demo <span className="opacity-70 font-normal hidden sm:inline">· real pipeline, no email sent</span>
+        Live run <span className="opacity-70 font-normal hidden sm:inline">· real models and search, no email sent</span>
       </button>
       <button type="button" role="radio" aria-checked={!demo} disabled={!realAllowed} title={reason ?? undefined} onClick={() => realAllowed && onChange(false)} className={`rounded-lg px-4 h-10 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${!demo ? "bg-ink text-paper" : "text-ink-2 hover:bg-paper-2"}`}>
-        Real <span className="opacity-70 font-normal hidden sm:inline">· sends actual email</span>
+        Send real email <span className="opacity-70 font-normal hidden sm:inline">· writes to actual editors from your Gmail</span>
       </button>
     </div>
     {reason && <div className="text-xs text-ink-3 mt-2">{reason}</div>}

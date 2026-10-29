@@ -18,7 +18,7 @@ function CampaignCard({ c, active, phase }: { c: any; active: boolean; phase: st
         <span className={`chip ${c.phase === "completed" ? "chip-accent" : ""}`}>{phase}</span>
       </div>
       <div className="text-sm text-ink-2 mt-1 truncate">{(c.keywords as string[]).join(" · ")}</div>
-      <div className="text-xs text-ink-3 mt-3 mono">{money(c.budget_used)} of {money(c.budget_total)} · goal {c.desired_deals}{c.demo_mode ? " · demo" : ""}</div>
+      <div className="text-xs text-ink-3 mt-3 mono">{money(c.budget_used)} of {money(c.budget_total)} · goal {c.desired_deals}{c.demo_mode ? " · no email sent" : ""}</div>
     </Link>
   );
 }

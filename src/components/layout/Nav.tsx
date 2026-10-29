@@ -64,7 +64,7 @@ export function Nav() {
           {me?.kind === "owner" && <Link href="/settings" className={`flex-1 sm:flex-none justify-center rounded-lg px-2 sm:px-3 h-9 inline-flex items-center text-[13px] sm:text-sm font-medium whitespace-nowrap sm:ml-auto ${path === "/settings" ? "bg-ink text-paper" : "text-ink-2 hover:bg-paper-2"}`}>Settings</Link>}
         </nav>
         <div className="hidden sm:flex items-center gap-2 text-xs text-ink-3">
-          {me?.kind === "guest" && <span className="chip">Guest · demo only</span>}
+          {me?.kind === "guest" && <span className="chip">Guest · no email sending</span>}
           {me?.kind === "guest" && me.google_configured && <a href="/api/auth/signin" className="text-ink-2 hover:text-ink">Sign in</a>}
         </div>
       </div>

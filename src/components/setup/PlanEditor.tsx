@@ -20,7 +20,7 @@ function Num({ k, label, min, max, step = 1, hint, value, onChange }: { k: NumKe
   );
 }
 
-export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: CampaignPlan; onChange: (p: CampaignPlan) => void; demo: boolean; maxPerDeal: number }) {
+export function PlanEditor({ plan, onChange, demo, maxPerDeal, hasAuthority }: { plan: CampaignPlan; onChange: (p: CampaignPlan) => void; demo: boolean; maxPerDeal: number; hasAuthority: boolean }) {
   const [newQ, setNewQ] = useState("");
   const p = { ...PLAN_DEFAULTS, ...plan };
   const set = (patch: Partial<CampaignPlan>) => onChange({ ...plan, ...patch });
@@ -35,7 +35,7 @@ export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: Campaig
       </div>
 
       <div>
-        <div className="label">Search angles <span className="font-normal normal-case text-ink-3">— what the Scout searches for{demo ? " (the demo runs 3 of them)" : ""}</span></div>
+        <div className="label">Search angles <span className="font-normal normal-case text-ink-3">— what the Scout searches for{demo ? " (this run does 3 of them)" : ""}</span></div>
         <div className="mt-1.5 flex flex-wrap gap-2">
           {queries.map((q) => <button type="button" key={q} onClick={() => set({ queries: queries.filter((x) => x !== q) })} className="chip hover:bg-danger-soft hover:text-danger" title="Remove">{q} ×</button>)}
           {queries.length < 10 && <input className="field !h-8 !w-64 !text-sm" value={newQ} onChange={(e) => setNewQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQ(); } }} onBlur={addQ} placeholder="add a search, press Enter" />}
@@ -44,8 +44,13 @@ export function PlanEditor({ plan, onChange, demo, maxPerDeal }: { plan: Campaig
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Num k="pool_target" label="Publications to look at" min={3} max={60} hint={demo ? "the demo takes what 3 searches return" : "before judging starts"} value={p.pool_target} onChange={setNum} />
-        <Num k="min_dr" label="Authority floor (DR)" min={0} max={90} hint="only applied when DR can be measured" value={p.min_dr} onChange={setNum} />
+        <Num k="pool_target" label="Publications to look at" min={3} max={60} hint={demo ? "this run reads up to 10" : "before judging starts"} value={p.pool_target} onChange={setNum} />
+        {hasAuthority
+          ? <Num k="min_dr" label="Authority floor (DR)" min={0} max={90} hint="publications under this DR are rejected by rule" value={p.min_dr} onChange={setNum} />
+          : <label className="block"><span className="label">Authority</span>
+              <div className="field mt-1.5 !h-9 flex items-center text-ink-2">judged from the page</div>
+              <span className="block text-xs text-ink-3 mt-1">no DR provider connected</span>
+            </label>}
         <label className="block"><span className="label">Tone</span>
           <select className="field mt-1.5 !h-9" value={p.tone} onChange={(e) => set({ tone: e.target.value as CampaignPlan["tone"] })}><option value="gentle">gentle</option><option value="balanced">balanced</option><option value="firm">firm</option></select>
           <span className="text-xs text-ink-3">how hard the Negotiator pushes</span>

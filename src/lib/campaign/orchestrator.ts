@@ -176,7 +176,8 @@ async function tickInner(camp0: Campaign, opts: { via?: string }, t0: number): P
         details.discovery = await discoverBatch(camp, queries, 8);
         break;
       }
-      case "qualify": details.qualify = await qualifyBatch(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 6000)))); break;
+      // Three read at once, so the per-publication time allowance is a third of what it was.
+      case "qualify": details.qualify = await qualifyBatch(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 2500)))); break;
       case "resolve_contacts": details.contacts = await contactBatch(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 8000)))); break;
       case "send_outreach": details.outreach = await outreachBatch(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 5000)))); break;
       case "handle_replies": details.replies = await processReplies(camp, Math.max(1, Math.min(chosen.size, Math.floor(remaining() / 12000)))); break;

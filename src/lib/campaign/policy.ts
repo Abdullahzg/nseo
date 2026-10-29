@@ -44,10 +44,10 @@ export function availableActions(i: PolicyInput): AvailableAction[] {
       // Demo fixtures load in one go; real campaigns keep searching until the pool target is met.
       // One-go campaigns load once: if everything loaded was rejected, that is "nothing qualified", not a reason to load again.
       if (loadsInOneGo(i) ? pool + c("rejected") === 0 : pool < poolTarget(camp)) out.push({ key: "run_discovery", description: camp.demo_mode ? (i.canSearch === false ? "Load the demo publications." : "Search the web for publications.") : i.canSearch === false ? "Load the publications the owner listed." : `Search for new publications (have ${pool}, want ~${poolTarget(camp)}).`, size: 1 });
-      if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
+      if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(6, c("discovered")) });
       break;
     case "qualifying":
-      if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(4, c("discovered")) });
+      if (c("discovered") > 0) out.push({ key: "qualify", description: `Evaluate ${c("discovered")} discovered publications for fit and authority.`, size: Math.min(6, c("discovered")) });
       if (i.actionableQualified > 0) out.push({ key: "resolve_contacts", description: `Find an editor's email at ${i.actionableQualified} qualified publications.`, size: Math.min(4, i.actionableQualified) });
       break;
     case "resolving_contacts":

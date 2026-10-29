@@ -13,12 +13,12 @@ const DEMO_DEFAULTS = {
   website_url: "https://restoria.app",
   what_you_sell: "an AI photo restoration tool that repairs old and damaged photos",
   keywords: ["AI photo editor", "photo restoration", "restore old photos"],
-  desired_deals: 3,
+  desired_deals: 2,
   budget_total: 800,
   max_per_deal: 250,
 };
 
-interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean; missing?: string[]; has_search?: boolean }
+interface Me { kind: "owner" | "guest" | "none"; can_send_real?: boolean; missing?: string[]; has_search?: boolean; has_authority?: boolean }
 interface Seed { url: string; email: string }
 
 export function SetupForm() {
@@ -45,7 +45,7 @@ export function SetupForm() {
     if (!from) return;
     fetch(`/api/campaigns/${from}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((d) => {
       const c = d?.campaign; if (!c) return;
-      setF({ website_url: c.website_url ?? "", what_you_sell: c.what_you_sell ?? "", keywords: c.keywords ?? [], desired_deals: c.desired_deals ?? 3, budget_total: Number(c.budget_total ?? 800), max_per_deal: Number(c.max_per_deal ?? 250) });
+      setF({ website_url: c.website_url ?? "", what_you_sell: c.what_you_sell ?? "", keywords: c.keywords ?? [], desired_deals: c.desired_deals ?? 2, budget_total: Number(c.budget_total ?? 800), max_per_deal: Number(c.max_per_deal ?? 250) });
       setDemo(!!c.demo_mode); setSeeds((c.seed_contacts ?? []).map((s: any) => ({ url: s.url ?? "", email: s.email ?? "" }))); setSearchWeb(c.search_web !== false);
       setPlanSettings(c.plan ?? {}); setPlan(null);
       setNote(`Prefilled from “${c.name}”. Press See the plan, then Launch.`);
@@ -157,8 +157,8 @@ export function SetupForm() {
         )}
 
         {note && <div className="text-sm text-ink-2 fade-in">{note}</div>}
-        {plan && <PlanEditor plan={planSettings} onChange={setPlanSettings} demo={demo} maxPerDeal={f.max_per_deal} />}
-        {plan && <Journey plan={planSettings} demo={demo} goal={f.desired_deals} budget={f.budget_total} maxPerDeal={f.max_per_deal} seedCount={demo ? 0 : seeds.filter((s) => s.url.trim()).length} searchWeb={demo || (searchWeb && !!me?.has_search)} />}
+        {plan && <PlanEditor plan={planSettings} onChange={setPlanSettings} demo={demo} maxPerDeal={f.max_per_deal} hasAuthority={!!me?.has_authority} />}
+        {plan && <Journey plan={planSettings} demo={demo} goal={f.desired_deals} budget={f.budget_total} maxPerDeal={f.max_per_deal} seedCount={demo ? 0 : seeds.filter((s) => s.url.trim()).length} searchWeb={demo || (searchWeb && !!me?.has_search)} hasAuthority={!!me?.has_authority} />}
 
         {error && <div className="card border-danger-soft bg-danger-soft/40 p-4 text-sm"><span className="font-semibold text-danger">Could not continue.</span> {error}</div>}
 
@@ -167,7 +167,7 @@ export function SetupForm() {
             <button type="submit" className="btn" disabled={previewing || f.keywords.length < 3}>{previewing ? "Asking the agent for its plan…" : "See the plan"}</button>
           ) : (
             <>
-              <button type="submit" className="btn" disabled={launching}>{launching ? "Launching…" : demo ? "Launch demo" : "Launch — sends real email"}</button>
+              <button type="submit" className="btn" disabled={launching}>{launching ? "Launching…" : demo ? "Launch the run" : "Launch — sends real email"}</button>
               <button type="button" className="btn btn-ghost" onClick={() => preview()} disabled={previewing}>{previewing ? "Re-planning…" : "Re-plan"}</button>
             </>
           )}
