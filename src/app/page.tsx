@@ -69,8 +69,28 @@ export default async function Home() {
       </header>
 
       <main className="flex-1">
+        {/* The demo, first and as large as the page allows: a judge with five minutes should be
+            able to watch the thing run before reading a word about it. nocookie, and lazy so it
+            costs nothing until it is played. */}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 sm:pt-10">
+          <div className="relative w-full aspect-video overflow-hidden rounded-xl border border-rule bg-ink shadow-[0_24px_60px_rgba(40,34,20,0.18)]">
+            <iframe
+              className="absolute inset-0 h-full w-full"
+              src="https://www.youtube-nocookie.com/embed/BWCfg32LJHE?rel=0&modestbranding=1"
+              title="Nseo — autonomous SEO backlink outreach, running"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+          <p className="text-center text-sm text-ink-3 mt-3">
+            Two and a half minutes, start to finish — a real campaign, nothing scripted.
+          </p>
+        </div>
+
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <section className="pt-14 pb-12 sm:pt-20">
+          <section className="pt-12 pb-12 sm:pt-14">
             <div className="label text-[#4f7d00]">Autonomous SEO outreach</div>
             <h1 className="serif text-4xl sm:text-6xl font-semibold tracking-tight mt-3 text-balance max-w-[17ch] leading-[1.05]">
               Earn the backlinks that move your ranking.
