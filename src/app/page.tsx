@@ -85,7 +85,7 @@ export default async function Home() {
             />
           </div>
           <p className="text-center text-sm text-ink-3 mt-3">
-            Two and a half minutes, start to finish — a real campaign, nothing scripted.
+            A real campaign, start to finish. Nothing scripted.
           </p>
         </div>
 
