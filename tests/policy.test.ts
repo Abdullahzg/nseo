@@ -19,9 +19,11 @@ describe("availableActions", () => {
     const a = availableActions(input({ counts: { qualified: poolTarget(camp()) } }, { phase: "discovering" }));
     expect(a).toEqual([]);
   });
-  it("qualifying offers qualify (bounded to 4) and contacts when both exist", () => {
+  it("qualifying offers qualify (bounded to 6) and contacts when both exist", () => {
+    // Six, not four: the Judge reads three publications at a time, so a batch costs two model
+    // round-trips rather than six. Raised with that change; see qualifyBatch.
     const a = availableActions(input({ counts: { discovered: 9 }, actionableQualified: 2 }, { phase: "qualifying" }));
-    expect(a.map((x) => [x.key, x.size])).toEqual([["qualify", 4], ["resolve_contacts", 2]]);
+    expect(a.map((x) => [x.key, x.size])).toEqual([["qualify", 6], ["resolve_contacts", 2]]);
   });
   it("monitoring in real mode offers nothing while emails are simply waiting for replies (no idle model calls)", () => {
     expect(availableActions(input({}, { phase: "monitoring", demo_mode: false }))).toEqual([]);

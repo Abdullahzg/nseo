@@ -8,7 +8,24 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 
 const URL = process.env.DATABASE_URL;
-const d = describe.skipIf(!URL);
+
+// A DATABASE_URL that points at nothing is the normal case: CI has no Postgres, and a developer
+// who has not started the local Supabase still has the variable sitting in .env.local. Probe once
+// and skip the suite when the database is not actually there, so an absent database reads as
+// "integration tests skipped" rather than a failing build.
+let reachable = false;
+if (URL) {
+  try {
+    const probe = new pg.Client({ connectionString: URL, connectionTimeoutMillis: 2000 });
+    await probe.connect();
+    await probe.end();
+    reachable = true;
+  } catch {
+    reachable = false;
+  }
+}
+
+const d = describe.skipIf(!reachable);
 
 d("database walls", () => {
   let c: pg.Client;
