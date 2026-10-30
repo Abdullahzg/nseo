@@ -47,7 +47,7 @@ export function InterventionCard({ iv, onDone }: { iv: Intervention; onDone: (id
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
         <span className="chip chip-attention">{INTERVENTION_LABEL[iv.type] ?? iv.type}</span>
         <Link href={`/campaigns/${iv.campaign_id}`} className="hover:text-ink">{iv.campaign.name}</Link>
-        {iv.campaign.demo_mode && <span>· demo</span>}
+        {iv.campaign.demo_mode && <span>· no email sent</span>}
         <span className="ml-auto mono">{ago(iv.created_at)}</span>
       </div>
       {iv.editor_quote && (

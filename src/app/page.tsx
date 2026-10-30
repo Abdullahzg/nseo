@@ -71,14 +71,15 @@ export default async function Home() {
       <main className="flex-1">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <section className="pt-14 pb-12 sm:pt-20">
-            <div className="label text-[#4f7d00]">Autonomous placement outreach</div>
-            <h1 className="serif text-4xl sm:text-6xl font-semibold tracking-tight mt-3 text-balance max-w-[16ch] leading-[1.05]">
-              Get your product written about, without doing the outreach.
+            <div className="label text-[#4f7d00]">Autonomous SEO outreach</div>
+            <h1 className="serif text-4xl sm:text-6xl font-semibold tracking-tight mt-3 text-balance max-w-[17ch] leading-[1.05]">
+              Earn the backlinks that move your ranking.
             </h1>
             <p className="text-ink-2 mt-5 max-w-[62ch] text-[17px] leading-relaxed">
-              Tell it what you sell and what you can spend. It finds publications that already write about your
-              subject, reads each one, finds a human editor, writes to them, negotiates a price inside your
-              ceiling, and comes back only when it genuinely needs you.
+              Ranking on Google comes down to who links to you. Tell this agent what you sell and what you can
+              spend: it finds publications that already write about your subject, reads each one, finds a human
+              editor, writes to them, negotiates a price inside your ceiling — and earns the link the way
+              Google&apos;s own rules allow, instead of buying it.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link href="/setup" className="btn">Run it live — no sign-up</Link>

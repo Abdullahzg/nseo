@@ -41,7 +41,7 @@ export function RunningPill() {
                     <span className="text-sm font-medium truncate">{c.name}</span>
                     {c.id === here?.id && <span className="ml-auto text-[11px] text-ink-3">this one</span>}
                   </div>
-                  <div className="text-xs text-ink-3 mt-0.5 truncate">{c.paused ? "paused" : PHASE[c.phase] ?? c.phase}{c.demo_mode ? " · demo" : ""} · ${c.budget_used} of ${c.budget_total} · goal {c.desired_deals}</div>
+                  <div className="text-xs text-ink-3 mt-0.5 truncate">{c.paused ? "paused" : PHASE[c.phase] ?? c.phase}{c.demo_mode ? " · no email sent" : ""} · ${c.budget_used} of ${c.budget_total} · goal {c.desired_deals}</div>
                 </Link>
               </li>
             ))}
@@ -52,7 +52,7 @@ export function RunningPill() {
         <span className={`orb !w-7 !h-7 shrink-0 ${running.every((c) => c.paused) ? "orb-idle" : ""}`} aria-hidden="true" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium truncate">{running.length === 1 ? running[0].name : `${running.length} campaigns running`}</span>
-          <span className="block text-xs text-ink-3 truncate">{running.length === 1 ? `${PHASE[running[0].phase] ?? running[0].phase}${running[0].demo_mode ? " · demo" : ""}` : running.map((c) => c.name).join(" · ")}</span>
+          <span className="block text-xs text-ink-3 truncate">{running.length === 1 ? `${PHASE[running[0].phase] ?? running[0].phase}${running[0].demo_mode ? " · no email sent" : ""}` : running.map((c) => c.name).join(" · ")}</span>
         </span>
         <span aria-hidden="true" className={`text-ink-3 text-xs transition-transform ${open ? "rotate-90" : "-rotate-90"}`}>▸</span>
       </button>
