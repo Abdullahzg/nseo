@@ -3,7 +3,6 @@ import { scrapePageSignals, type PageSignals } from "./pageSignals";
 import { findLinkedinUrl } from "./findLinkedin";
 import { linkedinToEmail, blitzEnabled } from "./blitz";
 import { resolveDomainPattern, type DomainPattern } from "./patternInfer";
-import { aiScrapeEmail, aiScrapeEnabled } from "./aiScrape";
 import { isRoleEmail, isPlaceholderEmail } from "./personFilter";
 import {
   findEmailHunter, domainSearchHunter, pickFromDomainSearch, hunterEnabled,
@@ -39,8 +38,7 @@ function hostOf(url: string): string {
 //  3. LinkedIn → Blitz → email   ← the unlock (Blitz is unlimited)
 //  4. scrape their socials/personal site for an email
 //  5. domain email-pattern (from emails we already have)
-//  6. AI-scan the site with your Claude key
-//  7. Hunter domain-search — needs NO name, so it catches the prospects email-finder cannot
+//  6. Hunter domain-search — needs NO name, so it catches the prospects email-finder cannot
 export async function resolveEmailCascade(
   t: CascadeTarget,
   ctx: {
@@ -161,13 +159,6 @@ export async function resolveEmailCascade(
     const email = (await linkedinToEmail(linkedin, (m) => { blitzFailed = true; onFail("Blitz")(m); }).catch(() => null))?.toLowerCase();
     if (email && !isRoleEmail(email)) { onStep(`Blitz returned an email`); return { email, source: "blitz-linkedin", score: 90 }; }
     if (!blitzFailed) onStep(email ? `Blitz email was generic — skipping` : `Blitz had no email for that profile`);
-  }
-
-  // 5) AI-scan the site for an email ACTUALLY on the page (not constructed) — your Claude key.
-  if (aiScrapeEnabled()) {
-    onStep(`AI-scanning ${t.host} for a contact email…`);
-    const email = await aiScrapeEmail(t.name, t.host, onFail("AI-scan")).catch(() => null);
-    if (email) { onStep(`AI found an email`); return { email, source: "ai-scrape", score: 75 }; }
   }
 
 

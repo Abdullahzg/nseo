@@ -2,7 +2,6 @@ import { emailCandidates } from "./patterns";
 import { verifyEmail } from "./verify";
 import { findEmailHunter, hunterEnabled } from "./hunter";
 import { BlitzDomainCache, matchPerson, linkedinToEmail, blitzEnabled } from "./blitz";
-import { aiScrapeEmail, aiScrapeEnabled } from "./aiScrape";
 
 export interface ResolveResult {
   email: string;
@@ -52,14 +51,6 @@ export async function resolveEmail(
       const email = await linkedinToEmail(match.linkedin_url);
       if (email) return { email, source: "blitz" };
     }
-  }
-
-  // Last resort: AI-scrape the publication site for the author's email, using your own
-  // Claude access (OpenRouter) — no third-party scraping credits.
-  if (aiScrapeEnabled()) {
-    const cleanHost = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const email = await aiScrapeEmail(name, `https://${cleanHost}`);
-    if (email) return { email, source: "ai-scrape" };
   }
 
   return null;
